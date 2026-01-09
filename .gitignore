@@ -1,0 +1,24 @@
+# 忽略视频文件
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+*.webm
+*.m4v
+*.3gp
+*.gif
+# 忽略图片文件.
+*.jpeg
+*.jpg
+*.png
+# 忽略文本文件
+*.txt
+
+# 忽略 Python 编译文件
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.py[cod]
