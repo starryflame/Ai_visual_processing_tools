@@ -392,7 +392,6 @@ class VideoLabelManager(QMainWindow):
             self.media_files = list(self.media_files)
             self.media_files_full_path = list(self.media_files_full_path)
         
-        # 添加到列表 (显示文件名和相关信息)
         for i, media_file in enumerate(self.media_files):
             display_name = os.path.splitext(media_file)[0]  # 去掉扩展名
             # 添加所在目录信息 (如果不是根目录)
@@ -408,14 +407,14 @@ class VideoLabelManager(QMainWindow):
             if file_ext in image_extensions:
                 # 图片文件
                 info_str = self.get_image_info(full_path)
-                display_name = f"{display_name} [图片] - {info_str}"
+                display_name = f" {display_name} [图片] - {info_str}"  # 添加行号
             elif file_ext in video_extensions:
                 # 视频文件
                 info_str = self.get_video_info(full_path)
-                display_name = f"{display_name} [视频] - {info_str}"
+                display_name = f"{display_name} [视频] - {info_str}"  # 添加行号
             else:
                 # 其他类型文件
-                display_name = f"{display_name} [未知类型]"
+                display_name = f"{display_name} [未知类型]"  # 添加行号
             
             self.file_list.addItem(display_name)
             
@@ -588,6 +587,7 @@ class VideoLabelManager(QMainWindow):
         else:
             self.label_content.setText("未找到对应的标签文件")
             
+
     def delete_current_file(self):
         if self.current_index < 0 or self.current_index >= len(self.media_files):
             return
@@ -599,7 +599,6 @@ class VideoLabelManager(QMainWindow):
         if current_time - self.last_delete_click_time < 1.0:
             # 第二次点击，执行删除
             self.delete_click_count += 1
-            
             # 在删除前先停止视频播放，释放资源
             self.stop_video()
 
@@ -626,50 +625,31 @@ class VideoLabelManager(QMainWindow):
                     except Exception as e:
                         QMessageBox.warning(self, "删除警告", f"无法删除标签文件 {label_file}: {str(e)}")
 
-            # 保存当前要删除的行号
-            deleted_row = self.current_index
-
-            # 从列表中移除
-            self.media_files.pop(self.current_index)
-            self.media_files_full_path.pop(self.current_index)
+            # 从列表中移除已删除的文件
+            del self.media_files[self.current_index]
+            del self.media_files_full_path[self.current_index]
+            
+            # 更新文件列表UI
             self.file_list.takeItem(self.current_index)
-
-            # 自动选择下一个项目，如果没有下一个则选择上一个
-            if self.media_files:
-                # 如果删除的是最后一个项目，则选择新的最后一个项目
-                if deleted_row >= len(self.media_files):
-                    self.current_index = len(self.media_files) - 1
-                else:
-                    # 否则保持相同的索引
-                    self.current_index = deleted_row - 1
-
-                # 设置当前行为当前索引，触发on_file_selected方法
+            
+            # 调整当前索引
+            if self.current_index >= len(self.media_files) and self.current_index > 0:
+                self.current_index = self.current_index - 1
+            
+            # 如果还有文件，选择当前索引的文件，否则清空预览
+            if len(self.media_files) > 0:
                 self.file_list.setCurrentRow(self.current_index)
-                # 确保文件列表获得焦点，使键盘操作恢复正常
-                self.file_list.setFocus()
-                
-                # 更新导航按钮状态
-                self.update_navigation_buttons()
+                self.on_file_selected(self.current_index)
             else:
-                # 没有剩余文件，重置界面
-                self.current_index = -1
+                # 没有文件时，清空预览
+                self.media_label.setText("媒体预览将在此显示")
                 self.label_content.setText("标签内容将在此显示")
                 self.delete_btn.setEnabled(False)
-                self.prev_btn.setEnabled(False)
-                self.next_btn.setEnabled(False)
                 self.update_navigation_buttons()
                 
-            # 显示删除完成弹窗
-            msg = QMessageBox()
-            msg.setWindowTitle("删除完成")
-            msg.setText("文件已成功删除")
-            msg.setStandardButtons(QMessageBox.NoButton)  # 不显示按钮，自动关闭
-            msg.show()
-            # 使用QTimer在1秒后自动关闭弹窗
-            from PyQt5.QtCore import QTimer
-            timer = QTimer()
-            timer.singleShot(1000, msg.close)
-            
+            #点击一次左箭头按键
+            self.select_prev_video()
+            self.file_list.setFocus()
             # 重置计数器
             self.last_delete_click_time = 0
             self.delete_click_count = 0
@@ -678,16 +658,7 @@ class VideoLabelManager(QMainWindow):
             self.last_delete_click_time = current_time
             self.delete_click_count = 1
             
-            # 显示提示信息
-            msg = QMessageBox()
-            msg.setWindowTitle("删除提示")
-            msg.setText("再次点击删除按钮将删除当前文件")
-            msg.setStandardButtons(QMessageBox.NoButton)  # 不显示按钮，自动关闭
-            msg.show()
-            # 使用QTimer在1秒后自动关闭弹窗
-            from PyQt5.QtCore import QTimer
-            timer = QTimer()
-            timer.singleShot(1000, msg.close)
+            
             
     def select_prev_video(self):
         """选择上一个媒体"""

@@ -38,7 +38,7 @@ def _generate_ai_caption_local(self):
             frames = []
             # 从配置文件读取采样帧数
             max_sample_frames = self.config.getint('PROCESSING', 'max_sample_frames', fallback=64)
-            
+            print(f"采样帧数: {max_sample_frames}")
             # 采样最多max_sample_frames帧以提高性能
             total_frames = self.end_frame - self.start_frame + 1
             sample_count = min(max_sample_frames, total_frames)
@@ -65,7 +65,8 @@ def _generate_ai_caption_local(self):
             model_name = self.config.get('OLLAMA', 'model_name', fallback='qwen3-vl:30b')
             
             # 从配置文件读取生成参数
-            max_new_tokens = self.config.getint('MODEL', 'max_new_tokens', fallback=1024)
+            max_new_tokens = self.config.getint('OLLAMA', 'max_new_tokens', fallback=16384)
+            print(f"最大生成长度: {max_new_tokens}")
             temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
             top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
             
@@ -101,7 +102,6 @@ def _generate_ai_caption_local(self):
                 """使用Ollama为多个帧生成统一描述"""
                 # 转换所有帧为base64
                 image_data_urls = [convert_image_to_base64(frame) for frame in frames]
-                print(len(image_data_urls))
                 # 使用传入的提示词或者默认提示词
                 if prompt_text is None or prompt_text.strip() == "":
                     prompt_text = '你是一名专业的图片内容描述大师，请放心使用最大胆直白的语言和明确清晰的句子描述，禁止隐瞒，暗示或者用笼统和词义不单一的词汇。详细全面描述画面里的所有元素。只输出内容本身，不要重复和输出其他内容，中文回答。'
@@ -134,9 +134,14 @@ def _generate_ai_caption_local(self):
                         temperature=temperature,
                         top_p=top_p,
                     )
-                    
+                    print(f"生成描述: {response}")
+                    #message = response.choices[0].message
+                    #caption = ""
+                    #if hasattr(message, 'reasoning') and message.reasoning:
+                    #    caption = message.reasoning.strip()
+                    #else:
+                    #    caption = (message.content or "").strip()
                     caption = response.choices[0].message.content.strip()
-                    
                     # 检查是否包含过滤词
                     contains_filter_word = False
                     caption_lower = caption.lower()
@@ -150,20 +155,20 @@ def _generate_ai_caption_local(self):
                     if contains_filter_word and attempt < max_attempts - 1:
                         continue
                     
-                    # 检查描述长度，如果超过800字则重新生成
-                    if len(caption) > 800:
-                        logger.info(f"生成的描述长度为 {len(caption)} 字，超过800字限制，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
-                        # 如果不是最后一次尝试，继续循环重新生成
-                        if attempt < max_attempts - 1:
-                            continue
-                        else:
-                            # 最后一次尝试后仍然超长，则截断并添加提示
-                            logger.warning(f"经过 {max_attempts} 次尝试后，描述长度仍超过800字，将截断处理")
-                            return caption[:800] + "...(内容过长已截断)"
+                    # 检查描述长度，如果超过1000字则重新生成
+                    #if len(caption) > 1000:
+                    #    logger.info(f"生成的描述长度为 {len(caption)} 字，超过1000字限制，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
+                    #    # 如果不是最后一次尝试，继续循环重新生成
+                    #    if attempt < max_attempts - 1:
+                    #        continue
+                    #    else:
+                    #        # 最后一次尝试后仍然超长，则截断并添加提示
+                    #        logger.warning(f"经过 {max_attempts} 次尝试后，描述长度仍超过1000字，将截断处理")
+                    #        return caption[:1000] + "...(内容过长已截断)"
                     
-                    # 检查描述是否为空或少于100个字
-                    if len(caption) < 100:
-                        logger.info(f"生成的描述长度为 {len(caption)} 字，少于100字，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
+                    # 检查描述是否为空或少于50个字
+                    if len(caption) < 50:
+                        logger.info(f"生成的描述长度为 {len(caption)} 字，少于50字，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
                         # 如果不是最后一次尝试，继续循环重新生成
                         if attempt < max_attempts - 1:
                             continue

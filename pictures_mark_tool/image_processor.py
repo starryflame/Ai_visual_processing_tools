@@ -245,7 +245,6 @@ class ImageProcessor(QObject):
         except Exception:
             return False
             
-    from code.ai_caption_generator import generate_caption_with_ai
 
     def shutdown(self):
         # 关闭线程池

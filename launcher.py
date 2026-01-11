@@ -63,7 +63,7 @@ class ToolLauncher:
         video_tag_btn.pack(pady=10)
         
         # 视频标签编辑器按钮
-        video_edit_btn = tk.Button(tools_frame, text="视频标签编辑器", font=("Microsoft YaHei", 14),
+        video_edit_btn = tk.Button(tools_frame, text="文件标签筛选编辑器", font=("Microsoft YaHei", 14),
                                   command=self.launch_video_editor, height=2, width=20,
                                   bg="#9C27B0", fg="white")
         video_edit_btn.pack(pady=10)
@@ -121,13 +121,13 @@ class ToolLauncher:
     def launch_img_tagger(self):
         def _launch():
             # 启动图片打标器
-            subprocess.Popen([sys.executable, "J:/Data/Ai_visual_processing_tools/pictures_mark_tool/main.py"])
+            subprocess.Popen([sys.executable, "pictures_mark_tool/main.py"])
         self.launch_with_progress(_launch)
             
     def launch_word_freq(self):
         def _launch():
             # 启动词频统计工具
-            subprocess.Popen([sys.executable, "J:/Data/Ai_visual_processing_tools/pictures_mark_tool/tool/词频统计.py"])
+            subprocess.Popen([sys.executable, "pictures_mark_tool/tool/词频统计/词频统计.py"])
         self.launch_with_progress(_launch)
             
     def launch_video_tagger(self):
@@ -135,16 +135,16 @@ class ToolLauncher:
             # 启动视频打标器，使用指定的虚拟环境
             venv_python = "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
             if os.path.exists(venv_python):
-                subprocess.Popen([venv_python, "J:/Data/Ai_visual_processing_tools/video_mark_tool/视频打标器/重构/code/video_tagger.py"])
+                subprocess.Popen([venv_python, "video_mark_tool/视频打标器/重构/code/video_tagger.py"])
             else:
                 # 如果虚拟环境不存在，回退到默认Python解释器
-                subprocess.Popen([sys.executable, "J:/Data/Ai_visual_processing_tools/video_mark_tool/视频打标器/重构/code/video_tagger.py"])
+                subprocess.Popen([sys.executable, "video_mark_tool/视频打标器/重构/code/video_tagger.py"])
         self.launch_with_progress(_launch)
             
     def launch_video_editor(self):
         def _launch():
             # 启动视频标签编辑器
-            subprocess.Popen([sys.executable, "J:/Data/Ai_visual_processing_tools/video_mark_tool/视频标签编辑ui/video_label_manager.py"])
+            subprocess.Popen([sys.executable, "video_mark_tool/视频标签编辑ui/pic_video_label_manager.py"])
         self.launch_with_progress(_launch)
         
     def generate_requirements(self):
