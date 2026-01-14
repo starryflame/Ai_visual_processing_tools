@@ -13,11 +13,12 @@ import shutil
 class MediaConverter:
     def __init__(self, root):
         self.root = root
-        self.root.title("媒体格式转换器")
-        self.root.geometry("1000x800")
+        self.root.title("全能媒体格式转换器")
+        self.root.geometry("1200x900")
         
         self.selected_path = tk.StringVar()
         self.target_format = tk.StringVar(value="jpg")
+        self.convert_type = tk.StringVar(value="image")  # 新增：转换类型
         self.convert_video_to_gif = tk.BooleanVar(value=False)
         self.progress_var = tk.DoubleVar()
         self.status_var = tk.StringVar(value="就绪")
@@ -27,6 +28,8 @@ class MediaConverter:
         self.gif_width = tk.StringVar(value="原始")
         self.gif_height = tk.StringVar(value="原始")
         
+        # 新增：音频格式选项
+        self.audio_formats = ["mp3", "wav", "flac", "aac", "ogg"]
         self.image_formats = ["jpg", "png", "bmp", "tiff", "webp"]
         self.video_formats = ["mp4", "avi", "mov", "mkv"]
         
@@ -37,55 +40,81 @@ class MediaConverter:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
+        # 标题
+        title_label = ttk.Label(main_frame, text="全能媒体格式转换器", font=("微软雅黑", 16, "bold"))
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 10))
+        
         # 路径选择
         path_frame = ttk.LabelFrame(main_frame, text="选择路径", padding="10")
-        path_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        path_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         
-        ttk.Entry(path_frame, textvariable=self.selected_path, width=50).grid(row=0, column=0, padx=(0, 10))
+        ttk.Entry(path_frame, textvariable=self.selected_path, width=80).grid(row=0, column=0, padx=(0, 10))
         ttk.Button(path_frame, text="浏览文件", command=self.select_file).grid(row=0, column=1, padx=(0, 5))
         ttk.Button(path_frame, text="浏览文件夹", command=self.select_folder).grid(row=0, column=2)
         
+        # 转换类型选择
+        type_frame = ttk.LabelFrame(main_frame, text="转换类型", padding="10")
+        type_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # 使用Radiobutton选择转换类型
+        ttk.Radiobutton(type_frame, text="图片转换", variable=self.convert_type, value="image", command=self.on_type_change).grid(row=0, column=0, padx=(10, 20))
+        ttk.Radiobutton(type_frame, text="视频转换", variable=self.convert_type, value="video", command=self.on_type_change).grid(row=0, column=1, padx=(10, 20))
+        ttk.Radiobutton(type_frame, text="音频转换", variable=self.convert_type, value="audio", command=self.on_type_change).grid(row=0, column=2, padx=(10, 20))
+        ttk.Radiobutton(type_frame, text="全部转换", variable=self.convert_type, value="all", command=self.on_type_change).grid(row=0, column=3, padx=(10, 20))
+        
         # 转换选项
         options_frame = ttk.LabelFrame(main_frame, text="转换选项", padding="10")
-        options_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        options_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         
-        # 图片格式选择
-        ttk.Label(options_frame, text="目标图片格式:").grid(row=0, column=0, sticky=tk.W)
-        format_combo = ttk.Combobox(options_frame, textvariable=self.target_format, values=self.image_formats, state="readonly")
-        format_combo.grid(row=0, column=1, sticky=tk.W, padx=(10, 0))
+        # 格式选择
+        format_frame = ttk.Frame(options_frame)
+        format_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        ttk.Label(format_frame, text="目标格式:").grid(row=0, column=0, sticky=tk.W)
+        self.format_combo = ttk.Combobox(format_frame, textvariable=self.target_format, values=self.image_formats, state="readonly", width=15)
+        self.format_combo.grid(row=0, column=1, sticky=tk.W, padx=(10, 0))
+        self.format_combo.bind("<<ComboboxSelected>>", self.on_format_change)
         
         # 视频转GIF选项
-        ttk.Checkbutton(options_frame, text="视频转GIF", variable=self.convert_video_to_gif).grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
+        self.gif_options_frame = ttk.Frame(options_frame)
+        self.gif_options_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        ttk.Checkbutton(self.gif_options_frame, text="视频转GIF", variable=self.convert_video_to_gif).grid(row=0, column=0, sticky=tk.W, pady=(10, 0))
         
         # GIF帧率设置
-        ttk.Label(options_frame, text="GIF帧率:").grid(row=2, column=0, sticky=tk.W, pady=(10, 0))
-        gif_fps_entry = ttk.Entry(options_frame, textvariable=self.gif_fps, width=10)
-        gif_fps_entry.grid(row=2, column=1, sticky=tk.W, padx=(10, 0), pady=(10, 0))
-        ttk.Label(options_frame, text="fps").grid(row=2, column=2, sticky=tk.W, pady=(10, 0))
+        ttk.Label(self.gif_options_frame, text="GIF帧率:").grid(row=1, column=0, sticky=tk.W, pady=(10, 0))
+        gif_fps_entry = ttk.Entry(self.gif_options_frame, textvariable=self.gif_fps, width=10)
+        gif_fps_entry.grid(row=1, column=1, sticky=tk.W, padx=(10, 0), pady=(10, 0))
+        ttk.Label(self.gif_options_frame, text="fps").grid(row=1, column=2, sticky=tk.W, pady=(10, 0))
         
         # GIF分辨率设置
-        ttk.Label(options_frame, text="GIF宽度:").grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
-        gif_width_entry = ttk.Entry(options_frame, textvariable=self.gif_width, width=10)
-        gif_width_entry.grid(row=3, column=1, sticky=tk.W, padx=(10, 0), pady=(10, 0))
-        ttk.Label(options_frame, text="像素 (输入'原始'保持原尺寸)").grid(row=3, column=2, sticky=tk.W, pady=(10, 0))
+        ttk.Label(self.gif_options_frame, text="GIF宽度:").grid(row=2, column=0, sticky=tk.W, pady=(10, 0))
+        gif_width_entry = ttk.Entry(self.gif_options_frame, textvariable=self.gif_width, width=10)
+        gif_width_entry.grid(row=2, column=1, sticky=tk.W, padx=(10, 0), pady=(10, 0))
+        ttk.Label(self.gif_options_frame, text="像素 (输入'原始'保持原尺寸)").grid(row=2, column=2, sticky=tk.W, pady=(10, 0))
         
-        ttk.Label(options_frame, text="GIF高度:").grid(row=4, column=0, sticky=tk.W, pady=(5, 0))
-        gif_height_entry = ttk.Entry(options_frame, textvariable=self.gif_height, width=10)
-        gif_height_entry.grid(row=4, column=1, sticky=tk.W, padx=(10, 0), pady=(5, 0))
-        ttk.Label(options_frame, text="像素 (输入'原始'保持原尺寸)").grid(row=4, column=2, sticky=tk.W, pady=(5, 0))
+        ttk.Label(self.gif_options_frame, text="GIF高度:").grid(row=3, column=0, sticky=tk.W, pady=(5, 0))
+        gif_height_entry = ttk.Entry(self.gif_options_frame, textvariable=self.gif_height, width=10)
+        gif_height_entry.grid(row=3, column=1, sticky=tk.W, padx=(10, 0), pady=(5, 0))
+        ttk.Label(self.gif_options_frame, text="像素 (输入'原始'保持原尺寸)").grid(row=3, column=2, sticky=tk.W, pady=(5, 0))
+        
+        # 隐藏GIF选项，因为默认情况下视频转换不是GIF
+        self.gif_options_frame.grid_remove()
         
         # 操作按钮
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=2, column=0, columnspan=2, pady=(0, 10))
+        button_frame.grid(row=4, column=0, columnspan=3, pady=(0, 10))
         
         self.convert_btn = ttk.Button(button_frame, text="开始转换", command=self.start_conversion)
         self.convert_btn.grid(row=0, column=0, padx=(0, 10))
         
-        ttk.Button(button_frame, text="退出", command=self.root.quit).grid(row=0, column=1)
+        ttk.Button(button_frame, text="清空日志", command=self.clear_log).grid(row=0, column=1, padx=(0, 10))
+        
+        ttk.Button(button_frame, text="退出", command=self.root.quit).grid(row=0, column=2)
         
         # 进度条
         progress_frame = ttk.LabelFrame(main_frame, text="进度", padding="10")
-        progress_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        progress_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         
         self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, maximum=100)
         self.progress_bar.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
@@ -94,9 +123,9 @@ class MediaConverter:
         
         # 日志框
         log_frame = ttk.LabelFrame(main_frame, text="日志", padding="10")
-        log_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        log_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         
-        self.log_text = tk.Text(log_frame, height=10, state=tk.DISABLED)
+        self.log_text = tk.Text(log_frame, height=15, state=tk.DISABLED)
         scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
         
@@ -107,22 +136,89 @@ class MediaConverter:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(4, weight=1)
+        main_frame.rowconfigure(6, weight=1)
         path_frame.columnconfigure(0, weight=1)
+        type_frame.columnconfigure(0, weight=1)
+        type_frame.columnconfigure(1, weight=1)
+        type_frame.columnconfigure(2, weight=1)
+        type_frame.columnconfigure(3, weight=1)
         options_frame.columnconfigure(0, weight=1)
+        format_frame.columnconfigure(1, weight=1)
         progress_frame.columnconfigure(0, weight=1)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         
+        # 初始化界面状态
+        self.update_format_options()
+        
+    def on_type_change(self):
+        """当转换类型改变时更新界面"""
+        self.update_format_options()
+        
+    def on_format_change(self, event=None):
+        """当格式改变时更新界面"""
+        if self.target_format.get() in ["mp4", "avi", "mov", "mkv"]:
+            self.gif_options_frame.grid()
+        else:
+            self.gif_options_frame.grid_remove()
+    
+    def update_format_options(self):
+        """根据转换类型更新格式选项"""
+        convert_type = self.convert_type.get()
+        if convert_type == "image":
+            self.format_combo['values'] = self.image_formats
+            self.target_format.set("jpg")
+        elif convert_type == "video":
+            self.format_combo['values'] = self.video_formats
+            self.target_format.set("mp4")
+        elif convert_type == "audio":
+            self.format_combo['values'] = self.audio_formats
+            self.target_format.set("mp3")
+        elif convert_type == "all":
+            all_formats = self.image_formats + self.video_formats + self.audio_formats
+            self.format_combo['values'] = all_formats
+            self.target_format.set("jpg")
+        
+        # 更新GIF选项显示
+        if self.target_format.get() in ["gif"] or self.convert_video_to_gif.get():
+            self.gif_options_frame.grid()
+        else:
+            self.gif_options_frame.grid_remove()
+    
     def select_file(self):
-        file_path = filedialog.askopenfilename(
-            title="选择文件",
-            filetypes=[
-                ("所有支持的文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp;*.mp4;*.avi;*.mov;*.mkv"),
+        convert_type = self.convert_type.get()
+        
+        # 根据转换类型过滤文件
+        if convert_type == "image":
+            file_types = [
                 ("图片文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp"),
-                ("视频文件", "*.mp4;*.avi;*.mov;*.mkv"),
+                ("所有支持的文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp;*.mp4;*.avi;*.mov;*.mkv;*.mp3;*.wav;*.flac;*.aac;*.ogg"),
                 ("所有文件", "*.*")
             ]
+        elif convert_type == "video":
+            file_types = [
+                ("视频文件", "*.mp4;*.avi;*.mov;*.mkv"),
+                ("所有支持的文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp;*.mp4;*.avi;*.mov;*.mkv;*.mp3;*.wav;*.flac;*.aac;*.ogg"),
+                ("所有文件", "*.*")
+            ]
+        elif convert_type == "audio":
+            file_types = [
+                ("音频文件", "*.mp3;*.wav;*.flac;*.aac;*.ogg"),
+                ("所有支持的文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp;*.mp4;*.avi;*.mov;*.mkv;*.mp3;*.wav;*.flac;*.aac;*.ogg"),
+                ("所有文件", "*.*")
+            ]
+        else:  # all
+            file_types = [
+                ("所有支持的文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp;*.mp4;*.avi;*.mov;*.mkv;*.mp3;*.wav;*.flac;*.aac;*.ogg"),
+                ("图片文件", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.webp"),
+                ("视频文件", "*.mp4;*.avi;*.mov;*.mkv"),
+                ("音频文件", "*.mp3;*.wav;*.flac;*.aac;*.ogg"),
+                ("所有文件", "*.*")
+            ]
+        
+        file_path = filedialog.askopenfilename(
+            title="选择文件",
+            filetypes=file_types
         )
         if file_path:
             self.selected_path.set(file_path)
@@ -136,6 +232,12 @@ class MediaConverter:
         self.log_text.config(state=tk.NORMAL)
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
+        
+    def clear_log(self):
+        """清空日志"""
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.delete(1.0, tk.END)
         self.log_text.config(state=tk.DISABLED)
         
     def start_conversion(self):
@@ -185,9 +287,10 @@ class MediaConverter:
             self.log_message(f"找到 {total_files} 个文件")
             
             # 处理每个文件
+            converted_count = 0
             for i, file_path in enumerate(files_to_convert):
                 try:
-                    self.status_var.set(f"正在处理: {os.path.basename(file_path)}")
+                    self.status_var.set(f"正在处理: {os.path.basename(file_path)} ({i+1}/{total_files})")
                     self.progress_var.set((i / total_files) * 100)
                     
                     # 计算输出文件路径
@@ -201,12 +304,39 @@ class MediaConverter:
                     else:
                         output_file_path = None  # 单个文件的情况将在转换函数中处理
                         
-                    if self.is_image_file(file_path):
+                    # 根据转换类型处理文件
+                    convert_type = self.convert_type.get()
+                    success = False
+                    
+                    if convert_type in ["image", "all"] and self.is_image_file(file_path):
                         self.convert_image(file_path, output_file_path)
-                    elif self.is_video_file(file_path) and self.convert_video_to_gif.get():
-                        self.convert_video_to_gif_format(file_path, output_file_path)
+                        success = True
+                    elif convert_type in ["video", "all"] and self.is_video_file(file_path):
+                        if self.convert_video_to_gif.get() and self.target_format.get() == "gif":
+                            self.convert_video_to_gif_format(file_path, output_file_path)
+                        else:
+                            self.convert_video(file_path, output_file_path)
+                        success = True
+                    elif convert_type in ["audio", "all"] and self.is_audio_file(file_path):
+                        self.convert_audio(file_path, output_file_path)
+                        success = True
+                    elif convert_type == "all":  # 如果选择了"全部"但文件类型不符合当前目标格式
+                        if self.is_image_file(file_path) and self.target_format.get() in self.image_formats:
+                            self.convert_image(file_path, output_file_path)
+                            success = True
+                        elif self.is_video_file(file_path) and self.target_format.get() in self.video_formats:
+                            self.convert_video(file_path, output_file_path)
+                            success = True
+                        elif self.is_audio_file(file_path) and self.target_format.get() in self.audio_formats:
+                            self.convert_audio(file_path, output_file_path)
+                            success = True
+                    
+                    if success:
+                        converted_count += 1
+                        self.log_message(f"已转换: {file_path}")
+                    else:
+                        self.log_message(f"跳过文件 (格式不匹配): {file_path}")
                         
-                    self.log_message(f"已处理: {file_path}")
                 except Exception as e:
                     self.log_message(f"处理失败 {file_path}: {str(e)}")
                     
@@ -215,11 +345,10 @@ class MediaConverter:
                 
             self.progress_var.set(100)
             self.status_var.set("转换完成")
+            self.log_message(f"共处理 {total_files} 个文件，成功转换 {converted_count} 个文件")
             if output_base_dir:
-                self.log_message(f"所有文件转换完成，输出目录: {output_base_dir}")
-            else:
-                self.log_message("所有文件转换完成")
-            messagebox.showinfo("完成", "文件转换已完成")
+                self.log_message(f"输出目录: {output_base_dir}")
+            messagebox.showinfo("完成", f"文件转换已完成\n共处理 {total_files} 个文件，成功转换 {converted_count} 个文件")
             
         except Exception as e:
             self.log_message(f"转换过程中出现错误: {str(e)}")
@@ -234,6 +363,10 @@ class MediaConverter:
     def is_video_file(self, file_path):
         video_extensions = ['.mp4', '.avi', '.mov', '.mkv']
         return any(file_path.lower().endswith(ext) for ext in video_extensions)
+        
+    def is_audio_file(self, file_path):
+        audio_extensions = ['.mp3', '.wav', '.flac', '.aac', '.ogg']
+        return any(file_path.lower().endswith(ext) for ext in audio_extensions)
         
     def convert_image(self, file_path, output_path=None):
         try:
@@ -264,6 +397,141 @@ class MediaConverter:
         except Exception as e:
             raise Exception(f"图像转换失败: {str(e)}")
             
+    def convert_video(self, file_path, output_path=None):
+        """转换视频格式"""
+        try:
+            # 构建输出文件路径
+            if output_path:
+                base_name = os.path.splitext(output_path)[0]
+                output_path = f"{base_name}.{self.target_format.get().lower()}"
+            else:
+                base_name = os.path.splitext(file_path)[0]
+                output_path = f"{base_name}_converted.{self.target_format.get().lower()}"
+            
+            # 确保输出目录存在
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            
+            # 检查FFmpeg是否可用
+            if not self.is_ffmpeg_available():
+                raise Exception("FFmpeg不可用，请安装FFmpeg")
+            
+            # 使用FFmpeg转换视频格式
+            cmd = [
+                "ffmpeg",
+                "-i", file_path,
+                "-c:v", "libx264",  # 使用H.264编码
+                "-c:a", "aac",      # 使用AAC音频编码
+                "-strict", "experimental",
+                "-y",               # 覆盖输出文件
+                output_path
+            ]
+            
+            result = subprocess.run(cmd,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  text=True,
+                                  encoding='utf-8',
+                                  errors='ignore')
+            
+            if result.returncode != 0:
+                raise Exception(f"视频转换失败: {result.stderr}")
+                
+        except Exception as e:
+            raise Exception(f"视频转换失败: {str(e)}")
+    
+    def convert_audio(self, file_path, output_path=None):
+        """转换音频格式"""
+        try:
+            # 构建输出文件路径
+            if output_path:
+                base_name = os.path.splitext(output_path)[0]
+                output_path = f"{base_name}.{self.target_format.get().lower()}"
+            else:
+                base_name = os.path.splitext(file_path)[0]
+                output_path = f"{base_name}_converted.{self.target_format.get().lower()}"
+            
+            # 确保输出目录存在
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            
+            # 检查FFmpeg是否可用
+            if not self.is_ffmpeg_available():
+                raise Exception("FFmpeg不可用，请安装FFmpeg")
+            
+            # 使用FFmpeg转换音频格式
+            # 根据目标格式设置适当的编解码器
+            target_format = self.target_format.get().lower()
+            if target_format == "mp3":
+                cmd = [
+                    "ffmpeg",
+                    "-i", file_path,
+                    "-c:a", "libmp3lame",  # 使用LAME MP3编码器
+                    "-b:a", "320k",       # 设置比特率为320kbps
+                    "-y",                 # 覆盖输出文件
+                    output_path
+                ]
+            elif target_format == "flac":
+                cmd = [
+                    "ffmpeg",
+                    "-i", file_path,
+                    "-c:a", "flac",       # 使用FLAC编码器
+                    "-compression_level", "5",  # 设置压缩级别
+                    "-y",                 # 覆盖输出文件
+                    output_path
+                ]
+            elif target_format == "aac":
+                cmd = [
+                    "ffmpeg",
+                    "-i", file_path,
+                    "-c:a", "aac",        # 使用AAC编码器
+                    "-b:a", "256k",       # 设置比特率为256kbps
+                    "-y",                 # 覆盖输出文件
+                    output_path
+                ]
+            elif target_format == "wav":
+                cmd = [
+                    "ffmpeg",
+                    "-i", file_path,
+                    "-c:a", "pcm_s16le",  # 使用WAV PCM编码
+                    "-y",                 # 覆盖输出文件
+                    output_path
+                ]
+            elif target_format == "ogg":
+                cmd = [
+                    "ffmpeg",
+                    "-i", file_path,
+                    "-c:a", "libvorbis",  # 使用Vorbis编码器
+                    "-q:a", "5",          # 设置质量等级
+                    "-y",                 # 覆盖输出文件
+                    output_path
+                ]
+            else:
+                # 对于其他未知格式，使用通用方法
+                cmd = [
+                    "ffmpeg",
+                    "-i", file_path,
+                    "-c:a", "copy",       # 尝试复制音频流
+                    "-strict", "experimental",
+                    "-y",                 # 覆盖输出文件
+                    output_path
+                ]
+            
+            result = subprocess.run(cmd,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  text=True,
+                                  encoding='utf-8',
+                                  errors='ignore')
+            
+            if result.returncode != 0:
+                raise Exception(f"音频转换失败: {result.stderr}")
+                
+        except Exception as e:
+            raise Exception(f"音频转换失败: {str(e)}")
+
     def convert_video_to_gif_format(self, file_path, output_path=None):
         try:
             # 构建输出文件路径
