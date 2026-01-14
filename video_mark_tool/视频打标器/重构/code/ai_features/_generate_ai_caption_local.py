@@ -135,12 +135,7 @@ def _generate_ai_caption_local(self):
                         top_p=top_p,
                     )
                     print(f"生成描述: {response}")
-                    #message = response.choices[0].message
-                    #caption = ""
-                    #if hasattr(message, 'reasoning') and message.reasoning:
-                    #    caption = message.reasoning.strip()
-                    #else:
-                    #    caption = (message.content or "").strip()
+
                     caption = response.choices[0].message.content.strip()
                     #print(caption)
                     # 检查是否包含过滤词
@@ -156,17 +151,6 @@ def _generate_ai_caption_local(self):
                     if contains_filter_word and attempt < max_attempts - 1:
                         continue
                     
-                    # 检查描述长度，如果超过1000字则重新生成
-                    #if len(caption) > 1000:
-                    #    logger.info(f"生成的描述长度为 {len(caption)} 字，超过1000字限制，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
-                    #    # 如果不是最后一次尝试，继续循环重新生成
-                    #    if attempt < max_attempts - 1:
-                    #        continue
-                    #    else:
-                    #        # 最后一次尝试后仍然超长，则截断并添加提示
-                    #        logger.warning(f"经过 {max_attempts} 次尝试后，描述长度仍超过1000字，将截断处理")
-                    #        return caption[:1000] + "...(内容过长已截断)"
-                    
                     # 检查描述是否为空或少于50个字
                     if len(caption) < 50:
                         logger.info(f"生成的描述长度为 {len(caption)} 字，少于50字，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
@@ -178,14 +162,6 @@ def _generate_ai_caption_local(self):
                             logger.warning(f"经过 {max_attempts} 次尝试后，描述长度仍少于100字")
                             return "视频描述内容过短，无法提供有效描述"
                         
-                    # 检查是否为英文提示词且末尾不是句号，或中文提示词且末尾不是中文句号
-                    #is_english = bool(re.match(r'^[A-Za-z\s\.,!?;:"]+$', caption))
-                    #if (is_english and not caption.endswith('.')) or (not is_english and not caption.endswith('。')):
-                    #    lang_type = "英文" if is_english else "中文"
-                    #    logger.info(f"生成的{lang_type}提示词末尾不是句号，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
-                    #    if attempt < max_attempts - 1:
-                    #        continue
-
 
                     # 如果不包含过滤词且长度符合要求，则返回结果
                     if not contains_filter_word:
@@ -205,6 +181,8 @@ def _generate_ai_caption_local(self):
             
             # 添加到预设列表
             # 使用第一帧作为缩略图
+            print(self.start_frame,self.end_frame)
+
             thumbnail_frame = self.processed_frames[self.start_frame].copy()
             new_index = len(self.caption_presets)
             self.caption_presets.append({
