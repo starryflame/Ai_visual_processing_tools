@@ -17,36 +17,17 @@ def generate_ai_caption(self):
     if self.start_frame == 0 and self.end_frame == 0:
         messagebox.showerror("错误", "请先设置开始帧和结束帧")
         return
-        
-    # 显示选择调用方式的窗口
-    method_window = tk.Toplevel(self.root)
-    method_window.title("选择AI调用方式")
-    method_window.geometry("300x150")
-    method_window.transient(self.root)
-    method_window.grab_set()
-    
-    # 居中显示
-    method_window.update_idletasks()
-    x = (method_window.winfo_screenwidth() // 2) - (300 // 2)
-    y = (method_window.winfo_screenheight() // 2) - (150 // 2)
-    method_window.geometry(f"300x150+{x}+{y}")
-    
-    tk.Label(method_window, text="请选择AI调用方式:", font=self.font).pack(pady=10)
-    
-    method_var = tk.StringVar(value="local")
-    
-    tk.Radiobutton(method_window, text="本地模型", variable=method_var, value="local", font=self.font).pack(anchor=tk.W, padx=30)
-    tk.Radiobutton(method_window, text="vLLM API", variable=method_var, value="vllm", font=self.font).pack(anchor=tk.W, padx=30)
-    
-    def confirm_method():
-        method = method_var.get()
-        method_window.destroy()
-        if method == "local":
-            self._generate_ai_caption_local()
-        else:
+
+    # 优先尝试本地模型，失败后再尝试vLLM API
+    try:
+        self._generate_ai_caption_local()
+    except Exception as local_error:
+        print(f"本地模型生成失败: {local_error}")
+        try:
             self._generate_ai_caption_vllm()
-    
-    tk.Button(method_window, text="确定", command=confirm_method, font=self.font).pack(pady=10)
+        except Exception as vllm_error:
+            messagebox.showerror("错误", f"本地模型和vLLM API均调用失败\n本地错误: {str(local_error)}\nvLLM错误: {str(vllm_error)}")
+
 
 # Note: This was originally a method of class VideoTagger
 # You may need to adjust the implementation based on class context

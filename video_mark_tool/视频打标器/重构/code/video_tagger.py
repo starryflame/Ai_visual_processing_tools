@@ -154,6 +154,9 @@ class VideoTagger:
         # AI 相关按钮及输入框
         self.ai_generate_btn = tk.Button(self.control_panel, text="AI生成标签", command=self.generate_ai_caption, state=tk.DISABLED, font=self.font)
         self.ai_generate_btn.pack(fill=tk.X, padx=5, pady=2)
+            
+        self.delete_preset_btn = tk.Button(self.control_panel, text="删除所有预设", command=self.delete_caption_preset, font=self.font)
+        self.delete_preset_btn.pack(fill=tk.X, padx=5, pady=2)
     
         ai_prompt_frame = tk.Frame(self.control_panel, bg="lightgray")
         ai_prompt_frame.pack(fill=tk.X, padx=5, pady=2)
@@ -220,7 +223,7 @@ class VideoTagger:
         self.preset_entry.pack(side=tk.LEFT, padx=2)
         self.add_preset_btn = tk.Button(tag_frame, text="添加预设", command=self.add_preset_tag, font=self.font)
         self.add_preset_btn.pack(side=tk.LEFT, padx=2)
-    
+
         # ===================【标签列表区】===================
         list_frame = tk.Frame(root)
         list_frame.grid(row=4, column=0, sticky="nsew", padx=10, pady=5)

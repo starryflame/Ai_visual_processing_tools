@@ -38,7 +38,7 @@ def _generate_ai_caption_local(self):
             frames = []
             # 从配置文件读取采样帧数
             max_sample_frames = self.config.getint('PROCESSING', 'max_sample_frames', fallback=64)
-            print(f"采样帧数: {max_sample_frames}")
+            #print(f"采样帧数: {max_sample_frames}")
             # 采样最多max_sample_frames帧以提高性能
             total_frames = self.end_frame - self.start_frame + 1
             sample_count = min(max_sample_frames, total_frames)
@@ -66,7 +66,7 @@ def _generate_ai_caption_local(self):
             
             # 从配置文件读取生成参数
             max_new_tokens = self.config.getint('OLLAMA', 'max_new_tokens', fallback=16384)
-            print(f"最大生成长度: {max_new_tokens}")
+            #print(f"最大生成长度: {max_new_tokens}")
             temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
             top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
             
@@ -87,7 +87,7 @@ def _generate_ai_caption_local(self):
             def convert_image_to_base64(image):
                 """将PIL图像转换为base64编码"""
                 # 调整图片大小
-                max_size = (1024, 1024)
+                max_size = (720, 720)
                 image.thumbnail(max_size, Image.Resampling.LANCZOS)
                 
                 # 转换图片为base64格式
@@ -113,7 +113,7 @@ def _generate_ai_caption_local(self):
                         "text": prompt_text
                     }
                 ]
-                
+                print(f"提示词: {prompt_text}")
                 # 添加所有图片
                 for data_url in image_data_urls:
                     content_list.append({
@@ -142,6 +142,7 @@ def _generate_ai_caption_local(self):
                     #else:
                     #    caption = (message.content or "").strip()
                     caption = response.choices[0].message.content.strip()
+                    #print(caption)
                     # 检查是否包含过滤词
                     contains_filter_word = False
                     caption_lower = caption.lower()
@@ -178,12 +179,12 @@ def _generate_ai_caption_local(self):
                             return "视频描述内容过短，无法提供有效描述"
                         
                     # 检查是否为英文提示词且末尾不是句号，或中文提示词且末尾不是中文句号
-                    is_english = bool(re.match(r'^[A-Za-z\s\.,!?;:"]+$', caption))
-                    if (is_english and not caption.endswith('.')) or (not is_english and not caption.endswith('。')):
-                        lang_type = "英文" if is_english else "中文"
-                        logger.info(f"生成的{lang_type}提示词末尾不是句号，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
-                        if attempt < max_attempts - 1:
-                            continue
+                    #is_english = bool(re.match(r'^[A-Za-z\s\.,!?;:"]+$', caption))
+                    #if (is_english and not caption.endswith('.')) or (not is_english and not caption.endswith('。')):
+                    #    lang_type = "英文" if is_english else "中文"
+                    #    logger.info(f"生成的{lang_type}提示词末尾不是句号，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
+                    #    if attempt < max_attempts - 1:
+                    #        continue
 
 
                     # 如果不包含过滤词且长度符合要求，则返回结果
@@ -205,15 +206,18 @@ def _generate_ai_caption_local(self):
             # 添加到预设列表
             # 使用第一帧作为缩略图
             thumbnail_frame = self.processed_frames[self.start_frame].copy()
+            new_index = len(self.caption_presets)
             self.caption_presets.append({
                 "caption": caption,
                 "image": thumbnail_frame
             })
             
             # 创建新的预设项显示
-            self.create_preset_item(len(self.caption_presets) - 1, caption, thumbnail_frame)
+            self.create_preset_item(new_index, caption, thumbnail_frame)
             
-            messagebox.showinfo("成功", f"AI已生成标签并添加到预设列表:\n\n{caption}")
+            # 在AI生成完成后直接打开这个预设标签并允许编辑
+            self.show_full_image(thumbnail_frame, caption, new_index)
+            
         else:
             messagebox.showerror("错误", "无法获取选中的视频片段")
             

@@ -72,7 +72,7 @@ def export_tags(self):
             # 生成安全的文件名，移除或替换非法字符
             safe_tag_text = "".join(c for c in tag_text if c.isalnum() or c in (' ', '-', '_')).rstrip()
             # 限制文件名长度
-            safe_tag_text = safe_tag_text[:50] if len(safe_tag_text) > 50 else safe_tag_text
+            safe_tag_text = safe_tag_text[:10] if len(safe_tag_text) > 10 else safe_tag_text
             # 替换空格为下划线
             safe_tag_text = safe_tag_text.replace(" ", "_")
             

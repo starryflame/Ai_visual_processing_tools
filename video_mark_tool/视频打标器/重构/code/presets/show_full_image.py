@@ -32,7 +32,7 @@ def show_full_image(self, frame_image, caption, index):
     image_label.pack()
     
     # 标签内容显示
-    caption_frame = tk.Frame(image_window, height=100)  # 设置最大高度 300
+    caption_frame = tk.Frame(image_window, height=200)  # 设置最大高度 300
     caption_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
     caption_frame.pack_propagate(False)  # 阻止 Frame 自动调整大小
 
@@ -44,7 +44,9 @@ def show_full_image(self, frame_image, caption, index):
     
     caption_text = tk.Text(text_frame, wrap=tk.WORD, font=self.font)
     caption_text.insert(tk.END, caption)
-    caption_text.config(state=tk.DISABLED)
+    
+    # 配置文本框为可编辑状态
+    caption_text.config(state=tk.NORMAL)
     
     # 添加滚动条并与文本框关联
     scrollbar = tk.Scrollbar(text_frame, command=caption_text.yview)
@@ -90,6 +92,26 @@ def show_full_image(self, frame_image, caption, index):
             image_window.destroy()
             
     tk.Button(button_frame, text="删除预设", command=delete_preset, font=self.font).pack(side=tk.LEFT, padx=5)
+    
+    # 添加:保存修改的函数
+    def save_changes():
+        # 获取文本框中的内容并更新预设
+        updated_caption = caption_text.get("1.0", tk.END).strip()
+        self.caption_presets[index]["caption"] = updated_caption
+        
+        # 更新预设列表中的显示
+        for widget in self.preset_scrollable_frame.winfo_children():
+            widget.destroy()
+        
+        # 重建所有预设项
+        for i, preset in enumerate(self.manual_presets):
+            self.create_manual_preset_item(i, preset)
+            
+        for i, preset in enumerate(self.caption_presets):
+            self.create_preset_item(i, preset["caption"], preset["image"])
+    
+    # 在按钮框架中添加保存按钮
+    tk.Button(button_frame, text="保存修改", command=save_changes, font=self.font).pack(side=tk.LEFT, padx=5)
     
     # 关闭按钮
     tk.Button(button_frame, text="关闭", command=image_window.destroy, font=self.font).pack(side=tk.RIGHT, padx=5)
