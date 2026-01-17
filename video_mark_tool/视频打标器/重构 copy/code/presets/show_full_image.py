@@ -1,8 +1,7 @@
-# This is a method from class VideoTagger
-
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
+import time
 
 def show_full_image(self, frame_image, caption, index):
     """显示完整的图像和标签"""
@@ -18,21 +17,64 @@ def show_full_image(self, frame_image, caption, index):
     y = (image_window.winfo_screenheight() // 2) - (700 // 2)
     image_window.geometry(f"900x700+{x}+{y}")
     
-    # 图像显示
-    image_frame = tk.Frame(image_window)
-    image_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    # 视频播放区域
+    video_frame = tk.Frame(image_window)
+    video_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
-    # 调整图像大小以适应显示区域
-    image_obj = Image.fromarray(frame_image)
+    # 创建Canvas用于显示视频帧
+    canvas = tk.Canvas(video_frame, width=880, height=400, bg='black')
+    canvas.pack()
+
+    # 播放控制变量
+    is_playing = True
+    current_frame_idx = self.start_frame
+    
+    # 添加一个引用存储当前播放任务ID，以便后续取消
+    play_task_id = None
+
+    # 播放视频的函数（使用after方法）
+    def play_video():
+        nonlocal current_frame_idx, is_playing, play_task_id
+        if not is_playing:
+            return
+            
+        if current_frame_idx > self.end_frame:
+            current_frame_idx = self.start_frame  # 循环回到开始
+            
+        # 获取当前帧
+        frame = self.processed_frames[current_frame_idx]
+        
+        # 转换为PIL图像并调整大小
+        image_obj = Image.fromarray(frame)
+        image_obj.thumbnail((880, 400), Image.LANCZOS)
+        
+        # 转换为PhotoImage并在Canvas上显示
+        photo = ImageTk.PhotoImage(image_obj)
+        
+        # 清除Canvas上的旧图像
+        canvas.delete("all")
+        canvas.create_image(880//2, 400//2, image=photo)
+        canvas.image = photo  # 保持引用
+        
+        # 更新帧索引
+        current_frame_idx += 1
+        
+        # 使用after方法安排下次更新，根据视频FPS调整播放速度
+        play_task_id = canvas.after(int(1000 / self.fps), play_video)
+
+    # 初始显示第一帧
+    first_frame = self.processed_frames[self.start_frame]
+    image_obj = Image.fromarray(first_frame)
     image_obj.thumbnail((880, 400), Image.LANCZOS)
     photo = ImageTk.PhotoImage(image_obj)
+    canvas.create_image(880//2, 400//2, image=photo)
+    canvas.image = photo
     
-    image_label = tk.Label(image_frame, image=photo)
-    image_label.image = photo  # 保持引用
-    image_label.pack()
-    
+    # 启动播放
+    play_video()
+
     # 标签内容显示
-    caption_frame = tk.Frame(image_window, height=100)  # 设置最大高度 300
+    caption_frame = tk.Frame(image_window, height=200)  # 设置最大高度 300
     caption_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
     caption_frame.pack_propagate(False)  # 阻止 Frame 自动调整大小
 
@@ -44,7 +86,9 @@ def show_full_image(self, frame_image, caption, index):
     
     caption_text = tk.Text(text_frame, wrap=tk.WORD, font=self.font)
     caption_text.insert(tk.END, caption)
-    caption_text.config(state=tk.DISABLED)
+    
+    # 配置文本框为可编辑状态
+    caption_text.config(state=tk.NORMAL)
     
     # 添加滚动条并与文本框关联
     scrollbar = tk.Scrollbar(text_frame, command=caption_text.yview)
@@ -91,9 +135,36 @@ def show_full_image(self, frame_image, caption, index):
             
     tk.Button(button_frame, text="删除预设", command=delete_preset, font=self.font).pack(side=tk.LEFT, padx=5)
     
+    # 添加:保存修改的函数
+    def save_changes():
+        # 获取文本框中的内容并更新预设
+        updated_caption = caption_text.get("1.0", tk.END).strip()
+        self.caption_presets[index]["caption"] = updated_caption
+        
+        # 更新预设列表中的显示
+        for widget in self.preset_scrollable_frame.winfo_children():
+            widget.destroy()
+        
+        # 重建所有预设项
+        for i, preset in enumerate(self.manual_presets):
+            self.create_manual_preset_item(i, preset)
+            
+        for i, preset in enumerate(self.caption_presets):
+            self.create_preset_item(i, preset["caption"], preset["image"])
+    
+    # 在按钮框架中添加保存按钮
+    tk.Button(button_frame, text="保存修改", command=save_changes, font=self.font).pack(side=tk.LEFT, padx=5)
+    
     # 关闭按钮
     tk.Button(button_frame, text="关闭", command=image_window.destroy, font=self.font).pack(side=tk.RIGHT, padx=5)
-
-# Note: This was originally a method of class VideoTagger
-# You may need to adjust the implementation based on class context
-__all__ = ['show_full_image']
+    
+    # 当窗口关闭时停止播放
+    def on_closing():
+        nonlocal is_playing
+        is_playing = False
+        # 如果存在播放任务，则取消它
+        if play_task_id is not None:
+            canvas.after_cancel(play_task_id)
+        image_window.destroy()
+    
+    image_window.protocol("WM_DELETE_WINDOW", on_closing)
