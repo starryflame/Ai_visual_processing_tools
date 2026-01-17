@@ -19,12 +19,17 @@ class VideoTagger:
         # 读取配置文件
         self.config = configparser.ConfigParser()
         # 修改读取配置文件的方式，显式指定编码为utf-8
-        self.config.read(r'J:\Data\Ai_visual_processing_tools\video_mark_tool\视频打标器\重构\code\config.ini', encoding='utf-8')
+        self.config.read(r'video_mark_tool\视频打标器\重构\code\config.ini', encoding='utf-8')
         print(self.config)
         # 设置初始窗口大小
         window_width = self.config.getint('UI', 'window_width', fallback=1200)
         window_height = self.config.getint('UI', 'window_height', fallback=800)
-        self.root.geometry(f"{window_width}x{window_height}")
+        # 获取屏幕尺寸并计算居中位置
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         
         # 视频相关变量
         self.video_path = ""
@@ -309,7 +314,7 @@ class VideoTagger:
 
     # AI功能
     from ai_features.generate_ai_caption import generate_ai_caption
-    from ai_features._generate_ai_caption_local import _generate_ai_caption_local
+    from ai_features._generate_ai_caption_local import _generate_ai_caption_local,_generate_ai_caption_local_thread
     from ai_features._generate_ai_caption_vllm import _generate_ai_caption_vllm
     from ai_features.auto_segment_and_recognize import auto_segment_and_recognize
     from ai_features._auto_segment_and_recognize_local import _auto_segment_and_recognize_local

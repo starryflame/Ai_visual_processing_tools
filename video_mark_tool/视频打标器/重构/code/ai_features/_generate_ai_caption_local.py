@@ -1,4 +1,3 @@
-# This is a method from class VideoTagger
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image
@@ -8,6 +7,7 @@ import base64
 from openai import OpenAI
 import logging
 import re
+import threading  # 添加线程支持
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -15,12 +15,21 @@ logger = logging.getLogger(__name__)
 
 def _generate_ai_caption_local(self):
     """使用Ollama API生成标签"""
+    # 启动新线程执行AI生成任务
+    thread = threading.Thread(target=self._generate_ai_caption_local_thread)
+    thread.daemon = True
+    thread.start()
+
+
+def _generate_ai_caption_local_thread(self):
+    """在新线程中执行AI生成任务"""
     # 显示加载提示
     loading_window = tk.Toplevel(self.root)
     loading_window.title("AI处理中")
     loading_window.geometry("300x100")
     loading_window.transient(self.root)
-    loading_window.grab_set()
+    # 移除 grab_set() 调用，让用户可以继续与主窗口交互
+    # loading_window.grab_set()
     
     # 将窗口居中显示
     loading_window.update_idletasks()
@@ -29,7 +38,6 @@ def _generate_ai_caption_local(self):
     loading_window.geometry(f"300x100+{x}+{y}")
     
     tk.Label(loading_window, text="正在使用Ollama生成标签...", font=self.font).pack(pady=20)
-    self.root.update()
     
     try:
         # 获取选中的视频片段帧
@@ -179,31 +187,45 @@ def _generate_ai_caption_local(self):
             # 生成描述
             caption = generate_caption_with_ollama(frames, user_prompt)
             
-            # 添加到预设列表
-            # 使用第一帧作为缩略图
-            print(self.start_frame,self.end_frame)
+            # 在主线程中更新UI
+            def update_ui():
+                # 添加到预设列表
+                # 使用第一帧作为缩略图
+                print(self.start_frame,self.end_frame)
 
-            thumbnail_frame = self.processed_frames[self.start_frame].copy()
-            new_index = len(self.caption_presets)
-            self.caption_presets.append({
-                "caption": caption,
-                "image": thumbnail_frame
-            })
+                thumbnail_frame = self.processed_frames[self.start_frame].copy()
+                new_index = len(self.caption_presets)
+                self.caption_presets.append({
+                    "caption": caption,
+                    "image": thumbnail_frame
+                })
+                
+                # 创建新的预设项显示
+                self.create_preset_item(new_index, caption, thumbnail_frame)
+                
+                # 在AI生成完成后直接打开这个预设标签并允许编辑
+                self.show_full_image(thumbnail_frame, caption, new_index)
             
-            # 创建新的预设项显示
-            self.create_preset_item(new_index, caption, thumbnail_frame)
-            
-            # 在AI生成完成后直接打开这个预设标签并允许编辑
-            self.show_full_image(thumbnail_frame, caption, new_index)
+            # 调度UI更新到主线程
+            self.root.after(0, update_ui)
             
         else:
-            messagebox.showerror("错误", "无法获取选中的视频片段")
+            # 错误处理也要在主线程中进行
+            def show_error():
+                messagebox.showerror("错误", "无法获取选中的视频片段")
+            self.root.after(0, show_error)
             
     except Exception as e:
-        messagebox.showerror("错误", f"AI标签生成失败: {str(e)}")
+        # 错误处理也要在主线程中进行
+        def show_error():
+            messagebox.showerror("错误", f"AI标签生成失败: {str(e)}")
+        self.root.after(0, show_error)
     finally:
-        loading_window.destroy()
+        # 关闭加载窗口也要在主线程中进行
+        def close_loading_window():
+            loading_window.destroy()
+        self.root.after(0, close_loading_window)
 
 # Note: This was originally a method of class VideoTagger
 # You may need to adjust the implementation based on class context
-__all__ = ['_generate_ai_caption_local']
+__all__ = ['_generate_ai_caption_local', '_generate_ai_caption_local_thread']
