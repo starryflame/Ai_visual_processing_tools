@@ -142,7 +142,7 @@ class VideoLabelManager(QMainWindow):
         self.delete_btn.clicked.connect(self.delete_current_file)
         self.delete_btn.setEnabled(False)
         # 修改: 将删除按钮设置为固定高度
-        self.delete_btn.setFixedHeight(80)
+        self.delete_btn.setFixedHeight(200)
         left_layout.addWidget(self.delete_btn)
         
 

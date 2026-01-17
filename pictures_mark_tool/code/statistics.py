@@ -1,16 +1,8 @@
 # 统计功能
 import os
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QListWidget, QTextEdit, QLabel, 
-                             QFileDialog, QMessageBox, QLineEdit, QAbstractItemView,
-                             QCheckBox, QListWidgetItem,
-                             QTreeWidgetItem,
-                             QInputDialog)
-from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtWidgets import (QTreeWidgetItem)
 import re
-# 添加jieba库用于中文分词
-import jieba
+
 
 # 更新标签统计信息
 def update_tag_statistics(self):

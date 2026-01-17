@@ -144,7 +144,7 @@ class ToolLauncher:
     def launch_video_editor(self):
         def _launch():
             # 启动视频标签编辑器
-            subprocess.Popen([sys.executable, "video_mark_tool/视频标签编辑ui/pic_video_label_manager.py"])
+            subprocess.Popen([sys.executable, "video_mark_tool/图像视频标签预览ui/pic_video_label_manager.py"])
         self.launch_with_progress(_launch)
         
     def generate_requirements(self):
