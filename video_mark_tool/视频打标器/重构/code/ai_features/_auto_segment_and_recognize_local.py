@@ -28,7 +28,7 @@ def _auto_segment_and_recognize_local(self):
     progress_window.title("自动分段识别中")
     progress_window.geometry("400x200")  # 增加窗口高度以容纳更多信息
     progress_window.transient(self.root)
-    progress_window.grab_set()
+    #progress_window.grab_set()
     
     # 居中显示
     progress_window.update_idletasks()

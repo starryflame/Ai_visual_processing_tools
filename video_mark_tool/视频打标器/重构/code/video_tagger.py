@@ -160,7 +160,7 @@ class VideoTagger:
         self.ai_generate_btn = tk.Button(self.control_panel, text="AI生成标签", command=self.generate_ai_caption, state=tk.DISABLED, font=self.font)
         self.ai_generate_btn.pack(fill=tk.X, padx=5, pady=2)
             
-        self.delete_preset_btn = tk.Button(self.control_panel, text="删除所有预设", command=self.delete_caption_preset, font=self.font)
+        self.delete_preset_btn = tk.Button(self.control_panel, text="删除所有预设", command=self.delete_caption_preset,state=tk.DISABLED, font=self.font)
         self.delete_preset_btn.pack(fill=tk.X, padx=5, pady=2)
     
         ai_prompt_frame = tk.Frame(self.control_panel, bg="lightgray")
@@ -222,7 +222,11 @@ class VideoTagger:
     
         self.auto_segment_btn = tk.Button(tag_frame, text="自动分段AI识别", command=self.auto_segment_and_recognize, state=tk.DISABLED, font=self.font)
         self.auto_segment_btn.pack(side=tk.LEFT, padx=2)
-    
+
+        # 添加重新生成所有标签的按钮
+        self.regenerate_all_tags_btn = tk.Button(tag_frame, text="重新生成所有标签", command=self.regenerate_all_tags, state=tk.DISABLED, font=self.font)
+        self.regenerate_all_tags_btn.pack(side=tk.LEFT, padx=2)
+
         # 预设相关控件
         self.preset_entry = tk.Entry(tag_frame, width=15, font=self.font)
         self.preset_entry.pack(side=tk.LEFT, padx=2)
@@ -311,7 +315,7 @@ class VideoTagger:
     from tag_management.load_tag_records import load_tag_records
     from tag_management.auto_load_tag_records import auto_load_tag_records
     from tag_management.export_tags import export_tags
-
+    from tag_management.regenerate_all_tags import regenerate_all_tags, _regenerate_all_tags_thread, _generate_single_tag_caption
     # AI功能
     from ai_features.generate_ai_caption import generate_ai_caption
     from ai_features._generate_ai_caption_local import _generate_ai_caption_local,_generate_ai_caption_local_thread

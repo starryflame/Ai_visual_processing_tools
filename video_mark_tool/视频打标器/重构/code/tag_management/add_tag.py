@@ -7,7 +7,7 @@ def add_tag(self):
     tag_text = self.tag_entry.get("1.0", tk.END).strip()
     if not tag_text:
         messagebox.showerror("错误", "请输入标签文本")
-        return
+
         
     if self.start_frame > self.end_frame:
         messagebox.showerror("错误", "开始帧不能大于结束帧")
@@ -20,7 +20,7 @@ def add_tag(self):
         "tag": tag_text
     }
     self.tags.append(tag_info)
-    
+    self.regenerate_all_tags_btn.config(state=tk.NORMAL)
     # 更新列表框
     self.tag_listbox.insert(tk.END, f"帧 {self.start_frame}-{self.end_frame}: {tag_text}")
     

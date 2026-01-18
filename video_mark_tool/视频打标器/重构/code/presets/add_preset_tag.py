@@ -13,7 +13,8 @@ def add_preset_tag(self):
     
     # 使用统一的方法创建预设项显示
     self.create_manual_preset_item(len(self.manual_presets) - 1, preset_text)
-    
+    # 启用删除按钮
+    self.delete_preset_btn.config(state=tk.NORMAL)
     # 清空输入框
     self.preset_entry.delete(0, tk.END)
 
