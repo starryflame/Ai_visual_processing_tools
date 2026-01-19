@@ -5,9 +5,6 @@ from tkinter import messagebox
 def add_tag(self):
     # 修改获取标签文本的方式
     tag_text = self.tag_entry.get("1.0", tk.END).strip()
-    if not tag_text:
-        messagebox.showerror("错误", "请输入标签文本")
-
         
     if self.start_frame > self.end_frame:
         messagebox.showerror("错误", "开始帧不能大于结束帧")

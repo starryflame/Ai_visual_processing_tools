@@ -214,28 +214,30 @@ class VideoTagger:
         self.tag_entry.config(yscrollcommand=scrollbar.set)
     
         # 功能按钮
-        self.add_tag_btn = tk.Button(tag_frame, text="添加标记", command=self.add_tag, state=tk.DISABLED, font=self.font)
-        self.add_tag_btn.pack(side=tk.LEFT, padx=2)
-    
-        self.exclude_segment_btn = tk.Button(tag_frame, text="排除片段", command=self.exclude_segment, state=tk.DISABLED, font=self.font)
-        self.exclude_segment_btn.pack(side=tk.LEFT, padx=2)
-    
-        self.auto_segment_btn = tk.Button(tag_frame, text="自动分段AI识别", command=self.auto_segment_and_recognize, state=tk.DISABLED, font=self.font)
-        self.auto_segment_btn.pack(side=tk.LEFT, padx=2)
+        button_frame = tk.Frame(root)
+        button_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=5)
 
+        self.add_tag_btn = tk.Button(button_frame, text="添加标记", command=self.add_tag, state=tk.DISABLED, font=self.font,height=2, width=30)
+        self.add_tag_btn.pack(side=tk.LEFT, padx=2)
         # 添加重新生成所有标签的按钮
-        self.regenerate_all_tags_btn = tk.Button(tag_frame, text="重新生成所有标签", command=self.regenerate_all_tags, state=tk.DISABLED, font=self.font)
+        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签", command=self.regenerate_all_tags, state=tk.DISABLED, font=self.font,height=2, width=30)
         self.regenerate_all_tags_btn.pack(side=tk.LEFT, padx=2)
 
-        # 预设相关控件
-        self.preset_entry = tk.Entry(tag_frame, width=15, font=self.font)
-        self.preset_entry.pack(side=tk.LEFT, padx=2)
-        self.add_preset_btn = tk.Button(tag_frame, text="添加预设", command=self.add_preset_tag, font=self.font)
-        self.add_preset_btn.pack(side=tk.LEFT, padx=2)
+        self.exclude_segment_btn = tk.Button(button_frame, text="排除片段", command=self.exclude_segment, state=tk.DISABLED, font=self.font,height=2, width=15)
+        self.exclude_segment_btn.pack(side=tk.LEFT, padx=2)
+    
+        self.auto_segment_btn = tk.Button(button_frame, text="自动分段AI识别", command=self.auto_segment_and_recognize, state=tk.DISABLED, font=self.font,height=2, width=15)
+        self.auto_segment_btn.pack(side=tk.LEFT, padx=2)
 
+        # 预设相关控件
+        self.preset_entry = tk.Entry(button_frame, width=15, font=self.font)
+        self.preset_entry.pack(side=tk.LEFT, padx=2)
+        self.add_preset_btn = tk.Button(button_frame, text="添加预设", command=self.add_preset_tag, font=self.font,height=2, width=30)
+        self.add_preset_btn.pack(side=tk.LEFT, padx=2)
+        
         # ===================【标签列表区】===================
         list_frame = tk.Frame(root)
-        list_frame.grid(row=4, column=0, sticky="nsew", padx=10, pady=5)
+        list_frame.grid(row=5, column=0, sticky="nsew", padx=10, pady=5)
         list_frame.grid_rowconfigure(1, weight=1)
         list_frame.grid_columnconfigure(0, weight=1)
     
@@ -256,7 +258,7 @@ class VideoTagger:
     
         # ===================【导出设置区】===================
         export_frame = tk.Frame(root)
-        export_frame.grid(row=5, column=0, sticky="ew", padx=10, pady=5)
+        export_frame.grid(row=6, column=0, sticky="ew", padx=10, pady=5)
     
         tk.Label(export_frame, text="导出帧率:", font=self.font).pack(side=tk.LEFT, padx=(0, 5))
         self.fps_entry = tk.Entry(export_frame, textvariable=self.export_fps, width=10, font=self.font)

@@ -66,6 +66,9 @@ def _regenerate_all_tags_thread(self):
                 # 更新列表框中的显示
                 self.root.after(0, lambda s=start_frame, e=end_frame, c=new_caption: 
                                self.tag_listbox.insert(tk.END, f"帧 {s}-{e}: {c}"))
+                # 清空已选中的开始和结束点
+                self.start_frame = 0
+                self.end_frame = 0
         
         # 完成后更新UI
         def finish_regeneration():
