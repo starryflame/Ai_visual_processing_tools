@@ -6,8 +6,8 @@ def add_tag(self):
     # 修改获取标签文本的方式
     tag_text = self.tag_entry.get("1.0", tk.END).strip()
         
-    if self.start_frame > self.end_frame:
-        messagebox.showerror("错误", "开始帧不能大于结束帧")
+    if self.start_frame >= self.end_frame:
+        messagebox.showerror("错误", "开始帧不能大于等于结束帧")
         return
         
     # 添加到标记列表

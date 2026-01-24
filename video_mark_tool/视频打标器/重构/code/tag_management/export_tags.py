@@ -3,48 +3,25 @@ import cv2
 import os
 from tkinter import filedialog, messagebox, simpledialog
 
+def set_export_path(self):
+    """设置导出路径"""
+    selected_dir = filedialog.askdirectory(title="选择导出文件夹")
+    if selected_dir:
+        self.export_dir = selected_dir
+        messagebox.showinfo("导出路径设置", f"已设置导出路径为: {self.export_dir}")
 def export_tags(self):
     if not self.tags:
         messagebox.showerror("错误", "没有标记需要导出")
         return
         
-    # 选择导出目录
-    export_dir = filedialog.askdirectory(title="选择导出目录")
-    if not export_dir:
+    # 导出目录
+    if not self.export_dir:
+        self.export_dir = self.config.get('VIDEO', 'export_path', fallback=None)
+        messagebox.showerror("错误", "请先设置导出路径")
         return
         
-    # 获取导出文件夹名称
-    folder_name = simpledialog.askstring("导出文件夹名称", "请输入导出文件夹名称(留空则直接保存到当前文件夹):")
-    
-    # 如果用户取消输入对话框，则返回
-    if folder_name is None:
-        return
-        
-    # 如果输入了文件夹名称，则创建子文件夹，否则直接使用选中的文件夹
-    if folder_name:
-        # 处理非法字符
-        safe_folder_name = "".join(c for c in folder_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        # 限制文件夹名称长度
-        safe_folder_name = safe_folder_name[:50] if len(safe_folder_name) > 50 else safe_folder_name
-        # 替换空格为下划线
-        safe_folder_name = safe_folder_name.replace(" ", "_")
-        
-        # 如果处理后名称为空，则使用默认名称
-        if not safe_folder_name:
-            safe_folder_name = "标记视频片段"
-            
-        # 检查是否重名并处理
-        main_folder = os.path.join(export_dir, safe_folder_name)
-        counter = 1
-        original_main_folder = main_folder
-        while os.path.exists(main_folder):
-            main_folder = f"{original_main_folder}_{counter}"
-            counter += 1
-            
-        os.makedirs(main_folder, exist_ok=True)
-    else:
-        # 直接使用选中的文件夹
-        main_folder = export_dir
+    # 直接使用选中的文件夹
+    main_folder = self.export_dir
     
     # 获取导出帧率
     try:

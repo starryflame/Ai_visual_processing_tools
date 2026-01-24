@@ -52,7 +52,7 @@ class VideoTagger:
         # 导出设置
         default_fps = self.config.get('VIDEO', 'default_export_fps', fallback="原始帧率")
         self.export_fps = tk.StringVar(value=default_fps)
-        
+        self.export_dir = None  # 导出目录
         # 字体大小控制
         self.font_size = 10
         # 修改默认字体为更现代的字体
@@ -85,6 +85,10 @@ class VideoTagger:
         control_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
         self.load_btn = tk.Button(control_frame, text="加载视频", command=self.load_video, font=self.font)
         self.load_btn.pack(side=tk.LEFT, padx=5)
+
+        # 添加导出路径设置按钮
+        self.set_export_path_btn = tk.Button(control_frame, text="设置导出路径", command=self.set_export_path, font=self.font)
+        self.set_export_path_btn.pack(side=tk.LEFT, padx=5)
     
         # ===================【主要内容区（左右可拖拽面板）】===================
         main_paned = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
@@ -166,7 +170,7 @@ class VideoTagger:
         ai_prompt_frame = tk.Frame(self.control_panel, bg="lightgray")
         ai_prompt_frame.pack(fill=tk.X, padx=5, pady=2)
         tk.Label(ai_prompt_frame, text="AI提示词:", font=self.font, bg="lightgray").pack(anchor=tk.W)
-        self.ai_prompt_entry = tk.Text(ai_prompt_frame, height=3, font=("Arial", 8))
+        self.ai_prompt_entry = tk.Text(ai_prompt_frame, height=8, font=("Arial", 8))
         self.ai_prompt_entry.pack(fill=tk.X, pady=2)
         default_prompt = self.config.get('PROMPTS', 'video_prompt', fallback="详细描述视频画面。")
         self.ai_prompt_entry.insert("1.0", default_prompt)
@@ -304,7 +308,7 @@ class VideoTagger:
     from ui_events.show_preset_context_menu import show_preset_context_menu
 
     # 视频处理
-    from video_processing.load_video import load_video
+    from video_processing.load_video import load_video, load_video_manager, add_single_video, add_video_folder, refresh_video_list, load_selected_video
     from video_processing.preprocess_frames import preprocess_frames
     from video_processing.show_frame import show_frame
     from video_processing.play_video import play_video
@@ -316,7 +320,7 @@ class VideoTagger:
     from tag_management.save_tag_records import save_tag_records
     from tag_management.load_tag_records import load_tag_records
     from tag_management.auto_load_tag_records import auto_load_tag_records
-    from tag_management.export_tags import export_tags
+    from tag_management.export_tags import export_tags,set_export_path
     from tag_management.regenerate_all_tags import regenerate_all_tags, _regenerate_all_tags_thread, _generate_single_tag_caption
     # AI功能
     from ai_features.generate_ai_caption import generate_ai_caption

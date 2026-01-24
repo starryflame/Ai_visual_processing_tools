@@ -3,6 +3,8 @@ import requests
 import time
 import os
 from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog
 
 class ComfyUIBatchProcessor:
     def __init__(self, server_address="127.0.0.1:8189"):
@@ -123,8 +125,18 @@ class ComfyUIBatchProcessor:
                 continue
 
 def main():
-    # 设置参数
-    INPUT_FOLDER = r"J:\AI-T8-video-onekey-20251005\ComfyUI\output\my_processed_video"  # 替换为您的输入文件夹路径
+    # 创建tkinter根窗口并隐藏它
+    root = tk.Tk()
+    root.withdraw()  # 隐藏主窗口
+    
+    # 让用户选择包含视频的文件夹
+    INPUT_FOLDER = filedialog.askdirectory(title="选择包含视频的文件夹")
+    
+    # 如果用户取消了选择，则退出程序
+    if not INPUT_FOLDER:
+        print("未选择文件夹，程序退出")
+        return
+    
     WORKFLOW_PATH = r"j:\Data\Ai_visual_processing_tools\其他\comfyui\视频插帧.json"
     
     # 检查输入文件夹是否存在

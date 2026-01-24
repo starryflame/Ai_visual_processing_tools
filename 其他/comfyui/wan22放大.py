@@ -3,7 +3,8 @@ import requests
 import time
 import uuid
 import os
-
+import tkinter as tk
+from tkinter import filedialog
 class ComfyUIClient:
     def __init__(self, server_address="127.0.0.1:8189"):
         self.server_address = server_address
@@ -105,8 +106,19 @@ def batch_process_folder(folder_path, output_folder="output", supported_formats=
 if __name__ == "__main__":
     # 单个视频处理示例
 
+    # 创建tkinter根窗口并隐藏它
+    root = tk.Tk()
+    root.withdraw()  # 隐藏主窗口
     
-    # 批量处理文件夹示例
-    folder_path = r"J:\AI-T8-video-onekey-20251005\ComfyUI\output\1-16"  # 替换为包含视频的文件夹路径
-    batch_process_folder(folder_path, "output_folder_name")
+    # 让用户选择包含视频的文件夹
+    INPUT_FOLDER = filedialog.askdirectory(title="选择包含视频的文件夹")
+    
+    # 如果用户取消了选择，则退出程序
+    if not INPUT_FOLDER:
+        print("未选择文件夹，程序退出")
+    else:
+        print(f"选择的文件夹: {INPUT_FOLDER}")
+        # 批量处理文件夹示例
+        #folder_path = r"J:\AI-T8-video-onekey-20251005\ComfyUI\output\美女短视频\守岸人"  # 替换为包含视频的文件夹路径
+        batch_process_folder(INPUT_FOLDER, "output_folder_name")
     
