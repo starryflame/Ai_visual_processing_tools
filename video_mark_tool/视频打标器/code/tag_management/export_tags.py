@@ -88,7 +88,7 @@ def export_tags(self):
             with open(txt_path, 'w', encoding='utf-8') as f:
                 f.write(tag_text)
             
-    messagebox.showinfo("完成", f"已导出 {len(self.tags)} 个标记片段到: {main_folder}")
+    #messagebox.showinfo("完成", f"已导出 {len(self.tags)} 个标记片段到: {main_folder}")
 
 # Note: This was originally a method of class VideoTagger
 # You may need to adjust the implementation based on class context

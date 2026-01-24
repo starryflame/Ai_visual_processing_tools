@@ -19,11 +19,11 @@ class VideoTagger:
         # 读取配置文件
         self.config = configparser.ConfigParser()
         # 修改读取配置文件的方式，显式指定编码为utf-8
-        self.config.read(r'video_mark_tool\视频打标器\重构\code\config.ini', encoding='utf-8')
+        self.config.read(r'video_mark_tool\视频打标器\code\config.ini', encoding='utf-8')
         print(self.config)
         # 设置初始窗口大小
         window_width = self.config.getint('UI', 'window_width', fallback=1200)
-        window_height = self.config.getint('UI', 'window_height', fallback=800)
+        window_height = self.config.getint('UI', 'window_height', fallback=900)
         # 获取屏幕尺寸并计算居中位置
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
@@ -155,7 +155,9 @@ class VideoTagger:
         self.set_start_btn.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
         self.set_end_btn = tk.Button(frame_mark_frame, text="设置结束帧", command=self.set_end_frame, state=tk.DISABLED, font=self.font)
         self.set_end_btn.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
-    
+
+        self.add_tag_btn = tk.Button(self.control_panel, text="添加标记", command=self.add_tag, state=tk.DISABLED, font=self.font,height=2, width=30)
+        self.add_tag_btn.pack(fill=tk.X, padx=5, pady=2)
         # 清除帧标记按钮
         self.clear_frames_btn = tk.Button(self.control_panel, text="清空帧标记", command=self.clear_frame_marks, state=tk.DISABLED, font=self.font)
         self.clear_frames_btn.pack(fill=tk.X, padx=5, pady=2)
@@ -164,8 +166,7 @@ class VideoTagger:
         self.ai_generate_btn = tk.Button(self.control_panel, text="AI生成标签", command=self.generate_ai_caption, state=tk.DISABLED, font=self.font)
         self.ai_generate_btn.pack(fill=tk.X, padx=5, pady=2)
             
-        self.delete_preset_btn = tk.Button(self.control_panel, text="删除所有预设", command=self.delete_caption_preset,state=tk.DISABLED, font=self.font)
-        self.delete_preset_btn.pack(fill=tk.X, padx=5, pady=2)
+
     
         ai_prompt_frame = tk.Frame(self.control_panel, bg="lightgray")
         ai_prompt_frame.pack(fill=tk.X, padx=5, pady=2)
@@ -221,11 +222,7 @@ class VideoTagger:
         button_frame = tk.Frame(root)
         button_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=5)
 
-        self.add_tag_btn = tk.Button(button_frame, text="添加标记", command=self.add_tag, state=tk.DISABLED, font=self.font,height=2, width=30)
-        self.add_tag_btn.pack(side=tk.LEFT, padx=2)
-        # 添加重新生成所有标签的按钮
-        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签", command=self.regenerate_all_tags, state=tk.DISABLED, font=self.font,height=2, width=30)
-        self.regenerate_all_tags_btn.pack(side=tk.LEFT, padx=2)
+
 
         self.exclude_segment_btn = tk.Button(button_frame, text="排除片段", command=self.exclude_segment, state=tk.DISABLED, font=self.font,height=2, width=15)
         self.exclude_segment_btn.pack(side=tk.LEFT, padx=2)
@@ -239,6 +236,13 @@ class VideoTagger:
         self.add_preset_btn = tk.Button(button_frame, text="添加预设", command=self.add_preset_tag, font=self.font,height=2, width=30)
         self.add_preset_btn.pack(side=tk.LEFT, padx=2)
         
+        self.delete_preset_btn = tk.Button(button_frame, text="删除所有预设", command=self.delete_caption_preset,state=tk.DISABLED, font=self.font,height=2, width=30)
+        self.delete_preset_btn.pack(side=tk.LEFT, padx=2)
+
+        # 添加重新生成所有标签的按钮
+        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签且导出", command=self.regenerate_all_tags, state=tk.DISABLED, font=self.font,height=2, width=30)
+        self.regenerate_all_tags_btn.pack(side=tk.LEFT, padx=2)
+
         # ===================【标签列表区】===================
         list_frame = tk.Frame(root)
         list_frame.grid(row=5, column=0, sticky="nsew", padx=10, pady=5)

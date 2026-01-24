@@ -135,10 +135,10 @@ class ToolLauncher:
             # 启动视频打标器，使用指定的虚拟环境
             venv_python = "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
             if os.path.exists(venv_python):
-                subprocess.Popen([venv_python, "video_mark_tool/视频打标器/重构/code/video_tagger.py"])
+                subprocess.Popen([venv_python, "video_mark_tool/视频打标器/code/video_tagger.py"])
             else:
                 # 如果虚拟环境不存在，回退到默认Python解释器
-                subprocess.Popen([sys.executable, "video_mark_tool/视频打标器/重构/code/video_tagger.py"])
+                subprocess.Popen([sys.executable, "video_mark_tool/视频打标器/code/video_tagger.py"])
         self.launch_with_progress(_launch)
             
     def launch_video_editor(self):

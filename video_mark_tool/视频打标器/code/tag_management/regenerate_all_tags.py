@@ -76,6 +76,8 @@ def _regenerate_all_tags_thread(self):
             progress_window.destroy()
         
         self.root.after(0, finish_regeneration)
+
+        self.export_tags()  # 启用导出按钮
         
     except Exception as e:
         def show_error():
