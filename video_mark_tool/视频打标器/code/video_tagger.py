@@ -163,7 +163,7 @@ class VideoTagger:
         self.clear_frames_btn.pack(fill=tk.X, padx=5, pady=2)
     
         # AI 相关按钮及输入框
-        self.ai_generate_btn = tk.Button(self.control_panel, text="AI生成标签", command=self.generate_ai_caption, state=tk.DISABLED, font=self.font)
+        self.ai_generate_btn = tk.Button(self.control_panel, text="AI生成标签预设", command=self.generate_ai_caption, state=tk.DISABLED, font=self.font)
         self.ai_generate_btn.pack(fill=tk.X, padx=5, pady=2)
             
 
@@ -227,7 +227,7 @@ class VideoTagger:
         self.exclude_segment_btn = tk.Button(button_frame, text="排除片段", command=self.exclude_segment, state=tk.DISABLED, font=self.font,height=2, width=15)
         self.exclude_segment_btn.pack(side=tk.LEFT, padx=2)
     
-        self.auto_segment_btn = tk.Button(button_frame, text="自动分段AI识别", command=self.auto_segment_and_recognize, state=tk.DISABLED, font=self.font,height=2, width=15)
+        self.auto_segment_btn = tk.Button(button_frame, text="AI生成全部视频标签", command=self.auto_segment_and_recognize, state=tk.DISABLED, font=self.font,height=2, width=15)
         self.auto_segment_btn.pack(side=tk.LEFT, padx=2)
 
         # 预设相关控件

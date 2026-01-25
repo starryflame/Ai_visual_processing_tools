@@ -1,4 +1,3 @@
-# This is a method from class VideoTagger
 import tkinter as tk
 from tkinter import messagebox
 import time
@@ -19,7 +18,13 @@ def auto_segment_and_recognize(self):
     y = (method_window.winfo_screenheight() // 2) - (150 // 2)
     method_window.geometry(f"300x150+{x}+{y}")
 
+    # 添加进度信息显示标签
+    progress_label = tk.Label(method_window, text="准备开始处理...", wraplength=280)
+    progress_label.pack(pady=20)
 
+    # 添加取消按钮
+    cancel_button = tk.Button(method_window, text="取消", command=lambda: method_window.destroy())
+    cancel_button.pack(pady=10)
 
     def batch_process_videos():
         """批量处理视频文件列表中的所有视频"""
@@ -37,6 +42,8 @@ def auto_segment_and_recognize(self):
             try:
                 # 更新进度信息
                 progress_info = f"正在处理第 {idx + 1}/{total_videos} 个视频: {video_path}"
+                # 在GUI窗口中更新进度信息
+                self.root.after(0, lambda info=progress_info: progress_label.config(text=info))
                 print(progress_info)
                 
                 # 释放之前的视频捕获对象
@@ -100,6 +107,8 @@ def auto_segment_and_recognize(self):
         
         # 在主线程中显示完成消息
         self.root.after(0, lambda: messagebox.showinfo("批量处理完成", result_msg))
+        # 更新进度标签为完成状态
+        self.root.after(0, lambda: progress_label.config(text=result_msg.replace('\n', ' ')))
         
         # 关闭方法选择窗口
         self.root.after(0, lambda: method_window.destroy())
