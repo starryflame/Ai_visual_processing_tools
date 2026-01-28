@@ -105,7 +105,7 @@ python video_mark_tool/视频打标器/code/video_tagger.py  # 视频打标器
 
 ## 📋 目录结构
 
-```
+
 ```
 AI视觉处理工具集/
 ├── pictures_mark_tool/          # 图片打标工具
@@ -126,7 +126,7 @@ AI视觉处理工具集/
 ├── launcher.py                 # 主启动器
 └── README.md                   # 项目说明文档
 ```
-```
+
 
 ## 🤝 贡献
 
