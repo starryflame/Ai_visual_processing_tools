@@ -131,7 +131,7 @@ def generate_caption_for_selected(self):
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=messages,
-                    max_tokens=1024,
+                    max_tokens=16384,
                     temperature=0.3,
                     top_p=0.9,
                 )

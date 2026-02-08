@@ -4,9 +4,21 @@ from pathlib import Path
 import argparse
 from tqdm import tqdm
 import logging
+import sys
 
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# 设置系统编码为utf-8，解决中文路径问题
+if sys.platform.startswith('win'):
+    import locale
+    locale.setlocale(locale.LC_ALL, 'zh_CN.UTF-8')
+
+# 配置日志 - 使用UTF-8编码
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # 支持的视频格式
@@ -18,14 +30,16 @@ def is_video_file(file_path):
 
 def get_all_videos(folder_path):
     """递归获取文件夹中所有视频文件"""
-    folder_path = Path(folder_path)
+    # 处理路径编码问题
+    folder_path = Path(str(folder_path).encode('utf-8').decode('utf-8'))
     if not folder_path.exists():
         raise FileNotFoundError(f"文件夹不存在: {folder_path}")
     
     video_files = []
     for file_path in folder_path.rglob('*'):
         if file_path.is_file() and is_video_file(file_path):
-            video_files.append(file_path)
+            # 确保文件路径正确编码
+            video_files.append(Path(str(file_path).encode('utf-8').decode('utf-8')))
     
     logger.info(f"找到 {len(video_files)} 个视频文件")
     for video in video_files:
@@ -35,10 +49,14 @@ def get_all_videos(folder_path):
 def extract_frames_from_video(video_path, output_folder, frames_per_second, start_index=0):
     """从单个视频中提取帧"""
     try:
+        # 处理路径编码 - 移除重复的编码转换
+        video_path = Path(video_path)
+        output_folder = Path(output_folder)
+        
         # 确保输出文件夹存在
         output_folder.mkdir(parents=True, exist_ok=True)
         
-        # 打开视频文件
+        # 打开视频文件 - 直接使用Path对象
         cap = cv2.VideoCapture(str(video_path))
         
         if not cap.isOpened():
@@ -75,13 +93,19 @@ def extract_frames_from_video(video_path, output_folder, frames_per_second, star
             
             # 每隔skip_frames帧保存一次
             if frame_count % skip_frames == 0:
-                # 生成输出文件名
-                output_filename = f"{video_path.stem}_{current_index:06d}.png"
+                # 生成输出文件名 - 简化文件名处理逻辑
+                safe_stem = "".join(c if c.isalnum() or c in (' ', '-', '_', '(', ')', '[', ']') or '\u4e00' <= c <= '\u9fff' else '_' for c in video_path.stem)
+                # 限制文件名长度避免过长
+                if len(safe_stem) > 50:
+                    safe_stem = safe_stem[:50]
+                output_filename = f"{safe_stem}_{current_index:06d}.png"
                 output_path = output_folder / output_filename
                 
-                # 保存图片
-                success = cv2.imwrite(str(output_path), frame)
+                # 保存图片 - 使用cv2.imencode然后写入文件，避免直接imwrite的编码问题
+                success, encoded_image = cv2.imencode('.png', frame)
                 if success:
+                    with open(str(output_path), 'wb') as f:
+                        f.write(encoded_image)
                     saved_count += 1
                     current_index += 1
                     # 验证文件是否真的保存成功
@@ -90,7 +114,7 @@ def extract_frames_from_video(video_path, output_folder, frames_per_second, star
                     else:
                         logger.warning(f"文件可能未正确保存: {output_filename}")
                 else:
-                    logger.warning(f"保存失败: {output_filename}")
+                    logger.warning(f"编码失败: {output_filename}")
             
             frame_count += 1
             pbar.update(1)
@@ -109,8 +133,9 @@ def extract_frames_from_video(video_path, output_folder, frames_per_second, star
 
 def extract_frames_from_folder(input_folder, output_folder, frames_per_second):
     """从文件夹中所有视频提取帧"""
-    input_folder = Path(input_folder)
-    output_folder = input_folder / output_folder
+    # 处理路径编码
+    input_folder = Path(str(input_folder).encode('utf-8').decode('utf-8'))
+    output_folder = input_folder / str(output_folder).encode('utf-8').decode('utf-8')
     
     logger.info(f"输入文件夹: {input_folder.absolute()}")
     logger.info(f"输出文件夹: {output_folder.absolute()}")
@@ -159,7 +184,8 @@ def extract_frames_from_folder(input_folder, output_folder, frames_per_second):
 # 新增：处理单个视频文件
 def extract_frames_from_single_video(video_path, output_folder, frames_per_second):
     """从单个视频文件提取帧"""
-    video_path = Path(video_path)
+    # 处理路径编码
+    video_path = Path(str(video_path).encode('utf-8').decode('utf-8'))
     
     if not video_path.exists():
         logger.error(f"视频文件不存在: {video_path}")
@@ -171,7 +197,9 @@ def extract_frames_from_single_video(video_path, output_folder, frames_per_secon
     
     # 如果输出文件夹是相对路径，则相对于视频文件所在目录创建
     if not Path(output_folder).is_absolute():
-        output_folder = video_path.parent / output_folder
+        output_folder = video_path.parent / str(output_folder).encode('utf-8').decode('utf-8')
+    else:
+        output_folder = Path(str(output_folder).encode('utf-8').decode('utf-8'))
     
     logger.info(f"输入视频: {video_path.absolute()}")
     logger.info(f"输出文件夹: {output_folder.absolute()}")
@@ -199,8 +227,9 @@ def extract_frames_from_single_video(video_path, output_folder, frames_per_secon
 def main():
     print("=== 视频帧提取工具 ===")
     
-    # 获取用户输入
+    # 获取用户输入 - 简化编码处理
     input_path = input("请输入视频文件或包含视频的文件夹路径: ").strip()
+    
     if not input_path:
         print("错误: 必须指定输入路径")
         return
