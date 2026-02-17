@@ -120,7 +120,7 @@ def _generate_single_tag_caption(self):
             model_name = self.config.get('OLLAMA', 'model_name', fallback='qwen3-vl:30b')
             
             # 从配置文件读取生成参数
-            max_new_tokens = self.config.getint('OLLAMA', 'max_new_tokens', fallback=16384)
+            max_new_tokens = self.config.getint('OLLAMA', 'max_new_tokens', fallback=300000)
             temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
             top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
             

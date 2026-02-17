@@ -2,11 +2,12 @@ import os
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QListWidget, QLabel, QFileDialog, QMessageBox,
-                             QSplitter, QFrame, QSizePolicy)
-from PyQt5.QtCore import Qt, QTimer
+                             QSplitter, QFrame, QSizePolicy, QSlider)
+from PyQt5.QtCore import Qt, QTimer, QTime
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
-
+from PyQt5.QtWidgets import QTextEdit
+from PyQt5.QtGui import QTextOption
 class VideoLabelManager(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -33,6 +34,15 @@ class VideoLabelManager(QMainWindow):
         # 添加双击删除相关的变量
         self.last_delete_click_time = 0
         self.delete_click_count = 0
+        
+        # 添加标签编辑相关变量
+        self.current_label_file = None  # 当前标签文件路径
+        self.label_modified = False     # 标签是否被修改
+        
+        # 添加视频进度相关变量
+        self.total_frames = 0
+        self.current_frame = 0
+        self.fps = 0
         
         self.init_ui()
         
@@ -191,6 +201,46 @@ class VideoLabelManager(QMainWindow):
         
         video_layout.addWidget(video_container)
         
+        # 添加视频进度控制区域
+        progress_group = QFrame()
+        progress_layout = QHBoxLayout(progress_group)
+        progress_layout.setContentsMargins(5, 5, 5, 5)
+        progress_layout.setSpacing(10)
+        
+        # 当前时间标签
+        self.current_time_label = QLabel("00:00")
+        self.current_time_label.setStyleSheet("color: white; font-size: 12px;")
+        progress_layout.addWidget(self.current_time_label)
+        
+        # 进度滑块
+        self.progress_slider = QSlider(Qt.Horizontal)
+        self.progress_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #999999;
+                height: 8px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B1B1B1, stop:1 #c4c4c4);
+                margin: 2px 0;
+            }
+            QSlider::handle:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #b4b4b4, stop:1 #8f8f8f);
+                border: 1px solid #5c5c5c;
+                width: 18px;
+                margin: -2px 0;
+                border-radius: 3px;
+            }
+        """)
+        self.progress_slider.sliderPressed.connect(self.on_slider_pressed)
+        self.progress_slider.sliderReleased.connect(self.on_slider_released)
+        self.progress_slider.sliderMoved.connect(self.on_slider_moved)
+        progress_layout.addWidget(self.progress_slider)
+        
+        # 总时长标签
+        self.total_time_label = QLabel("00:00")
+        self.total_time_label.setStyleSheet("color: white; font-size: 12px;")
+        progress_layout.addWidget(self.total_time_label)
+        
+        video_layout.addWidget(progress_group)
+        
         # 标签内容显示区域
         label_group = QFrame()
         label_group.setFrameStyle(QFrame.StyledPanel)
@@ -203,21 +253,34 @@ class VideoLabelManager(QMainWindow):
         label_title.setFont(QFont("Arial", 10, QFont.Bold))
         label_layout.addWidget(label_title)
         
-        self.label_content = QLabel("标签内容将在此显示")
-        self.label_content.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        self.label_content.setWordWrap(True)
-        self.label_content.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        # 修改: 使用QTextEdit替换QLabel，使标签内容可编辑
+        self.label_content = QTextEdit()
+        self.label_content.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        self.label_content.textChanged.connect(self.on_label_text_changed)
         self.label_content.setStyleSheet("""
-            QLabel {
+            QTextEdit {
                 background-color: #f9f9f9;
                 border: 1px solid #ddd;
                 border-radius: 5px;
                 padding: 10px;
                 font-family: Consolas, monospace;
+                font-size: 32px;  /* 增大字体大小 */
                 min-height: 100px;
             }
         """)
         label_layout.addWidget(self.label_content)
+        
+        # 添加保存状态标签
+        self.save_status_label = QLabel("")
+        self.save_status_label.setStyleSheet("""
+            QLabel {
+                color: #666;
+                font-style: italic;
+                font-size: 12px;
+                padding: 2px;
+            }
+        """)
+        label_layout.addWidget(self.save_status_label)
         
         # 添加导航按钮区域
         nav_group = QFrame()
@@ -423,6 +486,10 @@ class VideoLabelManager(QMainWindow):
             self.file_list.setCurrentRow(0)
             
     def on_file_selected(self, index):
+        # 在切换到新文件前，先保存当前标签内容
+        if self.current_index >= 0 and self.label_modified:
+            self.save_current_label()
+            
         if index < 0 or index >= len(self.media_files):
             return
             
@@ -506,14 +573,21 @@ class VideoLabelManager(QMainWindow):
             self.media_label.setText("无法打开视频文件")
             return
             
-        # 获取视频的原始帧率
-        fps = self.video_capture.get(cv2.CAP_PROP_FPS)
-        if fps <= 0:
-            # 如果无法获取帧率，使用默认值
-            fps = 30
+        # 获取视频信息
+        self.total_frames = int(self.video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.video_capture.get(cv2.CAP_PROP_FPS)
+        if self.fps <= 0:
+            self.fps = 30  # 默认帧率
             
+        # 设置进度条范围
+        self.progress_slider.setRange(0, self.total_frames)
+        self.progress_slider.setValue(0)
+        
+        # 更新时间显示
+        self.update_time_display()
+        
         # 开始播放
-        self.playback_timer.start(int(1000 / fps))  # 使用原始帧率计算间隔时间
+        self.playback_timer.start(int(1000 / self.fps))
         
     def update_frame(self):
         if self.video_capture is None:
@@ -521,6 +595,14 @@ class VideoLabelManager(QMainWindow):
             
         ret, frame = self.video_capture.read()
         if ret:
+            # 更新当前帧位置
+            self.current_frame = int(self.video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+            
+            # 更新进度条（如果用户没有正在拖动）
+            if not hasattr(self, 'slider_pressed') or not self.slider_pressed:
+                self.progress_slider.setValue(self.current_frame)
+                self.update_time_display()
+            
             # 转换颜色空间 (OpenCV使用BGR，Qt使用RGB)
             rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
@@ -535,16 +617,25 @@ class VideoLabelManager(QMainWindow):
                 Qt.SmoothTransformation
             )
             self.media_label.setPixmap(scaled_pixmap)
-            # 修改: 移除之前的固定高度设置，让标签自动适应
         else:
             # 视频播放结束，重新开始
             self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self.current_frame = 0
+            self.progress_slider.setValue(0)
+            self.update_time_display()
             
     def stop_video(self):
         self.playback_timer.stop()
         if self.video_capture is not None:
             self.video_capture.release()
             self.video_capture = None
+        # 重置进度相关变量
+        self.current_frame = 0
+        self.total_frames = 0
+        self.fps = 0
+        self.progress_slider.setValue(0)
+        self.current_time_label.setText("00:00")
+        self.total_time_label.setText("00:00")
         # 修改: 重置媒体标签为初始状态，但保持其可扩展性
         self.media_label.setText("媒体预览将在此显示")
         self.media_label.setPixmap(QPixmap())  # 使用空的QPixmap对象清除现有的pixmap
@@ -557,6 +648,43 @@ class VideoLabelManager(QMainWindow):
             }
         """)
         
+    def update_time_display(self):
+        """更新时间显示"""
+        if self.fps > 0 and self.total_frames > 0:
+            # 计算当前时间和总时间
+            current_seconds = int(self.current_frame / self.fps)
+            total_seconds = int(self.total_frames / self.fps)
+            
+            # 格式化为 mm:ss
+            current_time = QTime(0, 0).addSecs(current_seconds).toString("mm:ss")
+            total_time = QTime(0, 0).addSecs(total_seconds).toString("mm:ss")
+            
+            self.current_time_label.setText(current_time)
+            self.total_time_label.setText(total_time)
+        else:
+            self.current_time_label.setText("00:00")
+            self.total_time_label.setText("00:00")
+            
+    def on_slider_pressed(self):
+        """进度条被按下"""
+        self.slider_pressed = True
+        
+    def on_slider_released(self):
+        """进度条释放"""
+        self.slider_pressed = False
+        # 跳转到指定位置
+        target_frame = self.progress_slider.value()
+        if self.video_capture is not None:
+            self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            self.current_frame = target_frame
+            
+    def on_slider_moved(self, value):
+        """进度条移动时更新时间显示"""
+        if self.fps > 0 and self.total_frames > 0:
+            seconds = int(value / self.fps)
+            time_str = QTime(0, 0).addSecs(seconds).toString("mm:ss")
+            self.current_time_label.setText(time_str)
+            
     def update_label_preview(self, base_name):
         if not self.current_folder:
             return
@@ -567,27 +695,79 @@ class VideoLabelManager(QMainWindow):
         
         # 查找匹配的标签文件
         label_extensions = ['.txt', '.xml', '.json', '.csv']
-        label_file = None
+        self.current_label_file = None
         
         # 在媒体文件所在目录查找标签文件
         for ext in label_extensions:
             potential_file = os.path.splitext(os.path.basename(media_file))[0] + ext
             potential_path = os.path.join(media_dir, potential_file)
             if os.path.exists(potential_path):
-                label_file = potential_path
+                self.current_label_file = potential_path
                 break
                 
-        if label_file:
+        if self.current_label_file:
             try:
-                with open(label_file, 'r', encoding='utf-8') as f:
+                with open(self.current_label_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                self.label_content.setText(content)
+                self.label_content.setPlainText(content)
+                self.label_modified = False
+                self.update_save_status()
             except Exception as e:
-                self.label_content.setText(f"无法读取标签文件: {str(e)}")
+                self.label_content.setPlainText(f"无法读取标签文件: {str(e)}")
+                self.current_label_file = None
+                self.label_modified = False
+                self.update_save_status()
         else:
-            self.label_content.setText("未找到对应的标签文件")
+            self.label_content.setPlainText("未找到对应的标签文件")
+            self.current_label_file = None
+            self.label_modified = False
+            self.update_save_status()
             
-
+    def on_label_text_changed(self):
+        """标签内容改变时的回调函数"""
+        self.label_modified = True
+        self.update_save_status()
+        
+    def update_save_status(self):
+        """更新保存状态显示"""
+        if self.label_modified and self.current_label_file:
+            self.save_status_label.setText("● 未保存")
+            self.save_status_label.setStyleSheet("""
+                QLabel {
+                    color: #f44336;
+                    font-style: italic;
+                    font-size: 12px;
+                    padding: 2px;
+                }
+            """)
+        elif self.current_label_file:
+            self.save_status_label.setText("✓ 已保存")
+            self.save_status_label.setStyleSheet("""
+                QLabel {
+                    color: #4CAF50;
+                    font-style: italic;
+                    font-size: 12px;
+                    padding: 2px;
+                }
+            """)
+        else:
+            self.save_status_label.setText("")
+            
+    def save_current_label(self):
+        """保存当前标签内容"""
+        if self.current_label_file and self.label_modified:
+            try:
+                content = self.label_content.toPlainText()
+                with open(self.current_label_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                self.label_modified = False
+                self.update_save_status()
+                return True
+            except Exception as e:
+                QMessageBox.warning(self, "保存失败", f"无法保存标签文件: {str(e)}")
+                return False
+        return True
+        
     def delete_current_file(self):
         if self.current_index < 0 or self.current_index >= len(self.media_files):
             return
@@ -662,12 +842,22 @@ class VideoLabelManager(QMainWindow):
             
     def select_prev_video(self):
         """选择上一个媒体"""
+        # 保存当前标签
+        if self.current_index >= 0 and self.label_modified:
+            if not self.save_current_label():
+                return  # 保存失败则不切换
+                
         if self.current_index > 0:
             self.current_index -= 1
             self.file_list.setCurrentRow(self.current_index)
     
     def select_next_video(self):
         """选择下一个媒体"""
+        # 保存当前标签
+        if self.current_index >= 0 and self.label_modified:
+            if not self.save_current_label():
+                return  # 保存失败则不切换
+                
         if self.current_index < len(self.media_files) - 1:
             self.current_index += 1
             self.file_list.setCurrentRow(self.current_index)
@@ -682,7 +872,9 @@ class VideoLabelManager(QMainWindow):
         self.next_btn.setEnabled(has_next)
         
     def closeEvent(self, event):
-        # 确保在关闭程序时释放资源
+        # 确保在关闭程序时保存最后的修改并释放资源
+        if self.label_modified:
+            self.save_current_label()
         self.stop_video()
         event.accept()
 

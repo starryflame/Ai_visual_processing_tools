@@ -93,7 +93,7 @@ def _auto_segment_and_recognize_local(self):
             max_sample_frames = self.config.getint('PROCESSING', 'max_sample_frames', fallback=64)
             
             # 从配置文件读取生成参数
-            max_new_tokens = self.config.getint('MODEL', 'max_new_tokens', fallback=1024)
+            max_new_tokens = self.config.getint('MODEL', 'max_new_tokens', fallback=16384)
             temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
             top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
             
