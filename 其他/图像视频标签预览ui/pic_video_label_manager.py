@@ -1135,6 +1135,9 @@ class VideoLabelManager(QMainWindow):
             if not self.save_current_label():
                 return  # 保存失败则不切换
                 
+        # 检查是否需要自动创建标签文件
+        self.auto_create_label_if_needed()
+                
         if self.current_index > 0:
             self.current_index -= 1
             self.file_list.setCurrentRow(self.current_index)
@@ -1146,10 +1149,48 @@ class VideoLabelManager(QMainWindow):
             if not self.save_current_label():
                 return  # 保存失败则不切换
                 
+        # 检查是否需要自动创建标签文件
+        self.auto_create_label_if_needed()
+                
         if self.current_index < len(self.media_files) - 1:
             self.current_index += 1
             self.file_list.setCurrentRow(self.current_index)
             
+    def auto_create_label_if_needed(self):
+        """自动创建标签文件（如果没有且有内容）"""
+        # 检查当前是否有内容但没有标签文件
+        if (self.current_label_file is None and 
+            self.label_modified and 
+            self.current_index >= 0 and 
+            len(self.media_files) > 0):
+            
+            # 获取当前媒体文件的信息
+            current_media_file = self.media_files[self.current_index]
+            current_media_path = self.media_files_full_path[self.current_index]
+            media_dir = os.path.dirname(current_media_path)
+            base_name = os.path.splitext(os.path.basename(current_media_file))[0]
+            
+            # 创建同名txt文件
+            new_label_file = os.path.join(media_dir, base_name + '.txt')
+            
+            try:
+                # 获取当前标签内容
+                content = self.label_content.toPlainText()
+                
+                # 写入文件
+                with open(new_label_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                # 更新标签文件路径
+                self.current_label_file = new_label_file
+                self.label_modified = False
+                self.update_save_status()
+                
+                print(f"自动创建标签文件: {new_label_file}")
+                
+            except Exception as e:
+                QMessageBox.warning(self, "创建标签文件失败", f"无法创建标签文件: {str(e)}")
+    
     def update_navigation_buttons(self):
         """更新导航按钮状态"""
         has_media = len(self.media_files) > 0
