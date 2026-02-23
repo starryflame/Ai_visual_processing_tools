@@ -120,8 +120,9 @@ class ComfyUIBatchProcessor:
             
             # 生成相对于输入文件夹的路径结构
             relative_path = video_file.relative_to(input_path)
-            # 创建输出前缀，保留原始文件夹结构
-            output_prefix = f"{relative_path.parent / relative_path.stem}_interpolated_{i+1:03d}"
+            # 修改: 使用时间戳作为文件名后缀
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            output_prefix = f"{relative_path.parent / relative_path.stem}_interpolated_{timestamp}"
             
             try:
                 result = self.process_video(
