@@ -47,6 +47,9 @@ class VideoLabelManager(QMainWindow):
         # 添加视频播放控制相关变量
         self.is_paused = False  # 视频是否暂停
         
+        # 添加布局模式变量
+        self.is_vertical_layout = False  # 是否为竖屏布局模式
+        
         self.init_ui()
         
     def init_ui(self):
@@ -55,9 +58,9 @@ class VideoLabelManager(QMainWindow):
         self.setCentralWidget(central_widget)
         
         # 创建主布局
-        main_layout = QHBoxLayout(central_widget)
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        self.main_layout = QHBoxLayout(central_widget)
+        self.main_layout.setSpacing(15)
+        self.main_layout.setContentsMargins(15, 15, 15, 15)
         
         # 左侧面板 - 文件列表和控制按钮
         left_panel = QFrame()
@@ -158,7 +161,18 @@ class VideoLabelManager(QMainWindow):
         self.delete_btn.setFixedHeight(200)
         left_layout.addWidget(self.delete_btn)
         
-
+        # 右侧面板 - 预览区域（初始化为默认两列布局）
+        self.setup_default_layout(left_panel)
+        
+    def setup_default_layout(self, left_panel):
+        """设置默认的两列布局"""
+        # 清除现有的右侧布局
+        while self.main_layout.count() > 1:
+            item = self.main_layout.takeAt(1)
+            widget = item.widget()
+            if widget:
+                widget.setParent(None)
+                
         # 右侧面板 - 预览区域
         right_panel = QSplitter(Qt.Vertical)
         right_panel.setStyleSheet("""
@@ -375,9 +389,250 @@ class VideoLabelManager(QMainWindow):
         right_panel.setSizes([1100, 100, 60])
         
         # 设置左右面板的比例
-        main_layout.addWidget(left_panel, 1)
-        main_layout.addWidget(right_panel, 3)
+        self.main_layout.addWidget(left_panel, 1)
+        self.main_layout.addWidget(right_panel, 3)
         
+        # 更新布局模式标志
+        self.is_vertical_layout = False
+    
+    def setup_vertical_layout(self, left_panel):
+        """设置竖屏的三列布局"""
+        # 清除现有的右侧布局
+        while self.main_layout.count() > 1:
+            item = self.main_layout.takeAt(1)
+            widget = item.widget()
+            if widget:
+                widget.setParent(None)
+                
+        # 创建三列布局
+        middle_panel = QFrame()
+        middle_panel.setFrameStyle(QFrame.StyledPanel)
+        middle_layout = QVBoxLayout(middle_panel)
+        middle_layout.setContentsMargins(10, 10, 10, 10)
+        middle_layout.setSpacing(10)
+        
+        # 视频播放区域
+        video_group = QFrame()
+        video_group.setFrameStyle(QFrame.StyledPanel)
+        video_layout = QVBoxLayout(video_group)
+        video_layout.setContentsMargins(5, 5, 5, 5)
+        video_layout.setSpacing(5)
+        
+        # 视频标题
+        video_title = QLabel("媒体预览:")
+        video_title.setFont(QFont("Arial", 10, QFont.Bold))
+        video_layout.addWidget(video_title)
+        
+        # 媒体显示区域
+        video_container = QWidget()
+        video_container.setStyleSheet("background-color: black; border-radius: 5px;")
+        video_container_layout = QVBoxLayout(video_container)
+        video_container_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.media_label = QLabel("媒体预览将在此显示")
+        self.media_label.setAlignment(Qt.AlignCenter)
+        self.media_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.media_label.setMinimumSize(1, 1)
+        self.media_label.setStyleSheet("""
+            QLabel {
+                background-color: black;
+                color: white;
+                border-radius: 5px;
+                font-size: 12px;
+            }
+        """)
+        video_container_layout.addWidget(self.media_label)
+        video_layout.addWidget(video_container)
+        
+        # 视频进度控制
+        progress_group = QFrame()
+        progress_layout = QHBoxLayout(progress_group)
+        progress_layout.setContentsMargins(2, 2, 2, 2)
+        progress_layout.setSpacing(5)
+        
+        self.pause_btn = QPushButton("⏸️")
+        self.pause_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 3px;
+                font-size: 12px;
+                border-radius: 3px;
+                min-width: 30px;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.pause_btn.clicked.connect(self.toggle_pause)
+        self.pause_btn.setEnabled(False)
+        progress_layout.addWidget(self.pause_btn)
+        
+        self.current_time_label = QLabel("00:00")
+        self.current_time_label.setStyleSheet("color: white; font-size: 10px;")
+        progress_layout.addWidget(self.current_time_label)
+        
+        self.progress_slider = QSlider(Qt.Horizontal)
+        self.progress_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #999999;
+                height: 6px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B1B1B1, stop:1 #c4c4c4);
+                margin: 1px 0;
+            }
+            QSlider::handle:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #b4b4b4, stop:1 #8f8f8f);
+                border: 1px solid #5c5c5c;
+                width: 12px;
+                margin: -1px 0;
+                border-radius: 2px;
+            }
+        """)
+        self.progress_slider.sliderPressed.connect(self.on_slider_pressed)
+        self.progress_slider.sliderReleased.connect(self.on_slider_released)
+        self.progress_slider.sliderMoved.connect(self.on_slider_moved)
+        progress_layout.addWidget(self.progress_slider)
+        
+        self.total_time_label = QLabel("00:00")
+        self.total_time_label.setStyleSheet("color: white; font-size: 10px;")
+        progress_layout.addWidget(self.total_time_label)
+        
+        video_layout.addWidget(progress_group)
+        middle_layout.addWidget(video_group)
+        
+        # 右侧面板 - 标签区域
+        right_panel = QFrame()
+        right_panel.setFrameStyle(QFrame.StyledPanel)
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setSpacing(10)
+        
+        # 标签标题
+        label_title = QLabel("标签内容:")
+        label_title.setFont(QFont("Arial", 10, QFont.Bold))
+        right_layout.addWidget(label_title)
+        
+        # 标签内容
+        self.label_content = QTextEdit()
+        self.label_content.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        self.label_content.textChanged.connect(self.on_label_text_changed)
+        self.label_content.setStyleSheet("""
+            QTextEdit {
+                background-color: #f9f9f9;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 8px;
+                font-family: Consolas, monospace;
+                font-size: 32px;
+                min-height: 200px;
+            }
+        """)
+        right_layout.addWidget(self.label_content)
+        
+        # 保存状态标签
+        self.save_status_label = QLabel("")
+        self.save_status_label.setStyleSheet("""
+            QLabel {
+                color: #666;
+                font-style: italic;
+                font-size: 10px;
+                padding: 2px;
+            }
+        """)
+        right_layout.addWidget(self.save_status_label)
+        
+        # 导航按钮区域（移到标签下方）
+        nav_group = QFrame()
+        nav_group.setFrameStyle(QFrame.StyledPanel)
+        nav_layout = QHBoxLayout(nav_group)
+        nav_layout.setContentsMargins(5, 5, 5, 5)
+        nav_layout.setSpacing(5)
+        
+        self.prev_btn = QPushButton("⏮️ 上一个")
+        self.prev_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 5px;
+                font-size: 10px;
+                border-radius: 3px;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.prev_btn.setFixedHeight(200)
+        self.prev_btn.clicked.connect(self.select_prev_video)
+        self.prev_btn.setEnabled(False)
+        nav_layout.addWidget(self.prev_btn)
+        
+        self.next_btn = QPushButton("下一个 ⏭️")
+        self.next_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 5px;
+                font-size: 10px;
+                border-radius: 3px;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.next_btn.setFixedHeight(200)
+        self.next_btn.clicked.connect(self.select_next_video)
+        self.next_btn.setEnabled(False)
+        nav_layout.addWidget(self.next_btn)
+        
+        right_layout.addWidget(nav_group)
+        
+        # 删除按钮
+        self.delete_btn_right = QPushButton("🗑️ 删除")
+        self.delete_btn_right.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 8px;
+                font-size: 12px;
+                font-weight: bold;
+                border-radius: 5px;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.delete_btn_right.clicked.connect(self.delete_current_file)
+        self.delete_btn_right.setEnabled(False)
+        right_layout.addWidget(self.delete_btn_right)
+        
+        # 设置三列比例
+        self.main_layout.addWidget(left_panel, 1)
+        self.main_layout.addWidget(middle_panel, 2)
+        self.main_layout.addWidget(right_panel, 2)
+        
+        # 更新布局模式标志
+        self.is_vertical_layout = True
+    
+    def check_and_update_layout(self, width, height):
+        """根据媒体宽高比检查并更新布局"""
+        if width > 0 and height > 0:
+            aspect_ratio = width / height
+            # 如果宽高比小于0.8，则认为是竖屏内容
+            should_be_vertical = aspect_ratio < 0.8
+            
+            # 如果布局模式需要改变，则重新设置布局
+            if should_be_vertical != self.is_vertical_layout:
+                # 重新获取左侧面板引用
+                left_panel = self.main_layout.itemAt(0).widget()
+                if should_be_vertical:
+                    self.setup_vertical_layout(left_panel)
+                else:
+                    self.setup_default_layout(left_panel)
+    
     # 添加拖拽事件处理方法
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -572,6 +827,15 @@ class VideoLabelManager(QMainWindow):
     
     def display_image(self, image_path):
         """显示图片"""
+        # 获取图片尺寸信息用于布局判断
+        try:
+            img = cv2.imread(image_path)
+            if img is not None:
+                height, width, channels = img.shape
+                self.check_and_update_layout(width, height)
+        except:
+            pass
+            
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
             # 缩放以适应标签大小
@@ -605,6 +869,12 @@ class VideoLabelManager(QMainWindow):
         # 获取视频信息
         self.total_frames = int(self.video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
         self.fps = self.video_capture.get(cv2.CAP_PROP_FPS)
+        width = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # 检查并更新布局
+        self.check_and_update_layout(width, height)
+        
         if self.fps <= 0:
             self.fps = 30  # 默认帧率
             
