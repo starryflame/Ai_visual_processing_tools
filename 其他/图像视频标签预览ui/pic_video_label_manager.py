@@ -545,7 +545,7 @@ class VideoLabelManager(QMainWindow):
         # 导航按钮区域（移到标签下方）
         nav_group = QFrame()
         nav_group.setFrameStyle(QFrame.StyledPanel)
-        nav_layout = QHBoxLayout(nav_group)
+        nav_layout = QVBoxLayout(nav_group)
         nav_layout.setContentsMargins(5, 5, 5, 5)
         nav_layout.setSpacing(5)
         
@@ -589,25 +589,6 @@ class VideoLabelManager(QMainWindow):
         
         right_layout.addWidget(nav_group)
         
-        # 删除按钮
-        self.delete_btn_right = QPushButton("🗑️ 删除")
-        self.delete_btn_right.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                padding: 8px;
-                font-size: 12px;
-                font-weight: bold;
-                border-radius: 5px;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-            }
-        """)
-        self.delete_btn_right.clicked.connect(self.delete_current_file)
-        self.delete_btn_right.setEnabled(False)
-        right_layout.addWidget(self.delete_btn_right)
         
         # 设置三列比例
         self.main_layout.addWidget(left_panel, 1)
