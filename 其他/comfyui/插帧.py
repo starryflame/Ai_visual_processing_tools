@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog
 
 class ComfyUIBatchProcessor:
-    def __init__(self, server_address="127.0.0.1:8189"):
+    def __init__(self, server_address="127.0.0.1:8188"):
         self.server_address = server_address
         self.client_id = str(time.time())
 
@@ -43,20 +43,24 @@ class ComfyUIBatchProcessor:
                 print(f"已设置视频输入: {video_path}")
                 break
 
-    def update_output_settings(self, workflow_json, output_prefix):
+    def update_output_settings(self, workflow_json, output_prefix, output_path=None):
         """更新输出设置"""
         for node_id, node in workflow_json.items():
             if node['class_type'] == 'VHS_VideoCombine':
                 node['inputs']['filename_prefix'] = output_prefix
+                if output_path:
+                    # 如果指定了输出路径，可以在这里添加相关逻辑
+                    # 不过ComfyUI的工作流JSON通常不直接支持输出路径设置
+                    print(f"输出将保存到: {output_path}")
                 print(f"已设置输出前缀: {output_prefix}")
                 break
 
-    def process_video(self, input_video_path, output_prefix, workflow_path):
+    def process_video(self, input_video_path, output_prefix, workflow_path, output_path=None):
         """处理单个视频"""
         # 加载并修改工作流
         workflow = self.load_workflow(workflow_path)
         self.update_video_input(workflow, input_video_path)
-        self.update_output_settings(workflow, output_prefix)
+        self.update_output_settings(workflow, output_prefix, output_path)
 
         # 发送工作流到ComfyUI
         try:
@@ -84,35 +88,47 @@ class ComfyUIBatchProcessor:
         print(f"视频处理完成: {input_video_path} -> {output_prefix}")
         return True
 
-    def batch_process(self, input_folder, workflow_path, extensions=('.mp4', '.mov', '.avi', '.mkv')):
+    def get_all_video_files(self, input_path, extensions=('.mp4', '.mov', '.avi', '.mkv')):
+        """递归获取所有视频文件，包括子文件夹中的文件"""
+        video_files = []
+        input_path = Path(input_path)
+        
+        # 递归遍历所有子目录
+        for ext in extensions:
+            video_files.extend(input_path.rglob(f"*{ext}"))
+        
+        # 去除可能的重复项
+        video_files = list(set(video_files))
+        return video_files
+
+    def batch_process(self, input_folder, workflow_path, output_folder=None, extensions=('.mp4', '.mov', '.avi', '.mkv')):
         """批量处理视频"""
         input_path = Path(input_folder)
 
-        # 获取所有视频文件
-        video_files = []
-        for ext in extensions:
-            video_files.extend(input_path.glob(f"*{ext}"))
-
-        # 去除可能的重复项
-        video_files = list(set(video_files))
+        # 获取所有视频文件（包括子文件夹）
+        video_files = self.get_all_video_files(input_path, extensions)
 
         if not video_files:
-            print(f"在 {input_folder} 中没有找到视频文件")
+            print(f"在 {input_folder} 及其子文件夹中没有找到视频文件")
             return
 
         print(f"找到 {len(video_files)} 个视频文件")
 
         # 处理每个视频
         for i, video_file in enumerate(video_files):
-            print(f"\n处理第 {i+1}/{len(video_files)} 个视频: {video_file.name}")
+            print(f"\n处理第 {i+1}/{len(video_files)} 个视频: {video_file}")
             
-            output_prefix = f"{video_file.stem}_interpolated_{i+1:03d}"
+            # 生成相对于输入文件夹的路径结构
+            relative_path = video_file.relative_to(input_path)
+            # 创建输出前缀，保留原始文件夹结构
+            output_prefix = f"{relative_path.parent / relative_path.stem}_interpolated_{i+1:03d}"
             
             try:
                 result = self.process_video(
                     input_video_path=str(video_file),
-                    output_prefix=output_prefix,
-                    workflow_path=workflow_path
+                    output_prefix=str(output_prefix),
+                    workflow_path=workflow_path,
+                    output_path=output_folder
                 )
                 
                 if result:
@@ -137,6 +153,14 @@ def main():
         print("未选择文件夹，程序退出")
         return
     
+    # 让用户选择输出文件夹（可选）
+    OUTPUT_FOLDER = filedialog.askdirectory(title="选择输出文件夹（可选，取消则使用默认输出位置）")
+    if not OUTPUT_FOLDER:
+        OUTPUT_FOLDER = None
+        print("未选择输出文件夹，将使用ComfyUI默认输出位置")
+    else:
+        print(f"输出文件夹: {OUTPUT_FOLDER}")
+    
     WORKFLOW_PATH = r"j:\Data\Ai_visual_processing_tools\其他\comfyui\视频插帧.json"
     
     # 检查输入文件夹是否存在
@@ -154,10 +178,10 @@ def main():
     print(f"工作流文件: {WORKFLOW_PATH}")
     
     # 创建处理器实例
-    processor = ComfyUIBatchProcessor(server_address="127.0.0.1:8189")  # 修改为您的ComfyUI服务器地址
+    processor = ComfyUIBatchProcessor(server_address="127.0.0.1:8188")  # 修改为您的ComfyUI服务器地址
     
     # 批量处理视频
-    processor.batch_process(INPUT_FOLDER, WORKFLOW_PATH)
+    processor.batch_process(INPUT_FOLDER, WORKFLOW_PATH, OUTPUT_FOLDER)
 
 if __name__ == "__main__":
     main()

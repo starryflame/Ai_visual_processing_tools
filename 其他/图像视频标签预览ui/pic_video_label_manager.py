@@ -44,6 +44,9 @@ class VideoLabelManager(QMainWindow):
         self.current_frame = 0
         self.fps = 0
         
+        # 添加视频播放控制相关变量
+        self.is_paused = False  # 视频是否暂停
+        
         self.init_ui()
         
     def init_ui(self):
@@ -206,6 +209,32 @@ class VideoLabelManager(QMainWindow):
         progress_layout = QHBoxLayout(progress_group)
         progress_layout.setContentsMargins(5, 5, 5, 5)
         progress_layout.setSpacing(10)
+        
+        # 添加暂停/播放按钮
+        self.pause_btn = QPushButton("⏸️")
+        self.pause_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 5px;
+                font-size: 16px;
+                border-radius: 5px;
+                min-width: 40px;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+            QPushButton:hover:!disabled {
+                background-color: #F57C00;
+            }
+            QPushButton:pressed:!disabled {
+                background-color: #E65100;
+            }
+        """)
+        self.pause_btn.clicked.connect(self.toggle_pause)
+        self.pause_btn.setEnabled(False)
+        progress_layout.addWidget(self.pause_btn)
         
         # 当前时间标签
         self.current_time_label = QLabel("00:00")
@@ -586,6 +615,11 @@ class VideoLabelManager(QMainWindow):
         # 更新时间显示
         self.update_time_display()
         
+        # 启用暂停按钮
+        self.pause_btn.setEnabled(True)
+        self.is_paused = False
+        self.pause_btn.setText("⏸️")
+        
         # 开始播放
         self.playback_timer.start(int(1000 / self.fps))
         
@@ -636,6 +670,9 @@ class VideoLabelManager(QMainWindow):
         self.progress_slider.setValue(0)
         self.current_time_label.setText("00:00")
         self.total_time_label.setText("00:00")
+        # 禁用暂停按钮
+        self.pause_btn.setEnabled(False)
+        self.is_paused = False
         # 修改: 重置媒体标签为初始状态，但保持其可扩展性
         self.media_label.setText("媒体预览将在此显示")
         self.media_label.setPixmap(QPixmap())  # 使用空的QPixmap对象清除现有的pixmap
@@ -871,6 +908,22 @@ class VideoLabelManager(QMainWindow):
         self.prev_btn.setEnabled(has_prev)
         self.next_btn.setEnabled(has_next)
         
+    def toggle_pause(self):
+        """切换视频播放/暂停状态"""
+        if self.video_capture is None:
+            return
+            
+        if self.is_paused:
+            # 恢复播放
+            self.playback_timer.start(int(1000 / self.fps))
+            self.is_paused = False
+            self.pause_btn.setText("⏸️")
+        else:
+            # 暂停播放
+            self.playback_timer.stop()
+            self.is_paused = True
+            self.pause_btn.setText("▶️")
+            
     def closeEvent(self, event):
         # 确保在关闭程序时保存最后的修改并释放资源
         if self.label_modified:

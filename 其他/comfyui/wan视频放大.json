@@ -4,7 +4,7 @@
       "sage_attention": "auto",
       "allow_compile": false,
       "model": [
-        "6",
+        "25",
         0
       ]
     },
@@ -47,15 +47,6 @@
     "class_type": "UpscaleModelLoader",
     "_meta": {
       "title": "加载放大模型"
-    }
-  },
-  "6": {
-    "inputs": {
-      "unet_name": "gguf\\wan2.2_t2v_low_noise_14B_Q4_K_S.gguf"
-    },
-    "class_type": "UnetLoaderGGUF",
-    "_meta": {
-      "title": "Unet Loader (GGUF)"
     }
   },
   "7": {
@@ -209,6 +200,16 @@
     "class_type": "VHS_LoadVideo",
     "_meta": {
       "title": "Load Video (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "25": {
+    "inputs": {
+      "unet_name": "wan2.2\\wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
     }
   }
 }

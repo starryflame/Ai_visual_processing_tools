@@ -6,7 +6,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 class ComfyUIClient:
-    def __init__(self, server_address="127.0.0.1:8189"):
+    def __init__(self, server_address="127.0.0.1:8188"):
         self.server_address = server_address
         self.client_id = str(uuid.uuid4())
 
@@ -120,5 +120,5 @@ if __name__ == "__main__":
         print(f"选择的文件夹: {INPUT_FOLDER}")
         # 批量处理文件夹示例
         #folder_path = r"J:\AI-T8-video-onekey-20251005\ComfyUI\output\美女短视频\守岸人"  # 替换为包含视频的文件夹路径
-        batch_process_folder(INPUT_FOLDER, "output_folder_name")
+        batch_process_folder(INPUT_FOLDER, "output_folder_name219")
     
