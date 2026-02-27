@@ -162,7 +162,7 @@ def main():
     else:
         print(f"输出文件夹: {OUTPUT_FOLDER}")
     
-    WORKFLOW_PATH = r"j:\Data\Ai_visual_processing_tools\其他\comfyui\视频插帧.json"
+    WORKFLOW_PATH = r"其他\comfyui\视频插帧.json"
     
     # 检查输入文件夹是否存在
     if not os.path.exists(INPUT_FOLDER):

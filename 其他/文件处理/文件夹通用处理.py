@@ -151,6 +151,83 @@ def shuffle_image_names(source_folder):
     
     print(f"已完成 {len(image_files)} 个图片文件的名称打乱")
 
+# 添加新功能：复制图片、视频和对应标签文件
+def copy_images_videos_with_labels(source_folder, target_folder):
+    """
+    将源文件夹中的图片、视频文件及对应的同名标签txt文件复制到目标文件夹
+    自动处理重名文件
+    
+    Args:
+        source_folder (str): 源文件夹路径
+        target_folder (str): 目标文件夹路径
+    """
+    source_path = Path(source_folder)
+    target_path = Path(target_folder)
+    
+    if not source_path.exists():
+        print(f"源文件夹 {source_folder} 不存在")
+        return
+    
+    # 创建目标文件夹（如果不存在）
+    target_path.mkdir(parents=True, exist_ok=True)
+    
+    # 定义常见的图片和视频扩展名
+    media_extensions = {
+        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.svg',
+        '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.m4v'
+    }
+    
+    # 收集所有媒体文件
+    media_files = [f for f in source_path.iterdir() 
+                   if f.is_file() and f.suffix.lower() in media_extensions]
+    
+    if not media_files:
+        print("源文件夹中没有找到图片或视频文件")
+        return
+    
+    copied_count = 0
+    
+    for media_file in media_files:
+        # 构造对应的标签文件路径
+        label_file = media_file.with_suffix('.txt')
+        
+        # 生成目标文件路径
+        target_media_path = target_path / media_file.name
+        target_label_path = target_path / label_file.name
+        
+        # 处理媒体文件重名
+        counter = 1
+        original_media_name = media_file.stem
+        media_ext = media_file.suffix
+        
+        while target_media_path.exists():
+            new_name = f"{original_media_name}_{counter}{media_ext}"
+            target_media_path = target_path / new_name
+            # 同时更新对应的标签文件名
+            target_label_path = target_path / f"{original_media_name}_{counter}.txt"
+            counter += 1
+        
+        # 复制媒体文件
+        try:
+            shutil.copy2(str(media_file), str(target_media_path))
+            print(f"已复制: {media_file.name} -> {target_media_path.name}")
+            copied_count += 1
+        except Exception as e:
+            print(f"复制文件 {media_file.name} 时出错: {e}")
+            continue
+        
+        # 如果存在对应的标签文件，也复制它
+        if label_file.exists():
+            try:
+                shutil.copy2(str(label_file), str(target_label_path))
+                print(f"已复制标签: {label_file.name} -> {target_label_path.name}")
+            except Exception as e:
+                print(f"复制标签文件 {label_file.name} 时出错: {e}")
+        else:
+            print(f"未找到对应的标签文件: {label_file.name}")
+    
+    print(f"复制完成，共处理 {copied_count} 个媒体文件")
+
 def main():
     """
     主函数 - 提供用户交互界面
@@ -158,10 +235,10 @@ def main():
     print("大文件夹处理工具")
     print("1. 拆分大文件夹")
     print("2. 扁平化文件夹结构")
-    # 添加新选项
     print("3. 打乱文件夹中图片文件名称顺序")
+    print("4. 复制图片、视频及对应标签文件到指定文件夹")
     
-    choice = input("请选择操作 (1、2 或 3): ").strip()
+    choice = input("请选择操作 (1、2、3 或 4): ").strip()
     
     if choice == "1":
         folder_path = input("请输入要拆分的文件夹路径: ").strip()
@@ -176,10 +253,14 @@ def main():
         folder_path = input("请输入要扁平化的文件夹路径: ").strip()
         flatten_folder_structure(folder_path)
         
-    # 添加新功能选项的处理
     elif choice == "3":
         folder_path = input("请输入包含图片文件的文件夹路径: ").strip()
         shuffle_image_names(folder_path)
+        
+    elif choice == "4":
+        source_folder = input("请输入源文件夹路径: ").strip()
+        target_folder = input("请输入目标文件夹路径: ").strip()
+        copy_images_videos_with_labels(source_folder, target_folder)
         
     else:
         print("无效的选择")

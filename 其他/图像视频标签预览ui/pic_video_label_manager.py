@@ -809,13 +809,22 @@ class VideoLabelManager(QMainWindow):
     def display_image(self, image_path):
         """显示图片"""
         # 获取图片尺寸信息用于布局判断
+        width, height = 0, 0
         try:
             img = cv2.imread(image_path)
             if img is not None:
                 height, width, channels = img.shape
-                self.check_and_update_layout(width, height)
-        except:
-            pass
+            else:
+                # 如果cv2无法读取，尝试使用PIL
+                from PIL import Image
+                pil_img = Image.open(image_path)
+                width, height = pil_img.size
+        except Exception as e:
+            print(f"读取图片尺寸时出错: {e}")
+        
+        # 先检查并更新布局
+        if width > 0 and height > 0:
+            self.check_and_update_layout(width, height)
             
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
@@ -870,7 +879,8 @@ class VideoLabelManager(QMainWindow):
         self.pause_btn.setEnabled(True)
         self.is_paused = False
         self.pause_btn.setText("⏸️")
-        
+        self.pause_btn.setFixedHeight(100)
+        self.pause_btn.setFixedWidth(100)
         # 开始播放
         self.playback_timer.start(int(1000 / self.fps))
         
