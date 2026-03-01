@@ -75,6 +75,7 @@ class TaggerUI(QMainWindow):
     from code.statistics import update_statistics_display
     from code.statistics import update_statistics
     from code.ai_caption_generator import generate_caption_for_selected
+    from code.shuffle_files import shuffle_current_folder_files
     
     def __init__(self):
         super().__init__()
@@ -235,10 +236,18 @@ class TaggerUI(QMainWindow):
         # 应用全局字体
         self.delete_selected_button.setFont(GLOBAL_FONT)
         
+        # 打乱文件名按钮
+        self.shuffle_files_button = QPushButton('打乱文件名')
+        self.shuffle_files_button.setMinimumHeight(150)
+        self.shuffle_files_button.clicked.connect(self.shuffle_current_folder_files)
+        # 应用全局字体
+        self.shuffle_files_button.setFont(GLOBAL_FONT)
+        
         import_button_layout.addWidget(self.import_button)
         import_button_layout.addWidget(self.append_button)
         import_button_layout.addWidget(self.export_button)
         import_button_layout.addWidget(self.delete_selected_button)
+        import_button_layout.addWidget(self.shuffle_files_button)
         
         left_layout.addLayout(import_button_layout)
         
@@ -652,7 +661,7 @@ class TaggerUI(QMainWindow):
         """应用按钮样式"""
         buttons = [
             self.import_button, self.append_button, self.export_button, 
-            self.delete_selected_button, self.generate_caption_button,
+            self.delete_selected_button, self.shuffle_files_button, self.generate_caption_button,
             self.prev_button, self.next_button, self.select_all_button,
             self.deselect_all_button, self.add_tag_to_all_btn,
             self.move_tag_to_front_btn, self.delete_selected_tag_btn,

@@ -50,6 +50,11 @@ class VideoLabelManager(QMainWindow):
         # 添加布局模式变量
         self.is_vertical_layout = False  # 是否为竖屏布局模式
         
+        # 添加窗口大小变化检测
+        self.resize_timer = QTimer()
+        self.resize_timer.setSingleShot(True)
+        self.resize_timer.timeout.connect(self.on_window_resized)
+        
         self.init_ui()
         
     def init_ui(self):
@@ -607,12 +612,23 @@ class VideoLabelManager(QMainWindow):
             
             # 如果布局模式需要改变，则重新设置布局
             if should_be_vertical != self.is_vertical_layout:
+                # 保存当前状态
+                current_content = self.label_content.toPlainText()
+                current_modified = self.label_modified
+                current_label_file = self.current_label_file
+                
                 # 重新获取左侧面板引用
                 left_panel = self.main_layout.itemAt(0).widget()
                 if should_be_vertical:
                     self.setup_vertical_layout(left_panel)
                 else:
                     self.setup_default_layout(left_panel)
+                
+                # 恢复标签内容和状态
+                self.label_content.setPlainText(current_content)
+                self.label_modified = current_modified
+                self.current_label_file = current_label_file
+                self.update_save_status()
     
     # 添加拖拽事件处理方法
     def dragEnterEvent(self, event):
@@ -828,6 +844,14 @@ class VideoLabelManager(QMainWindow):
             
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
+            # 使用 QTimer.singleShot 延迟执行，确保布局更新完成后再显示图片
+            QTimer.singleShot(50, lambda: self._scale_and_display_image(pixmap))
+        else:
+            self.media_label.setText("无法加载图片")
+    
+    def _scale_and_display_image(self, pixmap):
+        """缩放并显示图片"""
+        if not pixmap.isNull() and hasattr(self, 'media_label'):
             # 缩放以适应标签大小
             scaled_pixmap = pixmap.scaled(
                 self.media_label.size(), 
@@ -835,8 +859,6 @@ class VideoLabelManager(QMainWindow):
                 Qt.SmoothTransformation
             )
             self.media_label.setPixmap(scaled_pixmap)
-        else:
-            self.media_label.setText("无法加载图片")
             
     def update_video_preview(self, video_file):
         if not self.current_folder:
@@ -865,6 +887,14 @@ class VideoLabelManager(QMainWindow):
         # 检查并更新布局
         self.check_and_update_layout(width, height)
         
+        # 使用 QTimer.singleShot 延迟执行，确保布局更新完成后再继续
+        QTimer.singleShot(100, lambda: self._continue_video_setup())
+    
+    def _continue_video_setup(self):
+        """继续视频设置过程"""
+        if self.video_capture is None or not self.video_capture.isOpened():
+            return
+            
         if self.fps <= 0:
             self.fps = 30  # 默认帧率
             
@@ -879,10 +909,11 @@ class VideoLabelManager(QMainWindow):
         self.pause_btn.setEnabled(True)
         self.is_paused = False
         self.pause_btn.setText("⏸️")
-        self.pause_btn.setFixedHeight(100)
-        self.pause_btn.setFixedWidth(100)
+        
         # 开始播放
         self.playback_timer.start(int(1000 / self.fps))
+        
+
         
     def update_frame(self):
         if self.video_capture is None:
@@ -1226,6 +1257,43 @@ class VideoLabelManager(QMainWindow):
             self.is_paused = True
             self.pause_btn.setText("▶️")
             
+    def resizeEvent(self, event):
+        """窗口大小改变事件"""
+        super().resizeEvent(event)
+        # 延迟处理窗口大小变化，避免频繁触发
+        self.resize_timer.start(300)
+    
+    def on_window_resized(self):
+        """窗口大小改变后的处理"""
+        if self.current_index >= 0 and self.current_index < len(self.media_files):
+            # 重新检测当前媒体的布局适配性
+            current_media_path = self.media_files_full_path[self.current_index]
+            ext = os.path.splitext(current_media_path)[1].lower()
+            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif'}
+            video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
+            
+            width, height = 0, 0
+            try:
+                if ext in image_extensions:
+                    # 图片文件
+                    img = cv2.imread(current_media_path)
+                    if img is not None:
+                        height, width, channels = img.shape
+                    else:
+                        from PIL import Image
+                        pil_img = Image.open(current_media_path)
+                        width, height = pil_img.size
+                elif ext in video_extensions:
+                    # 视频文件
+                    if self.video_capture and self.video_capture.isOpened():
+                        width = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            except Exception as e:
+                print(f"获取媒体尺寸时出错: {e}")
+            
+            if width > 0 and height > 0:
+                self.check_and_update_layout(width, height)
+    
     def closeEvent(self, event):
         # 确保在关闭程序时保存最后的修改并释放资源
         if self.label_modified:
