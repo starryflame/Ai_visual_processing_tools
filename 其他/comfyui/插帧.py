@@ -47,12 +47,22 @@ class ComfyUIBatchProcessor:
         """更新输出设置"""
         for node_id, node in workflow_json.items():
             if node['class_type'] == 'VHS_VideoCombine':
+                # 设置文件名前缀
                 node['inputs']['filename_prefix'] = output_prefix
+                
+                # 处理输出路径 - 通过相对路径方式
                 if output_path:
-                    # 如果指定了输出路径，可以在这里添加相关逻辑
-                    # 不过ComfyUI的工作流JSON通常不直接支持输出路径设置
-                    print(f"输出将保存到: {output_path}")
-                print(f"已设置输出前缀: {output_prefix}")
+                    # 将输出路径转换为相对于ComfyUI输出目录的路径
+                    # 这样可以在文件名前缀中包含路径信息
+                    path_parts = Path(output_prefix).parts
+                    if len(path_parts) > 1:
+                        # 如果有子目录结构，在前缀中体现
+                        node['inputs']['filename_prefix'] = str(Path(*path_parts))
+                    print(f"输出文件名前缀: {node['inputs']['filename_prefix']}")
+                    print(f"注意: 实际输出路径由ComfyUI服务器配置决定")
+                    print(f"建议在ComfyUI中检查输出目录设置")
+                else:
+                    print(f"已设置输出前缀: {output_prefix}")
                 break
 
     def process_video(self, input_video_path, output_prefix, workflow_path, output_path=None):
@@ -73,19 +83,44 @@ class ComfyUIBatchProcessor:
 
         # 等待处理完成
         status = None
+        output_files = []
+        max_wait_time = 300  # 最大等待5分钟
+        start_time = time.time()
+        
         while status is None or status.get('status_str') != 'success':
             try:
                 history = self.get_history(prompt_id)
-                if prompt_id in history and 'status' in history[prompt_id] and history[prompt_id]['status']['completed']:
-                    status = history[prompt_id]['status']
-                    break
+                if prompt_id in history:
+                    prompt_data = history[prompt_id]
+                    if 'status' in prompt_data and prompt_data['status']['completed']:
+                        status = prompt_data['status']
+                        # 获取输出文件信息
+                        if 'outputs' in prompt_data:
+                            for node_id, node_outputs in prompt_data['outputs'].items():
+                                if 'videos' in node_outputs:
+                                    for video_info in node_outputs['videos']:
+                                        if 'filename' in video_info:
+                                            output_files.append(video_info['filename'])
+                        break
+                    elif time.time() - start_time > max_wait_time:
+                        print(f"任务超时 ({max_wait_time}秒)")
+                        return False
             except Exception as e:
                 print(f"获取任务状态失败: {str(e)}")
+                if time.time() - start_time > max_wait_time:
+                    return False
                 time.sleep(2)
                 continue
             time.sleep(2)  # 等待2秒后检查
 
-        print(f"视频处理完成: {input_video_path} -> {output_prefix}")
+        if output_files:
+            print(f"视频处理完成: {input_video_path}")
+            print(f"生成的文件: {output_files}")
+            if output_path:
+                print(f"建议手动将文件移动到: {output_path}")
+        else:
+            print(f"视频处理完成，但未找到输出文件信息: {input_video_path}")
+        
         return True
 
     def get_all_video_files(self, input_path, extensions=('.mp4', '.mov', '.avi', '.mkv')):
@@ -113,6 +148,9 @@ class ComfyUIBatchProcessor:
             return
 
         print(f"找到 {len(video_files)} 个视频文件")
+        
+        # 创建输出目录映射
+        output_mapping = {}
 
         # 处理每个视频
         for i, video_file in enumerate(video_files):
@@ -122,24 +160,46 @@ class ComfyUIBatchProcessor:
             relative_path = video_file.relative_to(input_path)
             # 修改: 使用时间戳作为文件名后缀
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            output_prefix = f"{relative_path.parent / relative_path.stem}_interpolated_{timestamp}"
+            base_name = f"{relative_path.parent / relative_path.stem}_interpolated_{timestamp}"
+            
+            # 构造输出前缀和实际输出路径
+            output_prefix = str(base_name)
+            actual_output_path = None
+            
+            if output_folder:
+                # 创建对应的输出子目录结构
+                output_subdir = Path(output_folder) / relative_path.parent
+                output_subdir.mkdir(parents=True, exist_ok=True)
+                actual_output_path = str(output_subdir)
+                output_mapping[base_name] = str(output_subdir)
+                print(f"输出目录: {actual_output_path}")
             
             try:
                 result = self.process_video(
                     input_video_path=str(video_file),
-                    output_prefix=str(output_prefix),
+                    output_prefix=output_prefix,
                     workflow_path=workflow_path,
-                    output_path=output_folder
+                    output_path=actual_output_path
                 )
                 
                 if result:
                     print(f"✓ 视频 {video_file.name} 处理成功")
+                    if output_folder:
+                        print(f"  建议输出位置: {actual_output_path}")
                 else:
                     print(f"✗ 视频 {video_file.name} 处理失败")
                     
             except Exception as e:
                 print(f"处理视频 {video_file.name} 时出错: {str(e)}")
                 continue
+        
+        # 显示输出路径说明
+        if output_folder:
+            print(f"\n=== 输出路径说明 ===")
+            print(f"指定的输出文件夹: {output_folder}")
+            print(f"注意: ComfyUI会将文件保存在其配置的输出目录中")
+            print(f"您需要手动将生成的文件从ComfyUI输出目录移动到指定的输出文件夹")
+            print(f"或者在ComfyUI中修改默认输出目录设置")
 
 def main():
     # 创建tkinter根窗口并隐藏它
