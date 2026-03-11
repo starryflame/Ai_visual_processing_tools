@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 1030382504686809,
+      "seed": 879536351673213,
       "steps": 5,
       "cfg": 1,
       "sampler_name": "euler",
@@ -48,7 +48,7 @@
   "37": {
     "inputs": {
       "unet_name": "qwen_edit\\qwen_image_edit_2511_fp8mixed.safetensors",
-      "weight_dtype": "default"
+      "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
     "_meta": {
@@ -120,7 +120,7 @@
   },
   "78": {
     "inputs": {
-      "image": "illust_137718179_20251123_110250.png"
+      "image": "illust_136383856_20251022_235430.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -145,7 +145,7 @@
   },
   "110": {
     "inputs": {
-      "prompt": "transform the image to realistic photograph,可爱少女,成年女性身材比例,无水印,纯白背景",
+      "prompt": "transform the image to realistic photograph,可爱少女,成年女性身材比例,无水印",
       "clip": [
         "38",
         0
