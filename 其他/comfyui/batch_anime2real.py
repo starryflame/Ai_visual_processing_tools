@@ -48,7 +48,7 @@ class ComfyUIBatchProcessor:
         response = requests.get(url, params=params)
         return response.content
     
-    def process_image(self, workflow, input_image_path, output_folder):
+    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder):
         """处理单张图片"""
         # 修改 LoadImage 节点的输入图片
         workflow["78"]["inputs"]["image"] = input_image_path
@@ -74,9 +74,14 @@ class ComfyUIBatchProcessor:
                             img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
                             # 生成输出文件名
                             output_name = f"{Path(input_image_path).stem}_real.png"
-                            output_path = os.path.join(output_folder, output_name)
+                            output_path = os.path.join(output_image_folder, output_name)
                             with open(output_path, 'wb') as f:
                                 f.write(img_data)
+                            # 复制原图到原图文件夹
+                            original_path = os.path.join(original_folder, Path(input_image_path).name)
+                            with open(input_image_path, 'rb') as src:
+                                with open(original_path, 'wb') as dst:
+                                    dst.write(src.read())
                             return True, output_path
             time.sleep(1)
         
@@ -180,6 +185,12 @@ class BatchProcessorGUI:
         total = len(image_files)
         success_count = 0
         
+        # 创建原图和输出图片子文件夹
+        original_folder = os.path.join(output_folder, "原图")
+        output_image_folder = os.path.join(output_folder, "输出图片")
+        os.makedirs(original_folder, exist_ok=True)
+        os.makedirs(output_image_folder, exist_ok=True)
+        
         for i, image_file in enumerate(image_files):
             # 更新进度
             progress = (i + 1) / total * 100
@@ -188,7 +199,7 @@ class BatchProcessorGUI:
             # 处理图片
             input_path = os.path.join(input_folder, image_file)
             workflow = self.processor.load_workflow()
-            success, result = self.processor.process_image(workflow, input_path, output_folder)
+            success, result = self.processor.process_image(workflow, input_path, output_folder, original_folder, output_image_folder)
             
             if success:
                 success_count += 1
