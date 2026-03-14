@@ -73,7 +73,7 @@ class ComfyUIBatchProcessor:
                         for img in node_output["images"]:
                             img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
                             # 生成输出文件名
-                            output_name = f"{Path(input_image_path).stem}_real.png"
+                            output_name = f"{Path(input_image_path).stem}.png"
                             output_path = os.path.join(output_image_folder, output_name)
                             with open(output_path, 'wb') as f:
                                 f.write(img_data)

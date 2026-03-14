@@ -81,7 +81,7 @@ class ImagePanel:
         # 禁止容器根据子组件自动调整大小，防止被挤压
         image_container.pack_propagate(False)
         # 设置固定高度，确保图片展示区域不会被压缩
-        image_container.config(height=600)
+        image_container.config(height=800)
         
         # 添加拖拽功能提示标签
         if self.dark_mode:
@@ -105,7 +105,7 @@ class ImagePanel:
         tk.Label(list_frame, text="图片列表:",
                  bg=DARK_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(anchor=tk.W)
-        list_frame.config(height=200)
+        list_frame.config(height=100)
         self.listbox = tk.Listbox(list_frame, height=5,
                                   bg=DARK_ENTRY_BG if self.dark_mode else None,
                                   fg=DARK_FG if self.dark_mode else None,
@@ -210,9 +210,17 @@ class ImagePanel:
         image_path = os.path.join(folder, self.image_files[index])
         
         try:
-            # 加载并缩放图片 - 增大缩放尺寸以更好展示
+            # 加载图片
             img = Image.open(image_path)
-            img.thumbnail((800, 600))
+            # 获取展示框的实际尺寸
+            label_width = self.image_label.winfo_width()
+            label_height = self.image_label.winfo_height()
+            # 根据展示框大小自适应缩放（留出一些边距）
+            if label_width > 1 and label_height > 1:
+                img.thumbnail((label_width - 20, label_height - 20))
+            else:
+                # 如果窗口还未渲染完成，使用默认尺寸
+                img.thumbnail((1000, 800))
             self.current_image = ImageTk.PhotoImage(img)
             self.image_label.config(image=self.current_image, text="")
         except Exception as e:
@@ -350,6 +358,11 @@ class ImagePairToolGUI:
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT)
         
+        # 同步下一张按钮
+        tk.Button(toolbar, text="同步下一张", command=self.sync_next_image, width=15,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
+        
         # 导出按钮
         self.export_button = tk.Button(toolbar, text="导出配对", command=self.export_pairs, 
                                        width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50", 
@@ -361,11 +374,11 @@ class ImagePairToolGUI:
         panel_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # 左侧面板
-        self.left_panel = ImagePanel(panel_frame, "左侧面板 (Control)", tk.LEFT, 
+        self.left_panel = ImagePanel(panel_frame, "左侧面板 (control)", tk.LEFT, 
                                      self, dark_mode=self.dark_mode)
         
         # 右侧面板
-        self.right_panel = ImagePanel(panel_frame, "右侧面板 (Images)", tk.RIGHT,
+        self.right_panel = ImagePanel(panel_frame, "右侧面板 (target)", tk.RIGHT,
                                       self, dark_mode=self.dark_mode)
         
         # 底部状态栏
@@ -400,6 +413,25 @@ class ImagePairToolGUI:
         if folder:
             self.export_folder.set(folder)
     
+    def sync_next_image(self):
+        """两侧面板同时切换到下一张图片"""
+        left_has_next = self.left_panel.current_index < len(self.left_panel.image_files) - 1
+        right_has_next = self.right_panel.current_index < len(self.right_panel.image_files) - 1
+        
+        if not left_has_next and not right_has_next:
+            messagebox.showinfo("提示", "两侧都已到最后一张图片")
+            return
+        
+        if left_has_next:
+            self.left_panel.next_image()
+        if right_has_next:
+            self.right_panel.next_image()
+        
+        # 更新状态提示
+        left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左:无"
+        right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右:无"
+        self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+    
     def export_pairs(self):
         """导出配对图片"""
         export_folder = self.export_folder.get()
@@ -421,9 +453,9 @@ class ImagePairToolGUI:
         
         # 创建导出子文件夹
         control_folder = os.path.join(export_folder, "control")
-        images_folder = os.path.join(export_folder, "images")
+        target_folder = os.path.join(export_folder, "target")
         os.makedirs(control_folder, exist_ok=True)
-        os.makedirs(images_folder, exist_ok=True)
+        os.makedirs(target_folder, exist_ok=True)
         
         # 获取文件名 - 使用左侧图片文件名作为统一文件名
         left_name = Path(left_path).name
@@ -437,9 +469,9 @@ class ImagePairToolGUI:
             control_dest = os.path.join(control_folder, export_name)
             shutil.copy2(left_path, control_dest)
             
-            # 右图 -> images (使用相同文件名)
-            images_dest = os.path.join(images_folder, export_name)
-            shutil.copy2(right_path, images_dest)
+            # 右图 -> target (使用相同文件名)
+            target_dest = os.path.join(target_folder, export_name)
+            shutil.copy2(right_path, target_dest)
             
             self.status_label.config(text=f"✓ 已导出：{export_name}  |  切换图片后可再次导出")
             # 禁用导出按钮，防止重复导出
