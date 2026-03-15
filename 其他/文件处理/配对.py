@@ -363,6 +363,16 @@ class ImagePairToolGUI:
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
         
+        # 同步上一张按钮
+        tk.Button(toolbar, text="同步上一张", command=self.sync_prev_image, width=15,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
+        
+        # 同步删除按钮
+        tk.Button(toolbar, text="同步删除", command=self.sync_delete_images, width=15,
+                  bg="#d9534f" if self.dark_mode else "#d9534f",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+        
         # 导出按钮
         self.export_button = tk.Button(toolbar, text="导出配对", command=self.export_pairs, 
                                        width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50", 
@@ -431,6 +441,85 @@ class ImagePairToolGUI:
         left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左:无"
         right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右:无"
         self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+    
+    def sync_prev_image(self):
+        """两侧面板同时切换到上一张图片"""
+        left_has_prev = self.left_panel.current_index > 0
+        right_has_prev = self.right_panel.current_index > 0
+        
+        if not left_has_prev and not right_has_prev:
+            messagebox.showinfo("提示", "两侧都已到第一张图片")
+            return
+        
+        if left_has_prev:
+            self.left_panel.prev_image()
+        if right_has_prev:
+            self.right_panel.prev_image()
+        
+        # 更新状态提示
+        left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左:无"
+        right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右:无"
+        self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+    
+    def sync_delete_images(self):
+        """同时删除左右两侧选中的图片"""
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+        
+        if not left_path and not right_path:
+            messagebox.showwarning("警告", "两侧都没有可删除的图片")
+            return
+        
+        left_name = Path(left_path).name if left_path else "无"
+        right_name = Path(right_path).name if right_path else "无"
+        
+        confirm_msg = f"确定要删除以下图片吗？\n\n左侧：{left_name}\n右侧：{right_name}"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+        
+        # 删除左侧图片
+        if left_path and os.path.exists(left_path):
+            try:
+                os.remove(left_path)
+                self.left_panel.image_files.pop(self.left_panel.current_index)
+                self.left_panel.listbox.delete(self.left_panel.current_index)
+                # 调整索引
+                if self.left_panel.current_index >= len(self.left_panel.image_files):
+                    self.left_panel.current_index = max(0, len(self.left_panel.image_files) - 1)
+                if self.left_panel.image_files:
+                    self.left_panel.show_image(self.left_panel.current_index)
+                else:
+                    self.left_panel.clear_preview()
+                self.left_panel.update_status()
+            except Exception as e:
+                messagebox.showerror("错误", f"左侧删除失败：{str(e)}")
+                return
+        
+        # 删除右侧图片
+        if right_path and os.path.exists(right_path):
+            try:
+                os.remove(right_path)
+                self.right_panel.image_files.pop(self.right_panel.current_index)
+                self.right_panel.listbox.delete(self.right_panel.current_index)
+                # 调整索引
+                if self.right_panel.current_index >= len(self.right_panel.image_files):
+                    self.right_panel.current_index = max(0, len(self.right_panel.image_files) - 1)
+                if self.right_panel.image_files:
+                    self.right_panel.show_image(self.right_panel.current_index)
+                else:
+                    self.right_panel.clear_preview()
+                self.right_panel.update_status()
+            except Exception as e:
+                messagebox.showerror("错误", f"右侧删除失败：{str(e)}")
+                return
+        
+        # 更新状态提示
+        left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左:无"
+        right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右:无"
+        self.status_label.config(text=f"✓ 同步删除完成 | {left_info} | {right_info}")
+        
+        # 图片变化时恢复导出按钮状态
+        self.enable_export_button()
     
     def export_pairs(self):
         """导出配对图片"""
