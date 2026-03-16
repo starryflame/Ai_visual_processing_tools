@@ -72,11 +72,11 @@ class VideoTagger:
         self.setup_ui()
         
     def setup_ui(self):
-        """初始化主界面UI布局"""
+        """初始化主界面 UI 布局"""
         root = self.root
     
         # 设置整体网格权重以支持响应式布局
-        for i in range(6):  # 共6行
+        for i in range(6):  # 共 6 行
             root.grid_rowconfigure(i, weight=0 if i != 1 and i != 4 else 1)
         root.grid_columnconfigure(0, weight=1)
     
@@ -280,6 +280,10 @@ class VideoTagger:
     
         self.load_record_btn = tk.Button(export_frame, text="加载标记记录", command=self.load_tag_records, state=tk.DISABLED, font=self.font)
         self.load_record_btn.pack(side=tk.LEFT, padx=5)
+
+        # 添加保存并替换视频按钮
+        self.save_replace_btn = tk.Button(export_frame, text="保存并替换视频", command=self.save_and_replace_video, state=tk.ACTIVE, font=self.font)
+        self.save_replace_btn.pack(side=tk.LEFT, padx=5)
     
         # ===================【全局事件绑定】===================
         self.root.bind('<Configure>', self.on_window_resize)
@@ -317,6 +321,7 @@ class VideoTagger:
     from video_processing.show_frame import show_frame
     from video_processing.play_video import play_video
     from video_processing.resize_to_720p import resize_to_720p
+    from video_processing.save_and_replace_video import save_and_replace_video
 
     # 标签管理
     from tag_management.add_tag import add_tag
