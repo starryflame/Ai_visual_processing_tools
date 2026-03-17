@@ -1,4 +1,8 @@
-# This is a method from class VideoTagger
+# Utils Module - 工具函数模块
+# 包含标记可视化、高亮等辅助功能
+
+import tkinter as tk
+
 
 def draw_tag_markers(self):
     """在进度条上绘制标记段的可视化"""
@@ -8,7 +12,7 @@ def draw_tag_markers(self):
         return
         
     canvas_width = self.progress_canvas.winfo_width()
-    if canvas_width <= 1:  # 初始时可能为1
+    if canvas_width <= 1:  # 初始时可能为 1
         canvas_width = self.progress.winfo_width()
         
     # 绘制整个时间轴
@@ -88,6 +92,36 @@ def draw_tag_markers(self):
             mid_x = max(20, min(canvas_width-20, mid_x))
             self.progress_canvas.create_text(mid_x, 45, text=f"{selected_time:.2f}s", fill="blue", font=("Arial", 8))
 
-# Note: This was originally a method of class VideoTagger
-# You may need to adjust the implementation based on class context
-__all__ = ['draw_tag_markers']
+
+def highlight_tag_for_current_frame(self):
+    """高亮显示当前帧对应的标签行"""
+    # 清除之前的高亮
+    self.tag_listbox.selection_clear(0, tk.END)
+    
+    # 查找当前帧所在的标记区间
+    for i, tag in enumerate(self.tags):
+        if tag["start"] <= self.current_frame <= tag["end"]:
+            # 高亮对应的标签行
+            self.tag_listbox.selection_set(i)
+            # 确保该项在可视区域内
+            self.tag_listbox.see(i)
+            break
+
+
+def is_child_of(self, child, parent):
+    """检查一个控件是否是另一个控件的子控件"""
+    while child is not None:
+        if child == parent:
+            return True
+        try:
+            child = child.master
+        except:
+            break
+    return False
+
+
+__all__ = [
+    'draw_tag_markers',
+    'highlight_tag_for_current_frame',
+    'is_child_of'
+]

@@ -5,11 +5,13 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import threading
 import torch
-from transformers import AutoModelForVision2Seq, AutoProcessor, AutoTokenizer
+#from transformers import AutoModelForVision2Seq, AutoProcessor, AutoTokenizer
 import numpy as np
 import configparser
 import base64
 import time
+
+
 
 class VideoTagger:
     def __init__(self, root):
@@ -292,70 +294,38 @@ class VideoTagger:
         self.root.bind('<Key-d>', self.set_end_frame_key)
         self.root.bind('<Button-1>', self.on_root_click)
 
-
-    from ui_events.on_root_click import on_root_click
-    from ui_events.toggle_play_with_key import toggle_play_with_key
-    from ui_events.set_start_frame_key import set_start_frame_key
-    from ui_events.set_end_frame_key import set_end_frame_key
-    from ui_events.on_progress_change import on_progress_change
-    from ui_events.toggle_play import toggle_play
-    from ui_events.prev_frame import prev_frame
-    from ui_events.next_frame import next_frame
-    from ui_events.set_start_frame import set_start_frame
-    from ui_events.set_end_frame import set_end_frame
-    from ui_events.clear_frame_marks import clear_frame_marks
-    from ui_events.on_window_resize import on_window_resize
-    from ui_events.show_tag_context_menu import show_tag_context_menu
-    from ui_events.edit_tag import edit_tag
-    from ui_events.delete_tag import delete_tag
-    from ui_events.increase_font import increase_font
-    from ui_events.decrease_font import decrease_font
-    from ui_events.update_font import update_font
-    from ui_events.update_widget_font import update_widget_font
-    from ui_events.on_closing import on_closing
-    from ui_events.show_preset_context_menu import show_preset_context_menu
-
-    # 视频处理
-    from video_processing.load_video import load_video, load_video_manager, add_single_video, add_video_folder, refresh_video_list, load_selected_video
-    from video_processing.preprocess_frames import preprocess_frames
-    from video_processing.show_frame import show_frame
-    from video_processing.play_video import play_video
-    from video_processing.resize_to_720p import resize_to_720p
-    from video_processing.save_and_replace_video import save_and_replace_video
-
-    # 标签管理
-    from tag_management.add_tag import add_tag
-    from tag_management.exclude_segment import exclude_segment
-    from tag_management.save_tag_records import save_tag_records
-    from tag_management.load_tag_records import load_tag_records
-    from tag_management.auto_load_tag_records import auto_load_tag_records
-    from tag_management.export_tags import export_tags,set_export_path
-    from tag_management.regenerate_all_tags import regenerate_all_tags, _regenerate_all_tags_thread, _generate_single_tag_caption
-    # AI功能
-    from ai_features.generate_ai_caption import generate_ai_caption
-    from ai_features._generate_ai_caption_local import _generate_ai_caption_local,_generate_ai_caption_local_thread
-    from ai_features._generate_ai_caption_vllm import _generate_ai_caption_vllm
-    from ai_features.auto_segment_and_recognize import auto_segment_and_recognize
-    from ai_features._auto_segment_and_recognize_local import _auto_segment_and_recognize_local
-    from ai_features._auto_segment_and_recognize_vllm import _auto_segment_and_recognize_vllm
-
-    # 预设标签
-    from presets.create_preset_item import create_preset_item
-    from presets.use_caption_preset import use_caption_preset
-    from presets.delete_caption_preset import delete_caption_preset
-    from presets.add_preset_tag import add_preset_tag
-    from presets.create_manual_preset_item import create_manual_preset_item
-    from presets.use_preset_tag import use_preset_tag
-    from presets.apply_preset_to_all_tags import apply_preset_to_all_tags
-    from presets.edit_preset_tag import edit_preset_tag
-    from presets.delete_preset_tag import delete_preset_tag
-    from presets.show_full_image import show_full_image
-
-    # 工具函数
-    from utils.is_child_of import is_child_of
-    from utils.draw_tag_markers import draw_tag_markers
-    from utils.highlight_tag_for_current_frame import highlight_tag_for_current_frame
-
+    # 导入模块
+    from ui_events import (
+        clear_frame_marks, delete_tag, edit_tag, show_tag_context_menu, show_preset_context_menu,
+        on_closing, on_progress_change, on_root_click, decrease_font, increase_font,
+        update_font, update_widget_font, on_window_resize, next_frame, prev_frame,
+        toggle_play, toggle_play_with_key, set_start_frame, set_end_frame,
+        set_start_frame_key, set_end_frame_key
+    )
+    
+    from video_processing import (
+        load_video, load_video_manager, add_single_video, add_video_folder,
+        refresh_video_list, load_selected_video, preprocess_frames, show_frame,
+        play_video, resize_to_720p, save_and_replace_video
+    )
+    
+    from tag_management import (
+        add_tag, exclude_segment, save_tag_records, load_tag_records, export_tags,
+        set_export_path, regenerate_all_tags, _regenerate_all_tags_thread, _generate_single_tag_caption
+    )
+    
+    from ai_features import (
+        generate_ai_caption, _generate_ai_caption_local, _generate_ai_caption_local_thread,
+        auto_segment_and_recognize, _auto_segment_and_recognize_local
+    )
+    
+    from presets import (
+        create_preset_item, use_caption_preset, delete_caption_preset, add_preset_tag,
+        create_manual_preset_item, use_preset_tag, apply_preset_to_all_tags,
+        edit_preset_tag, delete_preset_tag, show_full_image
+    )
+    
+    from utils import is_child_of, draw_tag_markers, highlight_tag_for_current_frame
 
 if __name__ == "__main__":
     root = tk.Tk()
