@@ -175,6 +175,20 @@ class OllamaAPIClient:
 
                 caption = response.choices[0].message.content.strip()
                 
+                # 【新增】过滤掉模型输出的思考过程 (<think> ... </think>)
+                import re
+                thought_pattern = r"<think>.*?</think>"
+                cleaned_caption = re.sub(thought_pattern, "", caption, flags=re.DOTALL | re.IGNORECASE).strip()
+                
+                # 如果成功移除了思考标签，则更新 caption
+                if cleaned_caption:
+                    caption = cleaned_caption
+                # 如果没有匹配到标签但包含标签字符（防止部分匹配），也可以尝试简单分割
+                elif "</think>" in caption:
+                    parts = caption.split("</think>")
+                    if len(parts) > 1:
+                        caption = parts[-1].strip()
+
                 # 检查是否包含过滤词
                 contains_filter_word = False
                 caption_lower = caption.lower()
@@ -245,14 +259,17 @@ def auto_segment_and_recognize(self):
     def batch_process_videos():
         """批量处理视频文件列表中的所有视频"""
         if not hasattr(self, 'video_list') or not self.video_list:
-            messagebox.showwarning("警告", "没有找到视频文件列表")
-            method_window.destroy()
+            self.root.after(0, lambda: messagebox.showwarning("警告", "没有找到视频文件列表"))
+            self.root.after(0, lambda: method_window.destroy())
             return
 
         # 记录开始时间
         start_time = time.time()
         processed_count = 0
         total_videos = len(self.video_list)
+
+        # 初始化 Ollama API 客户端 (复用 _generate_ai_caption_local_thread 中的客户端初始化逻辑)
+        ollama_client = OllamaAPIClient(self.config)
 
         for idx, video_path in enumerate(self.video_list):
             try:
@@ -263,7 +280,7 @@ def auto_segment_and_recognize(self):
                 print(progress_info)
                 
                 # 释放之前的视频捕获对象
-                if self.cap:
+                if hasattr(self, 'cap') and self.cap:
                     self.cap.release()
 
                 # 清空之前处理的帧
@@ -282,32 +299,45 @@ def auto_segment_and_recognize(self):
                 self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 self.fps = self.cap.get(cv2.CAP_PROP_FPS)
                 self.current_frame = 0
+                # 设置起始和结束帧为整个视频 (模拟单个标签覆盖全片的场景)
                 self.start_frame = 0
                 self.end_frame = self.total_frames - 1
 
-                #self.add_tag()  # 初始化一个标签范围覆盖整个视频
-                # 调用 AI 生成标签（使用本地 Ollama 模型）
-                # 调用 AI 生成新标签
-                new_caption = self._generate_single_tag_caption()
+                # 【核心修改】复用 _generate_ai_caption_local_thread 中的 AI 调用逻辑
+                # 这里直接调用其内部使用的核心步骤，确保调用方式一致
+                try:
+                    # 1. 提取帧 (复用 extract_frames)
+                    frames = ollama_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
+                    
+                    # 2. 获取用户提示词 (复用相同的获取方式)
+                    user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
+                    
+                    # 3. 生成描述 (复用 generate_caption_with_ollama)
+                    new_caption = ollama_client.generate_caption_with_ollama(frames, user_prompt)
 
-                if new_caption:  # 如果成功生成了新标签
-                    # 创建新的标签信息并添加到标签列表
-                    new_tag_info = {
-                        "start": self.start_frame,
-                        "end": self.end_frame,
-                        "tag": new_caption
-                    }
-                    self.tags = []
-                    self.tags.append(new_tag_info)
-                    print(f"已添加新标签：{new_caption}")
-                    # 更新列表框中的显示
-                    self.tag_listbox.delete(0, tk.END)  # 清空列表框
-                    self.root.after(0, lambda s=self.start_frame, e=self.end_frame, c=new_caption:
-                                   self.tag_listbox.insert(tk.END, f"帧 {s}-{e}: {c}"))
+                    if new_caption:  # 如果成功生成了新标签
+                        # 创建新的标签信息并添加到标签列表
+                        new_tag_info = {
+                            "start": self.start_frame,
+                            "end": self.end_frame,
+                            "tag": new_caption
+                        }
+                        self.tags = []
+                        self.tags.append(new_tag_info)
+                        print(f"已添加新标签：{new_caption}")
+                        # 更新列表框中的显示
+                        self.root.after(0, lambda s=self.start_frame, e=self.end_frame, c=new_caption:
+                                       self.tag_listbox.delete(0, tk.END) or 
+                                       self.tag_listbox.insert(tk.END, f"帧 {s}-{e}: {c}"))
 
-                self.export_tags()  # 导出当前视频的标签
-                # 等待 AI 处理完成（这里可以根据实际情况调整等待逻辑）
-                time.sleep(1)  # 简单延迟，实际应用中可能需要更复杂的同步机制
+                    self.export_tags()  # 导出当前视频的标签
+                    
+                except Exception as ai_err:
+                    print(f"AI 生成失败 for {video_path}: {str(ai_err)}")
+                    # 继续处理下一个视频
+                
+                # 等待片刻，避免界面卡顿或资源竞争
+                time.sleep(0.5)  
                 
                 processed_count += 1
                 print(f"已完成处理：{video_path}")
@@ -329,8 +359,8 @@ def auto_segment_and_recognize(self):
         # 关闭方法选择窗口
         self.root.after(0, lambda: method_window.destroy())
 
-    # 创建选择窗口
-    batch_process_videos()
+    # 在新线程中执行批量处理，避免阻塞 UI
+    threading.Thread(target=batch_process_videos, daemon=True).start()
 
 
 def generate_ai_caption(self):
