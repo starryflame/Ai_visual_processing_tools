@@ -24,3 +24,5 @@ __pycache__/
 *.py[cod]
 
 video_mark_tool\视频打标器\重构 copy
+pyproject.toml
+.vscode/settings.json
