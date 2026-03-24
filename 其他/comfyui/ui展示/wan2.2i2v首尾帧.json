@@ -1,7 +1,7 @@
 {
   "6": {
     "inputs": {
-      "text": "近景半身侧身坐姿,双腿屈膝并拢斜放,双手搭膝盖上,切镜中景全身正面站姿,轻微俯身,双手捂住裆部,切镜近景半身,双手交叠抚胸",
+      "text": "镜头中景全身侧坐开始，镜头拉远，旋转运镜，双腿屈膝交叠，双手叉腰，切镜中景正面全身正面坐姿，镜头拉近，双腿屈膝，双手抬起摸发饰发饰，切镜近景全身侧身跪姿，旋转运镜，单膝跪地，切镜近景半身正面,单手轻触嘴唇",
       "clip": [
         "38",
         0
@@ -43,7 +43,7 @@
   },
   "37": {
     "inputs": {
-      "unet_name": "Wan2.2\\I2V\\Wan2_2-I2V-A14B-HIGH_fp8_e4m3fn_scaled_KJ.safetensors",
+      "unet_name": "wan2.2\\Wan2_2-I2V-A14B-HIGH_fp8_e4m3fn_scaled_KJ.safetensors",
       "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
@@ -53,7 +53,7 @@
   },
   "38": {
     "inputs": {
-      "clip_name": "Wan\\umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
       "type": "wan",
       "device": "default"
     },
@@ -64,7 +64,7 @@
   },
   "39": {
     "inputs": {
-      "vae_name": "Wan_2.1\\wan_2.1_vae.safetensors"
+      "vae_name": "wan\\Wan2_1_VAE_bf16.safetensors"
     },
     "class_type": "VAELoader",
     "_meta": {
@@ -75,7 +75,7 @@
     "inputs": {
       "shift": 5,
       "model": [
-        "102",
+        "97",
         0
       ]
     },
@@ -99,7 +99,7 @@
   },
   "56": {
     "inputs": {
-      "unet_name": "Wan2.2\\I2V\\Wan2_2-I2V-A14B-LOW_fp8_e4m3fn_scaled_KJ.safetensors",
+      "unet_name": "wan2.2\\Wan2_2-I2V-A14B-LOW_fp8_e4m3fn_scaled_KJ.safetensors",
       "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
@@ -110,7 +110,7 @@
   "57": {
     "inputs": {
       "add_noise": "enable",
-      "noise_seed": 921844929569004,
+      "noise_seed": 807591005692968,
       "steps": [
         "104",
         0
@@ -187,7 +187,7 @@
   },
   "62": {
     "inputs": {
-      "image": "model-1.png"
+      "image": "image_00077_.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -218,6 +218,10 @@
         "39",
         0
       ],
+      "start_image": [
+        "68",
+        0
+      ],
       "end_image": [
         "105",
         0
@@ -228,9 +232,18 @@
       "title": "Wan首尾帧视频"
     }
   },
+  "68": {
+    "inputs": {
+      "image": "ComfyUI_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
   "91": {
     "inputs": {
-      "lora_name": "i2v\\wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+      "lora_name": "wan\\i2v\\wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
       "strength_model": 1,
       "model": [
         "37",
@@ -244,7 +257,7 @@
   },
   "92": {
     "inputs": {
-      "lora_name": "i2v\\wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+      "lora_name": "wan\\i2v\\wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
       "strength_model": 1,
       "model": [
         "56",
@@ -258,7 +271,7 @@
   },
   "97": {
     "inputs": {
-      "lora_name": "i2v\\运镜3-22.safetensors",
+      "lora_name": "自创\\wan2.2\\高噪\\i2v\\运镜3-22.safetensors",
       "strength_model": 1,
       "model": [
         "91",
@@ -290,20 +303,6 @@
     "class_type": "VHS_VideoCombine",
     "_meta": {
       "title": "Video Combine 🎥🅥🅗🅢"
-    }
-  },
-  "102": {
-    "inputs": {
-      "lora_name": "Wan2.2\\Wan22_I2V_VBVR_HIGH_rank_64_fp16.safetensors",
-      "strength_model": 1,
-      "model": [
-        "97",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "LoRA加载器（仅模型）"
     }
   },
   "103": {
