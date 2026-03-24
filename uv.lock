@@ -15,6 +15,7 @@ dependencies = [
     { name = "streamlit" },
     { name = "tkinterdnd2" },
     { name = "websocket" },
+    { name = "websocket-client" },
     { name = "werkzeug" },
 ]
 
@@ -24,6 +25,7 @@ requires-dist = [
     { name = "streamlit", specifier = ">=1.55.0" },
     { name = "tkinterdnd2", specifier = ">=0.4.3" },
     { name = "websocket", specifier = ">=0.2.1" },
+    { name = "websocket-client", specifier = ">=1.9.0" },
     { name = "werkzeug", specifier = ">=3.1.7" },
 ]
 
@@ -1112,6 +1114,15 @@ dependencies = [
     { name = "greenlet" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f2/6d/a60d620ea575c885510c574909d2e3ed62129b121fa2df00ca1c81024c87/websocket-0.2.1.tar.gz", hash = "sha256:42b506fae914ac5ed654e23ba9742e6a342b1a1c3eb92632b6166c65256469a4", size = 195339, upload-time = "2010-12-03T11:51:30.867Z" }
+
+[[package]]
+name = "websocket-client"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/41/aa4bf9664e4cda14c3b39865b12251e8e7d239f4cd0e3cc1b6c2ccde25c1/websocket_client-1.9.0.tar.gz", hash = "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98", size = 70576, upload-time = "2025-10-07T21:16:36.495Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/db/b10e48aa8fff7407e67470363eac595018441cf32d5e1001567a7aeba5d2/websocket_client-1.9.0-py3-none-any.whl", hash = "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef", size = 82616, upload-time = "2025-10-07T21:16:34.951Z" },
+]
 
 [[package]]
 name = "werkzeug"
