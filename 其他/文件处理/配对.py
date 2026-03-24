@@ -142,19 +142,54 @@ class ImagePanel:
     
     def on_drop(self, event):
         """处理文件夹拖拽放置"""
-        # 获取拖拽的路径
+        # 获取拖拽的数据
         path = event.data
-        # 清理路径（去除引号）
+        
+        # 清理路径：去除引号
         if path.startswith('"') and path.endswith('"'):
             path = path[1:-1]
         
-        # 验证是否为文件夹
-        if os.path.isdir(path):
-            self.folder_path.set(path)
-            self.refresh_images()
-            self.status_label.config(text=f"已导入：{path}")
+        # 清理路径：去除 file:// 前缀 (常见于 Linux/Mac 或某些 DND 实现)
+        if path.startswith('file://'):
+            path = path[7:]
+            # URL 解码处理（可选，针对含空格或特殊字符的路径）
+            from urllib.parse import unquote
+            path = unquote(path)
+        
+        # 清理路径：处理 Windows 特有的 {path} 格式
+        if path.startswith('{') and path.endswith('}'):
+            path = path[1:-1]
+        
+        # 处理多路径情况：某些系统拖拽多个项目时会用空格或换行分隔
+        # 我们只取第一个有效的文件夹路径
+        paths = []
+        if '\n' in path:
+            paths = path.split('\n')
+        elif ' ' in path and not os.path.exists(path): 
+            # 如果整个字符串不是有效路径，尝试按空格分割（注意：合法路径也可能含空格，所以先判断整体是否存在）
+            paths = path.split(' ')
         else:
-            messagebox.showwarning("警告", "请拖拽文件夹，而不是文件")
+            paths = [path]
+        
+        valid_folder = None
+        for p in paths:
+            p = p.strip()
+            if not p:
+                continue
+            # 再次去除可能的引号（分割后可能残留）
+            if p.startswith('"') and p.endswith('"'):
+                p = p[1:-1]
+            if os.path.isdir(p):
+                valid_folder = p
+                break
+        
+        # 验证是否为文件夹
+        if valid_folder:
+            self.folder_path.set(valid_folder)
+            self.refresh_images()
+            self.status_label.config(text=f"已导入：{valid_folder}")
+        else:
+            messagebox.showwarning("警告", "请拖拽文件夹，而不是文件\n(未能识别到有效的文件夹路径)")
     
     def on_drag_enter(self, event):
         """拖拽进入时的高亮效果"""
@@ -213,6 +248,9 @@ class ImagePanel:
         try:
             # 加载图片
             img = Image.open(image_path)
+            # 获取原始分辨率
+            original_width, original_height = img.size
+            
             # 获取展示框的实际尺寸
             label_width = self.image_label.winfo_width()
             label_height = self.image_label.winfo_height()
@@ -224,12 +262,15 @@ class ImagePanel:
                 img.thumbnail((1000, 800))
             self.current_image = ImageTk.PhotoImage(img)
             self.image_label.config(image=self.current_image, text="")
+            
+            # 更新状态显示分辨率信息
+            self.update_status_with_resolution(original_width, original_height)
         except Exception as e:
             self.image_label.config(image="", text=f"加载失败：{str(e)}")
         
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(index)
-        self.update_status()
+        # 不再在此处调用 update_status()，因为已在 try 块中调用 update_status_with_resolution
         self.update_listbox_colors()  # 更新列表颜色
         
         # 图片变化时恢复导出按钮状态
@@ -296,6 +337,15 @@ class ImagePanel:
                                      fg="blue" if not self.dark_mode else "#4da6ff")
         else:
             self.status_label.config(text="无图片",
+                                     fg="blue" if not self.dark_mode else "#4da6ff")
+
+    def update_status_with_resolution(self, width, height):
+        """更新状态显示，包含分辨率信息"""
+        if self.image_files:
+            self.status_label.config(text=f"当前：{self.current_index + 1}/{len(self.image_files)} | 分辨率：{width}x{height}",
+                                     fg="blue" if not self.dark_mode else "#4da6ff")
+        else:
+            self.status_label.config(text=f"无图片 | 分辨率：{width}x{height}",
                                      fg="blue" if not self.dark_mode else "#4da6ff")
     
     def mark_as_paired(self, image_name):
