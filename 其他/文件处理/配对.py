@@ -78,7 +78,8 @@ class ImagePanel:
         # 图片展示框 - 使用独立容器框起来，防止被变化
         image_container = tk.Frame(frame, relief=tk.SUNKEN, borderwidth=2, 
                                    bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0")
-        image_container.pack(fill=tk.BOTH, expand=False, pady=10, padx=5)
+        # 修改：移除 padx 使左右贴边，设置 expand=True 让容器尽可能扩展以靠近中间
+        image_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=0)
         # 禁止容器根据子组件自动调整大小，防止被挤压
         image_container.pack_propagate(False)
         # 设置固定高度，确保图片展示区域不会被压缩
@@ -93,7 +94,8 @@ class ImagePanel:
         self.image_label = tk.Label(image_container, text="暂无图片", 
                                     bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
                                     fg=DARK_FG if self.dark_mode else None,
-                                    width=80, height=50)
+                                    width=80, height=50,
+                                    anchor=tk.E if self.side == tk.LEFT else tk.W)
         self.image_label.pack(fill=tk.BOTH, expand=True)
         
         # 绑定拖拽事件（如果支持）
@@ -432,6 +434,11 @@ class ImagePairToolGUI:
                   bg="#0078d4" if self.dark_mode else "#0078d4",
                   fg="white").pack(side=tk.RIGHT, padx=5)
         
+        # 新增：左图覆盖右图按钮
+        tk.Button(toolbar, text="左图覆盖右图", command=self.copy_left_to_right, width=15,
+                  bg="#d98e04" if self.dark_mode else "#d98e04",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+        
         # 导出按钮
         self.export_button = tk.Button(toolbar, text="导出配对", command=self.export_pairs, 
                                        width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50", 
@@ -599,6 +606,57 @@ class ImagePairToolGUI:
         # 图片变化时恢复导出按钮状态
         self.enable_export_button()
     
+    def copy_left_to_right(self):
+        """将当前左图复制并覆盖右图"""
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+        
+        if not left_path:
+            messagebox.showwarning("警告", "左侧面板没有选中的图片")
+            return
+        
+        if not right_path:
+            messagebox.showwarning("警告", "右侧面板没有选中的图片，无法覆盖")
+            return
+        
+        left_name = Path(left_path).name
+        right_name = Path(right_path).name
+        
+        confirm_msg = f"确定要用左图覆盖右图吗？\n\n源文件：{left_name}\n目标文件：{right_name}\n\n注意：右侧原文件将被永久替换！"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+        
+        try:
+            # 复制左图到右图路径（覆盖）
+            shutil.copy2(left_path, right_path)
+            
+            # 刷新右侧面板以显示新图片
+            self.right_panel.refresh_images()
+            
+            # 尝试在刷新后重新选中对应索引的图片（如果文件名没变，索引通常不变；如果变了，refresh_images会重置索引到0或尝试保持）
+            # 由于我们是覆盖同名文件（逻辑上通常是用左图内容替换右图内容，但文件名保持右侧的文件名），
+            # 如果用户希望右侧文件名也变成左侧的，逻辑会复杂些。
+            # 根据需求“复制一份左图文件到右图文件夹里去替换右图文件”，通常指内容替换，文件名保持右侧当前文件名。
+            # 如果右侧文件列表顺序因刷新而改变，current_index 可能需要重新定位。
+            # 这里简单处理：refresh_images 后，如果原文件名还在，尝试选中它。
+            # 但因为是覆盖，文件名没变，所以 current_index 应该还是指向那个位置，除非文件被删了又加（copy2不会导致文件名变化）。
+            # 为了保险，我们根据文件名重新定位右侧当前索引
+            if right_name in self.right_panel.image_files:
+                new_index = self.right_panel.image_files.index(right_name)
+                self.right_panel.current_index = new_index
+                self.right_panel.show_image(new_index)
+                self.right_panel.listbox.selection_clear(0, tk.END)
+                self.right_panel.listbox.selection_set(new_index)
+            
+            self.status_label.config(text=f"✓ 已用左图 ({left_name}) 覆盖右图 ({right_name})")
+            
+            # 图片变化时恢复导出按钮状态
+            self.enable_export_button()
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"覆盖失败：{str(e)}")
+            self.status_label.config(text="覆盖失败")
+
     def auto_pair_all(self):
         """一键自动配对所有同名文件并导出 (多线程优化版)"""
         export_folder = self.export_folder.get()
