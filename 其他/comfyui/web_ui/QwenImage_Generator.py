@@ -7,7 +7,7 @@ import time
 import uuid
 import websocket
 import traceback
-
+from io import BytesIO
 # ComfyUI 服务器配置
 COMFYUI_SERVER = os.getenv("COMFYUI_SERVER", "http://127.0.0.1:8188")
 os.environ["PYTHONIOENCODING"] = "utf-8"
@@ -170,13 +170,13 @@ st.markdown("""
 
 # 标题
 st.markdown('<div class="main-header">🎨 Qwen-Image 图像生成器</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">基于 Qwen-Image 2512 4 步工作流 · 快速生成高质量海报</div>', unsafe_allow_html=True)
+#st.markdown('<div class="sub-header">基于 Qwen-Image 2512 4 步工作流 · 快速生成高质量海报</div>', unsafe_allow_html=True)
 
 # 侧边栏 - 参数设置
 with st.sidebar:
     st.header("⚙️ 采样参数")
     
-    seed = st.number_input("随机种子", min_value=0, max_value=2**31-1, value=460177615008982)
+    seed = st.number_input("随机种子", min_value=0, max_value=2**53-1, value=4601776150)
     steps = st.slider("生成步数", min_value=1, max_value=10, value=4)
     cfg = st.number_input("CFG 值", min_value=0.0, max_value=20.0, value=1.0, step=0.5)
     
