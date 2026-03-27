@@ -191,7 +191,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 自定义 CSS 样式
 st.markdown("""
 <style>
     .main-header {
@@ -228,6 +227,23 @@ st.markdown("""
         padding: 20px;
         border-radius: 10px;
         margin-top: 20px;
+        max-width: 1200px;
+        margin-left: auto;
+        margin-right: auto;
+        border: 1px solid #c5e1a5;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    /* 👇 这是修复后的视频样式，强制限制高度 */
+    .result-section video {
+        max-width: 100% !important;
+        max-height: 75vh !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain !important;
+        display: block !important;
+        margin: 0 auto !important;
+        border-radius: 8px !important;
+        border: 1px solid #ddd !important;
     }
     .stButton>button {
         width: 100%;
@@ -246,6 +262,13 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         margin: 10px 0;
+    }
+            /* 全局暴力限制所有视频 */
+    video {
+        max-height: 80vh !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -294,38 +317,43 @@ with st.sidebar:
         except Exception as e:
             st.error(f"❌ 连接失败：{str(e)}")
 
-# 主界面分为两列
-col1, col2 = st.columns([1, 1])
+# 主界面布局：第一行是图像输入，第二行是提示词配置
+st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+st.header("🖼️ 图像输入 (可选)")
 
-with col1:
-    st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-    st.header("🖼️ 图像输入")
-    
+# 首尾帧并列展示
+img_col1, img_col2 = st.columns(2)
+
+with img_col1:
     # 首帧图像上传
     start_image = st.file_uploader(
         "上传首帧图像",
         type=["png", "jpg", "jpeg"],
         key="start_image",
-        help="视频的起始帧图像"
+        help="视频的起始帧图像（可选）"
     )
     
     if start_image:
         st.image(start_image, caption="首帧图像", use_container_width=True)
-    
+
+with img_col2:
     # 尾帧图像上传
     end_image = st.file_uploader(
         "上传尾帧图像",
         type=["png", "jpg", "jpeg"],
         key="end_image",
-        help="视频的结束帧图像"
+        help="视频的结束帧图像（可选）"
     )
     
     if end_image:
         st.image(end_image, caption="尾帧图像", use_container_width=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
 
-with col2:
+st.markdown('</div>')
+
+# 第二行：提示词配置
+col1, col2 = st.columns([1, 1])
+
+with col1:
     st.markdown('<div class="prompt-section">', unsafe_allow_html=True)
     st.header("📝 提示词配置")
     
@@ -340,11 +368,14 @@ with col2:
     # 负向提示词
     negative_prompt = st.text_area(
         "负向提示词",
-        value="色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG 压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+        value="色彩艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG 压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
         height=100,
         help="描述需要避免的内容和质量问题"
     )
     
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col2:
     # 其他参数
     video_length = st.number_input("视频长度 (帧数)", min_value=1, max_value=240, value=81, help="生成视频的总帧数")
     seed = st.number_input("随机种子", min_value=0, max_value=(1 << 53) - 1, value=807591005692968, help="控制生成的随机性")
@@ -356,11 +387,7 @@ st.markdown("---")
 generate_btn = st.button("🚀 生成视频", type="primary")
 
 if generate_btn:
-    # 验证输入
-    if not start_image or not end_image:
-        st.error("❌ 请上传首帧和尾帧图像！")
-        st.stop()
-    
+    # 验证输入（首尾帧改为可选，只验证提示词）
     if not positive_prompt.strip():
         st.error("❌ 请输入正向提示词！")
         st.stop()
@@ -374,23 +401,38 @@ if generate_btn:
         # 初始化客户端
         client = ComfyUIClient()
         
-        # 1. 上传图像
-        status_text.markdown('<div class="status-box" style="background-color: #e3f2fd;">📤 正在上传图像...</div>', unsafe_allow_html=True)
+        # 1. 上传图像（如果已上传）
+        status_text.markdown('<div class="status-box" style="background-color: #e3f2fd;">📤 正在处理输入...</div>', unsafe_allow_html=True)
         progress_bar.progress(10)
         
-        start_result = client.upload_image(start_image)
-        start_filename = start_result["name"]
-        st.info(f"首帧图像上传成功：{start_filename}")
+        start_filename = None
+        end_filename = None
         
-        end_result = client.upload_image(end_image)
-        end_filename = end_result["name"]
-        st.info(f"尾帧图像上传成功：{end_filename}")
+        if start_image:
+            start_result = client.upload_image(start_image)
+            start_filename = start_result["name"]
+            st.info(f"首帧图像上传成功：{start_filename}")
+        
+        if end_image:
+            end_result = client.upload_image(end_image)
+            end_filename = end_result["name"]
+            st.info(f"尾帧图像上传成功：{end_filename}")
         
         progress_bar.progress(20)
         
         # 2. 加载基础工作流 JSON
         status_text.markdown('<div class="status-box" style="background-color: #e3f2fd;">⚙️ 正在加载工作流配置...</div>', unsafe_allow_html=True)
-        json_path = r"J:\Ai_visual_processing_tools\其他\comfyui\wan2.2i2v首尾帧.json"
+        
+        # 定义工作流路径
+        default_workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\wan2.2i2v_首尾帧.json"
+        end_frame_only_workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\wan2.2i2v_尾帧.json"
+        
+        # 根据输入情况选择工作流：仅当有尾帧且无首帧时，使用尾帧专用工作流
+        if end_image and not start_image:
+            json_path = end_frame_only_workflow_path
+            st.info("检测到仅上传尾帧，已切换至尾帧专用工作流配置")
+        else:
+            json_path = default_workflow_path
         
         if not os.path.exists(json_path):
             raise FileNotFoundError(f"未找到工作流 JSON 文件：{json_path}")
@@ -407,10 +449,29 @@ if generate_btn:
         workflow["6"]["inputs"]["text"] = positive_prompt
         workflow["7"]["inputs"]["text"] = negative_prompt
         
-        # 修改图像加载节点文件名 (节点 62: 尾帧, 68: 首帧)
-        # 注意：根据原始JSON，62是end_image，68是start_image
-        workflow["62"]["inputs"]["image"] = end_filename  # 尾帧
-        workflow["68"]["inputs"]["image"] = start_filename  # 首帧
+        # 处理首帧图像节点 (68) - 仅在默认工作流中存在该节点逻辑时使用
+        if json_path == default_workflow_path:
+            if start_filename:
+                workflow["68"]["inputs"]["image"] = start_filename
+            else:
+                # 如果未上传首帧且使用的是默认工作流，删除对应节点
+                if "68" in workflow:
+                    del workflow["68"]
+                    st.warning("未上传首帧图像，已从工作流移除节点 68 (注意：若下游节点强依赖此节点，任务可能会失败)")
+        # 如果使用尾帧专用工作流，则不处理节点 68（假设该工作流本身就不包含或不需要节点 68）
+
+        # 处理尾帧图像节点 (62)
+        if end_filename:
+            # 确保节点存在再赋值，防止专用工作流结构不同导致报错
+            if "62" in workflow:
+                workflow["62"]["inputs"]["image"] = end_filename
+            else:
+                st.error("工作流中未找到尾帧加载节点 (62)，请检查 JSON 配置文件")
+        else:
+            # 如果未上传尾帧，删除对应节点
+            if "62" in workflow:
+                del workflow["62"]
+                st.warning("未上传尾帧图像，已从工作流移除节点 62 (注意：若下游节点强依赖此节点，任务可能会失败)")
         
         # 修改采样步数和种子 
         # 节点 103: high_noise_steps (INT Constant)

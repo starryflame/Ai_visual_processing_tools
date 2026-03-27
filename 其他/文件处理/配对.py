@@ -13,6 +13,7 @@ from pathlib import Path
 import shutil
 from PIL import Image, ImageTk
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 尝试导入 tkinterdnd2 以支持拖拽功能
 try:
@@ -77,7 +78,8 @@ class ImagePanel:
         # 图片展示框 - 使用独立容器框起来，防止被变化
         image_container = tk.Frame(frame, relief=tk.SUNKEN, borderwidth=2, 
                                    bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0")
-        image_container.pack(fill=tk.BOTH, expand=False, pady=10, padx=5)
+        # 修改：移除 padx 使左右贴边，设置 expand=True 让容器尽可能扩展以靠近中间
+        image_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=0)
         # 禁止容器根据子组件自动调整大小，防止被挤压
         image_container.pack_propagate(False)
         # 设置固定高度，确保图片展示区域不会被压缩
@@ -92,7 +94,8 @@ class ImagePanel:
         self.image_label = tk.Label(image_container, text="暂无图片", 
                                     bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
                                     fg=DARK_FG if self.dark_mode else None,
-                                    width=80, height=50)
+                                    width=80, height=50,
+                                    anchor=tk.E if self.side == tk.LEFT else tk.W)
         self.image_label.pack(fill=tk.BOTH, expand=True)
         
         # 绑定拖拽事件（如果支持）
@@ -141,19 +144,54 @@ class ImagePanel:
     
     def on_drop(self, event):
         """处理文件夹拖拽放置"""
-        # 获取拖拽的路径
+        # 获取拖拽的数据
         path = event.data
-        # 清理路径（去除引号）
+        
+        # 清理路径：去除引号
         if path.startswith('"') and path.endswith('"'):
             path = path[1:-1]
         
-        # 验证是否为文件夹
-        if os.path.isdir(path):
-            self.folder_path.set(path)
-            self.refresh_images()
-            self.status_label.config(text=f"已导入：{path}")
+        # 清理路径：去除 file:// 前缀 (常见于 Linux/Mac 或某些 DND 实现)
+        if path.startswith('file://'):
+            path = path[7:]
+            # URL 解码处理（可选，针对含空格或特殊字符的路径）
+            from urllib.parse import unquote
+            path = unquote(path)
+        
+        # 清理路径：处理 Windows 特有的 {path} 格式
+        if path.startswith('{') and path.endswith('}'):
+            path = path[1:-1]
+        
+        # 处理多路径情况：某些系统拖拽多个项目时会用空格或换行分隔
+        # 我们只取第一个有效的文件夹路径
+        paths = []
+        if '\n' in path:
+            paths = path.split('\n')
+        elif ' ' in path and not os.path.exists(path): 
+            # 如果整个字符串不是有效路径，尝试按空格分割（注意：合法路径也可能含空格，所以先判断整体是否存在）
+            paths = path.split(' ')
         else:
-            messagebox.showwarning("警告", "请拖拽文件夹，而不是文件")
+            paths = [path]
+        
+        valid_folder = None
+        for p in paths:
+            p = p.strip()
+            if not p:
+                continue
+            # 再次去除可能的引号（分割后可能残留）
+            if p.startswith('"') and p.endswith('"'):
+                p = p[1:-1]
+            if os.path.isdir(p):
+                valid_folder = p
+                break
+        
+        # 验证是否为文件夹
+        if valid_folder:
+            self.folder_path.set(valid_folder)
+            self.refresh_images()
+            self.status_label.config(text=f"已导入：{valid_folder}")
+        else:
+            messagebox.showwarning("警告", "请拖拽文件夹，而不是文件\n(未能识别到有效的文件夹路径)")
     
     def on_drag_enter(self, event):
         """拖拽进入时的高亮效果"""
@@ -212,6 +250,9 @@ class ImagePanel:
         try:
             # 加载图片
             img = Image.open(image_path)
+            # 获取原始分辨率
+            original_width, original_height = img.size
+            
             # 获取展示框的实际尺寸
             label_width = self.image_label.winfo_width()
             label_height = self.image_label.winfo_height()
@@ -223,12 +264,15 @@ class ImagePanel:
                 img.thumbnail((1000, 800))
             self.current_image = ImageTk.PhotoImage(img)
             self.image_label.config(image=self.current_image, text="")
+            
+            # 更新状态显示分辨率信息
+            self.update_status_with_resolution(original_width, original_height)
         except Exception as e:
             self.image_label.config(image="", text=f"加载失败：{str(e)}")
         
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(index)
-        self.update_status()
+        # 不再在此处调用 update_status()，因为已在 try 块中调用 update_status_with_resolution
         self.update_listbox_colors()  # 更新列表颜色
         
         # 图片变化时恢复导出按钮状态
@@ -296,6 +340,15 @@ class ImagePanel:
         else:
             self.status_label.config(text="无图片",
                                      fg="blue" if not self.dark_mode else "#4da6ff")
+
+    def update_status_with_resolution(self, width, height):
+        """更新状态显示，包含分辨率信息"""
+        if self.image_files:
+            self.status_label.config(text=f"当前：{self.current_index + 1}/{len(self.image_files)} | 分辨率：{width}x{height}",
+                                     fg="blue" if not self.dark_mode else "#4da6ff")
+        else:
+            self.status_label.config(text=f"无图片 | 分辨率：{width}x{height}",
+                                     fg="blue" if not self.dark_mode else "#4da6ff")
     
     def mark_as_paired(self, image_name):
         """标记图片为已配对"""
@@ -328,6 +381,9 @@ class ImagePairToolGUI:
         
         self.export_folder = tk.StringVar()
         self.export_disabled = False  # 导出按钮禁用状态标记
+        
+        # 进度条变量
+        self.progress_var = tk.DoubleVar()
         
         self.create_widgets()
     
@@ -373,6 +429,16 @@ class ImagePairToolGUI:
                   bg="#d9534f" if self.dark_mode else "#d9534f",
                   fg="white").pack(side=tk.RIGHT, padx=5)
         
+        # 一键自动配对按钮
+        tk.Button(toolbar, text="一键自动配对", command=self.auto_pair_all, width=15,
+                  bg="#0078d4" if self.dark_mode else "#0078d4",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+        
+        # 新增：左图覆盖右图按钮
+        tk.Button(toolbar, text="左图覆盖右图", command=self.copy_left_to_right, width=15,
+                  bg="#d98e04" if self.dark_mode else "#d98e04",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+        
         # 导出按钮
         self.export_button = tk.Button(toolbar, text="导出配对", command=self.export_pairs, 
                                        width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50", 
@@ -391,6 +457,25 @@ class ImagePairToolGUI:
         self.right_panel = ImagePanel(panel_frame, "右侧面板 (target)", tk.RIGHT,
                                       self, dark_mode=self.dark_mode)
         
+        # 进度条区域 (新增)
+        progress_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
+        progress_frame.pack(fill=tk.X, padx=10)
+        
+        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, 
+                                            maximum=100, mode='determinate',
+                                            style='dark.Horizontal.TProgressbar' if self.dark_mode else 'Horizontal.TProgressbar')
+        self.progress_bar.pack(fill=tk.X)
+        
+        # 配置进度条样式 (深色模式)
+        if self.dark_mode:
+            style = ttk.Style()
+            style.configure('dark.Horizontal.TProgressbar', 
+                            background=DARK_HIGHLIGHT, 
+                            troughcolor=DARK_ENTRY_BG,
+                            bordercolor=DARK_BG,
+                            lightcolor=DARK_HIGHLIGHT,
+                            darkcolor=DARK_HIGHLIGHT)
+
         # 底部状态栏
         status_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
         status_frame.pack(fill=tk.X, padx=10)
@@ -521,8 +606,198 @@ class ImagePairToolGUI:
         # 图片变化时恢复导出按钮状态
         self.enable_export_button()
     
+    def copy_left_to_right(self):
+        """将当前左图复制并覆盖右图"""
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+        
+        if not left_path:
+            messagebox.showwarning("警告", "左侧面板没有选中的图片")
+            return
+        
+        if not right_path:
+            messagebox.showwarning("警告", "右侧面板没有选中的图片，无法覆盖")
+            return
+        
+        left_name = Path(left_path).name
+        right_name = Path(right_path).name
+        
+        confirm_msg = f"确定要用左图覆盖右图吗？\n\n源文件：{left_name}\n目标文件：{right_name}\n\n注意：右侧原文件将被永久替换！"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+        
+        try:
+            # 复制左图到右图路径（覆盖）
+            shutil.copy2(left_path, right_path)
+            
+            # 刷新右侧面板以显示新图片
+            self.right_panel.refresh_images()
+            
+            # 尝试在刷新后重新选中对应索引的图片（如果文件名没变，索引通常不变；如果变了，refresh_images会重置索引到0或尝试保持）
+            # 由于我们是覆盖同名文件（逻辑上通常是用左图内容替换右图内容，但文件名保持右侧的文件名），
+            # 如果用户希望右侧文件名也变成左侧的，逻辑会复杂些。
+            # 根据需求“复制一份左图文件到右图文件夹里去替换右图文件”，通常指内容替换，文件名保持右侧当前文件名。
+            # 如果右侧文件列表顺序因刷新而改变，current_index 可能需要重新定位。
+            # 这里简单处理：refresh_images 后，如果原文件名还在，尝试选中它。
+            # 但因为是覆盖，文件名没变，所以 current_index 应该还是指向那个位置，除非文件被删了又加（copy2不会导致文件名变化）。
+            # 为了保险，我们根据文件名重新定位右侧当前索引
+            if right_name in self.right_panel.image_files:
+                new_index = self.right_panel.image_files.index(right_name)
+                self.right_panel.current_index = new_index
+                self.right_panel.show_image(new_index)
+                self.right_panel.listbox.selection_clear(0, tk.END)
+                self.right_panel.listbox.selection_set(new_index)
+            
+            self.status_label.config(text=f"✓ 已用左图 ({left_name}) 覆盖右图 ({right_name})")
+            
+            # 图片变化时恢复导出按钮状态
+            self.enable_export_button()
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"覆盖失败：{str(e)}")
+            self.status_label.config(text="覆盖失败")
+
+    def auto_pair_all(self):
+        """一键自动配对所有同名文件并导出 (多线程优化版)"""
+        export_folder = self.export_folder.get()
+        
+        if not export_folder:
+            messagebox.showerror("错误", "请先选择导出文件夹")
+            return
+        
+        left_folder = self.left_panel.folder_path.get()
+        right_folder = self.right_panel.folder_path.get()
+        
+        if not left_folder or not os.path.exists(left_folder):
+            messagebox.showerror("错误", "左侧面板未选择有效文件夹")
+            return
+        
+        if not right_folder or not os.path.exists(right_folder):
+            messagebox.showerror("错误", "右侧面板未选择有效文件夹")
+            return
+        
+        # 获取左右两侧的图片文件列表
+        image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
+        left_files = set(f for f in os.listdir(left_folder) 
+                        if Path(f).suffix.lower() in image_extensions)
+        right_files = set(f for f in os.listdir(right_folder) 
+                         if Path(f).suffix.lower() in image_extensions)
+        
+        # 找出同名文件
+        common_files = left_files & right_files
+        
+        if not common_files:
+            messagebox.showinfo("提示", "没有找到同名文件")
+            return
+        
+        # 确认对话框
+        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+        
+        # 创建导出子文件夹
+        control_folder = os.path.join(export_folder, "control")
+        target_folder = os.path.join(export_folder, "target")
+        os.makedirs(control_folder, exist_ok=True)
+        os.makedirs(target_folder, exist_ok=True)
+        
+        # 排序文件列表
+        sorted_files = sorted(common_files)
+        total_count = len(sorted_files)
+        
+        # 重置进度条和状态
+        self.progress_var.set(0)
+        self.status_label.config(text=f"正在初始化线程池...")
+        self.root.update()
+        
+        success_count = 0
+        error_count = 0
+        errors = []
+        paired_files = [] # 记录成功配对的文件名
+        
+        # 定义单个文件处理函数
+        def process_pair(filename):
+            left_path = os.path.join(left_folder, filename)
+            right_path = os.path.join(right_folder, filename)
+            
+            try:
+                # 打开图片
+                img_left = Image.open(left_path)
+                img_right = Image.open(right_path)
+                
+                # 获取原始尺寸
+                w1, h1 = img_left.size
+                w2, h2 = img_right.size
+                
+                # 计算目标分辨率（取两者中的较小宽和较小高）
+                target_w = min(w1, w2)
+                target_h = min(h1, h2)
+                
+                # 调整分辨率 (使用 LANCZOS 滤镜保证质量)
+                img_left_resized = img_left.resize((target_w, target_h), Image.LANCZOS)
+                img_right_resized = img_right.resize((target_w, target_h), Image.LANCZOS)
+                
+                # 保存左图到 control 文件夹
+                control_dest = os.path.join(control_folder, filename)
+                img_left_resized.save(control_dest)
+                
+                # 保存右图 to target 文件夹
+                target_dest = os.path.join(target_folder, filename)
+                img_right_resized.save(target_dest)
+                
+                return (filename, True, None)
+                
+            except Exception as e:
+                return (filename, False, str(e))
+
+        # 使用线程池执行任务
+        # max_workers 默认为 CPU 核心数 * 5，对于 IO 密集型任务通常足够，也可手动指定如 8 或 16
+        with ThreadPoolExecutor() as executor:
+            future_to_file = {executor.submit(process_pair, fname): fname for fname in sorted_files}
+            
+            completed = 0
+            for future in as_completed(future_to_file):
+                filename, success, error_msg = future.result()
+                completed += 1
+                
+                if success:
+                    success_count += 1
+                    paired_files.append(filename)
+                else:
+                    error_count += 1
+                    errors.append(f"{filename}: {error_msg}")
+                
+                # 更新进度条和状态 (在主线程中更新 UI 是安全的，因为这是在 main thread 调用的循环中)
+                progress_percent = (completed / total_count) * 100
+                self.progress_var.set(progress_percent)
+                self.status_label.config(text=f"正在处理 {completed}/{total_count}... 成功:{success_count} 失败:{error_count}")
+                self.root.update_idletasks() # 强制刷新 UI
+        
+        # 显示结果
+        if error_count == 0:
+            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！\n所有文件已调整分辨率并保存到:\n- {control_folder}\n- {target_folder}")
+        else:
+            error_details = "\n".join(errors[:5])  # 只显示前 5 个错误
+            if error_count > 5:
+                error_details += f"\n... 还有 {error_count - 5} 个错误"
+            messagebox.showwarning("部分完成", 
+                                   f"成功导出 {success_count} 对图片，失败 {error_count} 对。\n\n错误详情:\n{error_details}")
+        
+        self.status_label.config(text=f"✓ 自动配对完成 | 成功:{success_count} | 失败:{error_count}")
+        
+        # 批量标记为已配对并刷新列表颜色
+        for fname in paired_files:
+            self.left_panel.mark_as_paired(fname)
+            self.right_panel.mark_as_paired(fname)
+        
+        self.left_panel.update_listbox_colors()
+        self.right_panel.update_listbox_colors()
+        
+        # 完成后重置进度条（可选，或者保持在 100%）
+        # self.progress_var.set(0) 
+
     def export_pairs(self):
-        """导出配对图片"""
+        """导出配对图片（调整分辨率后分别保存）"""
         export_folder = self.export_folder.get()
         
         if not export_folder:
@@ -552,17 +827,32 @@ class ImagePairToolGUI:
         # 导出时使用相同的文件名
         export_name = left_name
         
-        # 复制文件
         try:
-            # 左图 -> control
+            # 打开图片
+            img_left = Image.open(left_path)
+            img_right = Image.open(right_path)
+            
+            # 获取原始尺寸
+            w1, h1 = img_left.size
+            w2, h2 = img_right.size
+            
+            # 计算目标分辨率（取两者中的较小宽和较小高）
+            target_w = min(w1, w2)
+            target_h = min(h1, h2)
+            
+            # 调整分辨率 (使用 LANCZOS 滤镜保证质量)
+            img_left_resized = img_left.resize((target_w, target_h), Image.LANCZOS)
+            img_right_resized = img_right.resize((target_w, target_h), Image.LANCZOS)
+            
+            # 保存左图到 control 文件夹
             control_dest = os.path.join(control_folder, export_name)
-            shutil.copy2(left_path, control_dest)
+            img_left_resized.save(control_dest)
             
-            # 右图 -> target (使用相同文件名)
+            # 保存右图到 target 文件夹
             target_dest = os.path.join(target_folder, export_name)
-            shutil.copy2(right_path, target_dest)
+            img_right_resized.save(target_dest)
             
-            self.status_label.config(text=f"✓ 已导出：{export_name}  |  切换图片后可再次导出")
+            self.status_label.config(text=f"✓ 已导出并调整分辨率：{export_name} ({target_w}x{target_h}) | 切换图片后可再次导出")
             # 禁用导出按钮，防止重复导出
             self.disable_export_button()
             
