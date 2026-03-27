@@ -11,11 +11,11 @@ result = client.predict(
     prompt_text="",               # 留空
     prompt_audio=None,            # 留空
     speed=1,                      # 语速
-    chunk_size=200,               # 显存够用就不改
+    chunk_size=900,               # 显存够用就不改
     batch=25,
     lang="Auto",                  # 自动识别语言
-    model_type="0.6B",
-    temperature=0.6,
+    model_type="1.7B",
+    temperature=0.1,
     auto_up=False,
     api_name="/do_job"
 )

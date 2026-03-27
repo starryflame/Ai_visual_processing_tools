@@ -17,7 +17,7 @@ class TTSAAdapter:
         text: str,
         voice: str = "少女音1",
         speed: float = 1.0,
-        temperature: float = 0.6,
+        temperature: float = 0.1,
         response_format: str = "wav"
     ) -> tuple:
         """
@@ -39,10 +39,10 @@ class TTSAAdapter:
             prompt_text="",
             prompt_audio=None,
             speed=speed,
-            chunk_size=200,
+            chunk_size=900,
             batch=25,
             lang="Auto",
-            model_type="0.6B",
+            model_type="1.7B",
             temperature=temperature,
             auto_up=False,
             api_name="/do_job"
