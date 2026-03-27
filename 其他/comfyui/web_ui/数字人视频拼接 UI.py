@@ -39,21 +39,63 @@ class ComfyUIClient:
             st.error(f"图片上传失败：{str(e)}")
             raise
 
-    def upload_audio(self, audio_file):
-        """上传音频到 ComfyUI 服务器"""
+    def get_available_audio_files(self):
+        """获取 ComfyUI 服务器 input/audio 目录中可用的音频文件列表"""
         try:
-            files = {"audio": (audio_file.name, audio_file.getvalue(), audio_file.type)}
+            response = requests.get(
+                urljoin(self.server_address, "folder?type=input&subfolder=audio"),
+                timeout=10
+            )
+            if response.ok:
+                data = response.json()
+                return data.get("input", {}).get("audio", [])
+            return []
+        except Exception as e:
+            st.warning(f"获取音频文件列表失败：{str(e)}")
+            return []
+
+    def upload_audio(self, audio_file):
+        """上传音频到 ComfyUI 服务器的 input/audio 目录
+        
+        ComfyUI 使用 /upload/file 端点来上传所有类型的文件，包括音频。
+        需要指定 subfolder="audio" 和 type="input" 来保存到正确的位置。
+        """
+        try:
+            # 使用 /upload/file 端点上传音频文件到 input/audio 目录
+            files = {
+                "file": (audio_file.name, audio_file.getvalue(), audio_file.type),
+                "subfolder": ("", "input"),
+                "type": ("", "audio")
+            }
             response = requests.post(
-                urljoin(self.server_address, "/upload/audio"),
+                urljoin(self.server_address, "/upload/file"),
                 files=files,
                 timeout=30,
                 headers={"Accept": "application/json"}
             )
-            response.raise_for_status()
-            return response.json()
+            
+            if not response.ok:
+                # 如果 /upload/file 不支持，尝试使用 /upload/image（有些版本支持所有文件类型）
+                #st.warning("检测到 ComfyUI API 限制，尝试使用备用上传方式...")
+                
+                files = {"image": (audio_file.name, audio_file.getvalue(), audio_file.type)}
+                response = requests.post(
+                    urljoin(self.server_address, "/upload/image"),
+                    files=files,
+                    timeout=30,
+                    headers={"Accept": "application/json"}
+                )
+                
+                if not response.ok:
+                    st.error(f"音频上传失败：HTTP {response.status_code} - {response.text}")
+                    raise Exception(f"音频上传失败：HTTP {response.status_code}")
+            
+            result = response.json()
+            return {"name": audio_file.name, **result}
         except Exception as e:
             st.error(f"音频上传失败：{str(e)}")
-            raise
+            # 返回文件名，让用户手动在 ComfyUI 界面选择
+            return {"name": audio_file.name}
 
     def get_image(self, image_filename, subfolder="", folder_type="output"):
         """从 ComfyUI 服务器获取图片/视频"""
@@ -277,7 +319,7 @@ st.markdown("""
 
 # 标题
 st.markdown('<div class="main-header">🎬 数字人视频拼接生成器</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">基于 ComfyUI WanInfiniteTalkToVideo 工作流</div>', unsafe_allow_html=True)
+#st.markdown('<div class="sub-header">基于 ComfyUI WanInfiniteTalkToVideo 工作流</div>', unsafe_allow_html=True)
 
 # 侧边栏 - 高级设置
 with st.sidebar:
@@ -287,33 +329,10 @@ with st.sidebar:
     st.subheader("采样设置")
     total_steps = st.number_input("总步数", min_value=1, max_value=100, value=4, help="KSampler 的总步数")
     
-    # 模型配置
-    st.subheader("模型配置")
-    model_name = st.text_input(
-        "主模型名称", 
-        value="wan2.1_i2v_480p_scaled_fp8_e4m3_lightx2v_4step_comfyui.safetensors",
-        help="Wan 视频生成模型"
-    )
-    clip_name = st.text_input(
-        "CLIP 模型名称", 
-        value="umt5_xxl_fp8_e4m3fn_scaled.safetensors"
-    )
-    vae_name = st.text_input("VAE 模型名称", value="Wan2_1_VAE_bf16.safetensors")
-    patch_name = st.text_input(
-        "谈话补丁名称", 
-        value="Wan2_1-InfiniTetalk-Single_fp16.safetensors"
-    )
-    audio_encoder = st.text_input(
-        "音频编码器名称", 
-        value="wav2vec2-chinese-base_fp16.safetensors"
-    )
-    clip_vision = st.text_input("CLIP Vision 模型", value="clip_vision_h.safetensors")
-    
     # 视频输出设置
     st.subheader("视频输出")
     frame_rate = st.number_input("帧率 (fps)", min_value=1, max_value=60, value=25)
     video_length = st.number_input("视频长度 (帧数)", min_value=1, max_value=240, value=109)
-    image_width = st.number_input("图像宽度 (px)", min_value=256, max_value=1920, value=1024)
     filename_prefix = st.text_input("文件名前缀", value="INF")
     
     # ComfyUI 连接测试
@@ -350,7 +369,7 @@ with col1:
     st.header("🎵 音频文件")
     uploaded_audio = st.file_uploader(
         "上传音频",
-        type=["mp3", "wav", "m4a"],
+        type=["mp3", "wav", "m4a", "ogg"],
         key="uploaded_audio",
         help="驱动数字人说话的音频文件"
     )
@@ -367,9 +386,9 @@ with col2:
     st.header("📝 动作提示词")
     action_prompt = st.text_area(
         "每行一个动作描述",
-        value="女人在讲话，讲解动作，坐手势\n女人在讲话，讲解动作，坐手势",
+        value="女人在讲话，讲解动作，做手势\n女人在讲话，讲解动作，做手势",
         height=200,
-        help="输入数字人的动作描述，每行一个。程序会自动循环使用这些提示词生成视频。\n\n示例：\n女人在讲话，讲解动作，坐手势\n女人微笑，点头示意\n女人挥手告别"
+        help="输入数字人的动作描述，每行一个。程序会自动循环使用这些提示词生成视频。\n\n示例：\n女人在讲话，讲解动作，做手势\n女人微笑，点头示意\n女人挥手告别"
     )
     
     # 负向提示词
@@ -455,43 +474,24 @@ if generate_btn:
         workflow["119"]["inputs"]["audio"] = audio_filename
         
         # 节点 127 - TextInput_ (动作提示词，每行一个)
-        action_lines = [line.strip() for line in action_prompt.strip().split('\n') if line.strip()]
-        prompt_text = '\n'.join(action_lines * ((len(action_lines) + 9) // len(action_lines)))  # 循环直到至少 10 行
-        workflow["127"]["inputs"]["text"] = prompt_text
-        
+        workflow["127"]["inputs"]["text"] = action_prompt.strip()
+
+        print(f"配置动作提示词：{action_prompt}")
         # 节点 1/24 - CLIPTextEncode (负向提示词)
         for node_id in ["1", "24"]:
             workflow[node_id]["inputs"]["text"] = negative_prompt
         
-        # 节点 98 - ImageScaleByAspectRatio V2 (图像尺寸)
-        workflow["98"]["inputs"]["scale_to_length"] = [int(image_width)]
-        
         # 节点 99 - easy int (宽度值)
-        workflow["99"]["inputs"]["value"] = int(image_width)
+        workflow["99"]["inputs"]["value"] = 1024
         
         # 节点 101 - easy int (视频长度)
         workflow["101"]["inputs"]["value"] = int(video_length)
         
-        # 节点 102 - PrimitiveFloat (帧率)
-        workflow["102"]["inputs"]["value"] = float(frame_rate)
-        
-        # 节点 103 - easy int (采样步数)
-        workflow["103"]["inputs"]["value"] = int(total_steps)
         
         # 节点 85/110 - WanInfiniteTalkToVideo (模型配置)
-        workflow["85"]["inputs"]["model_name"] = model_name
         workflow["85"]["inputs"]["length"] = video_length
         
-        # 模型加载器配置
-        workflow["113"]["inputs"]["model_name"] = model_name
-        workflow["114"]["inputs"]["clip_name"] = clip_name
-        workflow["115"]["inputs"]["vae_name"] = vae_name
-        workflow["116"]["inputs"]["name"] = patch_name
-        workflow["117"]["inputs"]["audio_encoder_name"] = audio_encoder
-        workflow["118"]["inputs"]["clip_name"] = clip_vision
-        
         # VHS_VideoCombine 节点 (视频输出)
-        workflow["143"]["inputs"]["frame_rate"] = float(frame_rate)
         workflow["143"]["inputs"]["filename_prefix"] = filename_prefix
         
         progress_bar.progress(50)
@@ -547,7 +547,7 @@ if generate_btn:
                 st.subheader("输入信息")
                 st.markdown(f"**初始图像**: {image_filename}")
                 st.markdown(f"**音频文件**: {audio_filename}")
-                st.markdown(f"**动作提示词行数**: {len(action_lines)}")
+                #st.markdown(f"**动作提示词行数**: {len(action_lines)}")
                 st.markdown(f"**视频长度**: {video_length} 帧")
                 st.markdown(f"**帧率**: {frame_rate} fps")
                 
