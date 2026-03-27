@@ -690,8 +690,15 @@ class ImagePairToolGUI:
             messagebox.showinfo("提示", "没有找到同名文件")
             return
         
+        # 询问是否进行比例填充
+        fill_ratio = messagebox.askyesno(
+            "图片比例填充选项",
+            "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
+        )
+        
         # 确认对话框
-        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
+        fill_text = "并填充为 1:1 白色背景" if fill_ratio else ""
+        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值{fill_text}，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
         if not messagebox.askyesno("确认", confirm_msg):
             return
         
@@ -715,6 +722,34 @@ class ImagePairToolGUI:
         errors = []
         paired_files = [] # 记录成功配对的文件名
         
+        def fill_image_with_background(img, target_size, bg_color=(255, 255, 255)):
+            """将图片居中放置到指定尺寸的白色背景上"""
+            target_w, target_h = target_size
+            
+            # 创建带 Alpha 通道的图像用于计算
+            img_rgba = img.convert('RGBA')
+            width, height = img.size
+            
+            # 计算缩放比例，确保图片完整显示在目标区域内（保持宽高比）
+            scale = min(target_w / width, target_h / height)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            
+            # 缩放图片
+            img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+            
+            # 创建白色背景图像
+            background = Image.new('RGBA', (target_w, target_h), bg_color + (255,))
+            
+            # 计算居中位置
+            paste_x = (target_w - new_width) // 2
+            paste_y = (target_h - new_height) // 2
+            
+            # 将缩放后的图片粘贴到背景中央
+            background.paste(img_resized, (paste_x, paste_y), img_resized if img.mode == 'RGBA' else None)
+            
+            return background.convert('RGB')
+
         # 定义单个文件处理函数
         def process_pair(filename):
             left_path = os.path.join(left_folder, filename)
@@ -733,17 +768,23 @@ class ImagePairToolGUI:
                 target_w = min(w1, w2)
                 target_h = min(h1, h2)
                 
-                # 调整分辨率 (使用 LANCZOS 滤镜保证质量)
-                img_left_resized = img_left.resize((target_w, target_h), Image.LANCZOS)
-                img_right_resized = img_right.resize((target_w, target_h), Image.LANCZOS)
+                if fill_ratio:
+                    # 填充为 1:1 正方形，白色背景
+                    target_square_size = max(target_w, target_h)
+                    img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                    img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                else:
+                    # 仅调整尺寸为两者中的较小值
+                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
                 
                 # 保存左图到 control 文件夹
                 control_dest = os.path.join(control_folder, filename)
-                img_left_resized.save(control_dest)
+                img_left_processed.save(control_dest)
                 
                 # 保存右图 to target 文件夹
                 target_dest = os.path.join(target_folder, filename)
-                img_right_resized.save(target_dest)
+                img_right_processed.save(target_dest)
                 
                 return (filename, True, None)
                 
@@ -751,7 +792,6 @@ class ImagePairToolGUI:
                 return (filename, False, str(e))
 
         # 使用线程池执行任务
-        # max_workers 默认为 CPU 核心数 * 5，对于 IO 密集型任务通常足够，也可手动指定如 8 或 16
         with ThreadPoolExecutor() as executor:
             future_to_file = {executor.submit(process_pair, fname): fname for fname in sorted_files}
             
@@ -767,17 +807,17 @@ class ImagePairToolGUI:
                     error_count += 1
                     errors.append(f"{filename}: {error_msg}")
                 
-                # 更新进度条和状态 (在主线程中更新 UI 是安全的，因为这是在 main thread 调用的循环中)
                 progress_percent = (completed / total_count) * 100
                 self.progress_var.set(progress_percent)
                 self.status_label.config(text=f"正在处理 {completed}/{total_count}... 成功:{success_count} 失败:{error_count}")
-                self.root.update_idletasks() # 强制刷新 UI
+                self.root.update_idletasks()
         
         # 显示结果
         if error_count == 0:
-            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！\n所有文件已调整分辨率并保存到:\n- {control_folder}\n- {target_folder}")
+            fill_info = "（已填充为 1:1 白色背景）" if fill_ratio else ""
+            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}")
         else:
-            error_details = "\n".join(errors[:5])  # 只显示前 5 个错误
+            error_details = "\n".join(errors[:5])
             if error_count > 5:
                 error_details += f"\n... 还有 {error_count - 5} 个错误"
             messagebox.showwarning("部分完成", 
@@ -785,16 +825,12 @@ class ImagePairToolGUI:
         
         self.status_label.config(text=f"✓ 自动配对完成 | 成功:{success_count} | 失败:{error_count}")
         
-        # 批量标记为已配对并刷新列表颜色
         for fname in paired_files:
             self.left_panel.mark_as_paired(fname)
             self.right_panel.mark_as_paired(fname)
         
         self.left_panel.update_listbox_colors()
         self.right_panel.update_listbox_colors()
-        
-        # 完成后重置进度条（可选，或者保持在 100%）
-        # self.progress_var.set(0) 
 
     def export_pairs(self):
         """导出配对图片（调整分辨率后分别保存）"""
@@ -815,6 +851,12 @@ class ImagePairToolGUI:
             messagebox.showerror("错误", "右侧面板没有选中的图片")
             return
         
+        # 询问是否进行比例填充
+        fill_ratio = messagebox.askyesno(
+            "图片比例填充选项",
+            "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
+        )
+        
         # 创建导出子文件夹
         control_folder = os.path.join(export_folder, "control")
         target_folder = os.path.join(export_folder, "target")
@@ -827,6 +869,34 @@ class ImagePairToolGUI:
         # 导出时使用相同的文件名
         export_name = left_name
         
+        def fill_image_with_background(img, target_size, bg_color=(255, 255, 255)):
+            """将图片居中放置到指定尺寸的白色背景上"""
+            target_w, target_h = target_size
+            
+            # 创建带 Alpha 通道的图像用于计算
+            img_rgba = img.convert('RGBA')
+            width, height = img.size
+            
+            # 计算缩放比例，确保图片完整显示在目标区域内（保持宽高比）
+            scale = min(target_w / width, target_h / height)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            
+            # 缩放图片
+            img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+            
+            # 创建白色背景图像
+            background = Image.new('RGBA', (target_w, target_h), bg_color + (255,))
+            
+            # 计算居中位置
+            paste_x = (target_w - new_width) // 2
+            paste_y = (target_h - new_height) // 2
+            
+            # 将缩放后的图片粘贴到背景中央
+            background.paste(img_resized, (paste_x, paste_y), img_resized if img.mode == 'RGBA' else None)
+            
+            return background.convert('RGB')
+        
         try:
             # 打开图片
             img_left = Image.open(left_path)
@@ -836,23 +906,30 @@ class ImagePairToolGUI:
             w1, h1 = img_left.size
             w2, h2 = img_right.size
             
-            # 计算目标分辨率（取两者中的较小宽和较小高）
-            target_w = min(w1, w2)
-            target_h = min(h1, h2)
-            
-            # 调整分辨率 (使用 LANCZOS 滤镜保证质量)
-            img_left_resized = img_left.resize((target_w, target_h), Image.LANCZOS)
-            img_right_resized = img_right.resize((target_w, target_h), Image.LANCZOS)
+            if fill_ratio:
+                # 填充为 1:1 正方形，白色背景
+                target_square_size = max(w1, w2, h1, h2)
+                img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                final_size = f"{target_square_size}x{target_square_size}"
+            else:
+                # 仅调整尺寸为两者中的较小宽和较小高
+                target_w = min(w1, w2)
+                target_h = min(h1, h2)
+                img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+                final_size = f"{target_w}x{target_h}"
             
             # 保存左图到 control 文件夹
             control_dest = os.path.join(control_folder, export_name)
-            img_left_resized.save(control_dest)
+            img_left_processed.save(control_dest)
             
             # 保存右图到 target 文件夹
             target_dest = os.path.join(target_folder, export_name)
-            img_right_resized.save(target_dest)
+            img_right_processed.save(target_dest)
             
-            self.status_label.config(text=f"✓ 已导出并调整分辨率：{export_name} ({target_w}x{target_h}) | 切换图片后可再次导出")
+            fill_text = "（已填充为 1:1 白色背景）" if fill_ratio else ""
+            self.status_label.config(text=f"✓ 已导出{fill_text}：{export_name} ({final_size}) | 切换图片后可再次导出")
             # 禁用导出按钮，防止重复导出
             self.disable_export_button()
             
