@@ -1,3 +1,4 @@
+import random
 import streamlit as st
 import json
 import os
@@ -108,11 +109,11 @@ class ComfyUIClient:
         
         return self.get_history(prompt_id)
 
-# 页面配置
 st.set_page_config(
     page_title="Qwen-Image 图像生成器",
     page_icon="🎨",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 st.markdown("""
@@ -120,7 +121,7 @@ st.markdown("""
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #9C27B0;
+        color: #1E88E5;
         text-align: center;
         margin-bottom: 1rem;
     }
@@ -130,8 +131,18 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
     }
-    .upload-section, .prompt-section {
+    .stTextArea label, .stTextInput label, .stNumberInput label {
+        font-weight: bold;
+        color: #333;
+    }
+    .upload-section {
         background-color: #f5f5f5;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .prompt-section {
+        background-color: #e3f2fd;
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 20px;
@@ -149,7 +160,7 @@ st.markdown("""
     }
     .stButton>button {
         width: 100%;
-        background-color: #9C27B0;
+        background-color: #1E88E5;
         color: white;
         font-weight: bold;
         padding: 15px;
@@ -158,7 +169,7 @@ st.markdown("""
         font-size: 1.1rem;
     }
     .stButton>button:hover {
-        background-color: #7B1FA2;
+        background-color: #1565C0;
     }
     .status-box {
         padding: 10px;
@@ -168,28 +179,74 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 标题
 st.markdown('<div class="main-header">🎨 Qwen-Image 图像生成器</div>', unsafe_allow_html=True)
-#st.markdown('<div class="sub-header">基于 Qwen-Image 2512 4 步工作流 · 快速生成高质量海报</div>', unsafe_allow_html=True)
 
-# 侧边栏 - 参数设置
 with st.sidebar:
-    st.header("⚙️ 采样参数")
+    st.header("⚙️ 高级设置")
     
-    seed = st.number_input("随机种子", min_value=0, max_value=2**53-1, value=4601776150)
-    steps = st.slider("生成步数", min_value=1, max_value=10, value=4)
-    cfg = st.number_input("CFG 值", min_value=0.0, max_value=20.0, value=1.0, step=0.5)
+    # 初始化或刷新种子
+    if "current_seed" not in st.session_state:
+        st.session_state.current_seed = int(time.time()) % (2**53)
+    
+    st.subheader("采样设置")
+    seed = st.number_input(
+        "随机种子", 
+        min_value=0, 
+        max_value=2**53-1, 
+        value=st.session_state.current_seed,
+        help="控制生成结果的随机性"
+    )
+    
+    # 每生成一张图片后自动刷新种子的按钮（可选手动触发）
+    if st.button("🎲 刷新种子", key="refresh_seed"):
+        st.session_state.current_seed = random.randint(0, 2**53 - 1)
+        st.rerun()
+    
+    steps = st.slider(
+        "生成步数", 
+        min_value=1, 
+        max_value=10, 
+        value=4,
+        help="采样迭代次数，影响图像质量"
+    )
+    
+    cfg = st.number_input(
+        "CFG 值", 
+        min_value=0.0, 
+        max_value=20.0, 
+        value=1.0, 
+        step=0.5,
+        help="提示词相关性，越高越贴近提示词"
+    )
     
     col1, col2 = st.columns(2)
     with col1:
-        width = st.number_input("宽度", min_value=256, max_value=2048, value=1056)
+        width = st.number_input(
+            "宽度", 
+            min_value=256, 
+            max_value=2048, 
+            value=1056,
+            help="生成图像的宽度"
+        )
     with col2:
-        height = st.number_input("高度", min_value=256, max_value=2048, value=1584)
+        height = st.number_input(
+            "高度", 
+            min_value=256, 
+            max_value=2048, 
+            value=1584,
+            help="生成图像的高度"
+        )
     
-    filename_prefix = st.text_input("文件名前缀", value="QwenImage")
+    filename_prefix = st.text_input(
+        "文件名前缀", 
+        value="QwenImage",
+        help="输出文件名的前缀"
+    )
     
     st.markdown("---")
-    if st.button("🔌 测试 ComfyUI 连接"):
+    
+    st.subheader("🔌 连接测试")
+    if st.button("测试 ComfyUI 连接"):
         try:
             response = requests.get(f"{COMFYUI_SERVER}/system_stats", timeout=5)
             if response.status_code == 200:
@@ -199,11 +256,10 @@ with st.sidebar:
         except Exception as e:
             st.error(f"❌ 连接失败：{str(e)}")
 
-# 主界面 - 提示词输入
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.markdown('<div class="prompt-section">', unsafe_allow_html=True)
+    st.markdown('<div class="upload-section">', unsafe_allow_html=True)
     
     st.header("📝 正向提示词")
     positive_prompt = st.text_area(
@@ -342,7 +398,15 @@ if generate_btn:
                         
                         with col_result1:
                             st.subheader("生成的图像")
-                            st.image(img, use_container_width=True)
+                            # 限制图片最大尺寸，保持比例
+                            max_height = 800  # 最大高度 800px
+                            img_width, img_height = img.size
+                            if img_height > max_height:
+                                scale_factor = max_height / img_height
+                                new_width = int(img_width * scale_factor)
+                                st.image(img, width=new_width)
+                            else:
+                                st.image(img, use_container_width=True)
                             
                             # 下载按钮
                             download_filename = f"{filename_prefix}_{prompt_id}.png"
@@ -362,6 +426,10 @@ if generate_btn:
                             st.markdown(f"**Prompt ID**: `{prompt_id}`")
                         
                         st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # 每生成一张图片后自动提示可以使用新种子继续生成
+                        new_seed = random.randint(0, 2**53 - 1)
+                        st.session_state.current_seed = new_seed
                         break
         else:
             st.warning("⚠️ 未找到生成的图像，请检查 ComfyUI 日志")
