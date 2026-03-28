@@ -6,7 +6,7 @@ client = Client("http://localhost:7862/")
 
 # 生成语音
 result = client.predict(
-    voices_dropdown="少女音1",        # 音色：御姐、萝莉 1、老男人、少女音1...
+    voices_dropdown="少女音 1",        # 音色：御姐、萝莉 1、老男人、少女音1...
     text="一个功能丰富的 AI 视觉处理工具集合，包括图片和视频的标注、标签管理、批处理和 AI 视频生成功能。",  # 机器人要说的话
     prompt_text="",               # 留空
     prompt_audio=None,            # 留空
