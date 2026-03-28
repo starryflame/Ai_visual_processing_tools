@@ -43,52 +43,87 @@ class ProcessingWorker(QThread):
         self.cancelled = True
 
     def process_split(self):
-        """拆分大文件夹"""
+        """拆分大文件夹 - 尽量保持同名文件的配对关系"""
         source_path = Path(self.source_folder)
         
         if not source_path.exists():
             self.finished_signal.emit(f"错误：源文件夹 {self.source_folder} 不存在")
             return
         
-        self.progress_signal.emit(5, "正在读取文件列表...")
-        files = [f for f in source_path.iterdir() if f.is_file()]
+        self.progress_signal.emit(5, "正在扫描所有文件...")
         
-        if not files:
-            self.finished_signal.emit("错误：源文件夹中没有文件")
+        # 支持的媒体和标签文件扩展名
+        media_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.svg', 
+                            '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.m4v'}
+        label_extensions = {'.txt'}
+        
+        # 收集所有需要处理的文件
+        all_files = [f for f in source_path.iterdir() 
+                     if f.is_file() and (f.suffix.lower() in media_extensions or f.suffix.lower() in label_extensions)]
+        
+        if not all_files:
+            self.finished_signal.emit("错误：源文件夹中没有媒体或标签文件")
             return
         
-        self.progress_signal.emit(10, f"找到 {len(files)} 个文件，开始拆分...")
+        # 按文件名分组（同名不同格式的文件归为一组）
+        file_groups = {}
+        for file_path in all_files:
+            base_name = file_path.stem
+            if base_name not in file_groups:
+                file_groups[base_name] = []
+            file_groups[base_name].append(file_path)
+        
+        self.progress_signal.emit(10, f"找到 {len(file_groups)} 组文件，共 {len(all_files)} 个文件")
+        
+        # 将每组文件视为一个整体进行拆分
+        group_list = list(file_groups.keys())
+        random.shuffle(group_list)  # 打乱分组顺序
         
         folder_count = 0
-        file_count = 0
+        processed_count = 0
         current_subfolder = None
+        subfolder_file_count = 0
         
-        for file_path in files:
+        for base_name in group_list:
             if self.cancelled:
                 self.finished_signal.emit("操作已取消")
                 return
             
-            if file_count % self.max_files == 0:
+            files_in_group = file_groups[base_name]
+            
+            # 检查如果添加当前组是否会超过最大文件数，如果是则先创建新文件夹
+            needs_new_folder = False
+            if current_subfolder is None:
+                needs_new_folder = True
+            elif subfolder_file_count + len(files_in_group) > self.max_files:
+                needs_new_folder = True
+            
+            # 创建第一个子文件夹或当达到最大文件数时创建新文件夹
+            if needs_new_folder:
                 folder_count += 1
                 subfolder_name = f"{source_path.name}_part_{folder_count}"
                 current_subfolder = source_path / subfolder_name
                 current_subfolder.mkdir(exist_ok=True)
                 self.progress_signal.emit(
-                    int(10 + (file_count / len(files)) * 20),
+                    int(10 + (processed_count / len(all_files)) * 20),
                     f"创建文件夹：{subfolder_name}"
                 )
+                subfolder_file_count = 0
             
-            destination = current_subfolder / file_path.name
-            shutil.move(str(file_path), str(destination))
-            file_count += 1
+            for file_path in files_in_group:
+                destination = current_subfolder / file_path.name
+                shutil.move(str(file_path), str(destination))
             
-            if file_count % 100 == 0:
-                progress = int(30 + (file_count / len(files)) * 40)
-                self.progress_signal.emit(progress, f"已处理 {file_count} 个文件")
+            subfolder_file_count += len(files_in_group)
+            processed_count += len(files_in_group)
+            
+            if processed_count % 100 == 0:
+                progress = int(30 + (processed_count / len(all_files)) * 40)
+                self.progress_signal.emit(progress, f"已处理 {processed_count} 个文件（{subfolder_file_count}/{self.max_files}）")
         
         total_progress = int(70 + (folder_count / max(folder_count, 1)) * 30)
-        self.progress_signal.emit(total_progress, f"拆分完成，共创建 {folder_count} 个子文件夹，处理 {file_count} 个文件")
-        self.finished_signal.emit(f"成功！已创建 {folder_count} 个子文件夹，处理了 {file_count} 个文件")
+        self.progress_signal.emit(total_progress, f"拆分完成，共创建 {folder_count} 个子文件夹，处理 {processed_count} 个文件")
+        self.finished_signal.emit(f"成功！已创建 {folder_count} 个子文件夹，处理了 {processed_count} 个文件。同名不同格式的文件已尽量保持配对关系。")
 
     def process_flatten(self):
         """扁平化文件夹结构"""
@@ -155,56 +190,87 @@ class ProcessingWorker(QThread):
         self.finished_signal.emit(f"成功！已移动 {moved_count} 个文件并清理空文件夹")
 
     def process_shuffle(self):
-        """打乱图片文件名"""
+        """打乱图片/视频文件名，保持同名不同格式文件的配对关系"""
         source_path = Path(self.source_folder)
         
         if not source_path.exists():
             self.finished_signal.emit(f"错误：源文件夹 {self.source_folder} 不存在")
             return
         
-        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.svg'}
+        # 支持的媒体文件扩展名
+        media_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.svg', 
+                            '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.m4v'}
+        # 标签文件扩展名
+        label_extensions = {'.txt'}
         
-        self.progress_signal.emit(5, "正在查找图片文件...")
-        image_files = [f for f in source_path.iterdir() 
-                       if f.is_file() and f.suffix.lower() in image_extensions]
+        self.progress_signal.emit(5, "正在扫描所有文件...")
         
-        if not image_files:
-            self.finished_signal.emit("错误：源文件夹中没有图片文件")
+        # 收集所有需要处理的文件（媒体 + 标签）
+        all_files = [f for f in source_path.iterdir() 
+                     if f.is_file() and (f.suffix.lower() in media_extensions or f.suffix.lower() in label_extensions)]
+        
+        if not all_files:
+            self.finished_signal.emit("错误：源文件夹中没有媒体或标签文件")
             return
         
-        self.progress_signal.emit(10, f"找到 {len(image_files)} 个图片文件，开始打乱名称...")
+        # 按文件名分组（同名不同格式的文件归为一组）
+        file_groups = {}
+        for file_path in all_files:
+            base_name = file_path.stem  # 不带扩展名的文件名
+            if base_name not in file_groups:
+                file_groups[base_name] = []
+            file_groups[base_name].append(file_path)
         
-        temp_names = []
-        final_names = [f.name for f in image_files]
+        self.progress_signal.emit(10, f"找到 {len(file_groups)} 组文件，共 {len(all_files)} 个文件")
         
-        # 生成临时名称并重命名
-        for i, img_file in enumerate(image_files):
+        # 生成临时名称 - 每组文件分别处理
+        group_temp_names = {}
+        for base_name, files in file_groups.items():
             if self.cancelled:
                 self.finished_signal.emit("操作已取消")
                 return
             
-            temp_name = f"temp_{i:06d}{img_file.suffix}"
-            temp_names.append(temp_name)
+            temp_names_for_group = []
+            for i, file_path in enumerate(files):
+                temp_name = f"temp_{base_name}_{i:04d}{file_path.suffix}"
+                temp_names_for_group.append((file_path, temp_name))
+                
+                temp_path = source_path / temp_name
+                file_path.rename(temp_path)
             
-            temp_path = source_path / temp_name
-            img_file.rename(temp_path)
+            group_temp_names[base_name] = temp_names_for_group
         
         self.progress_signal.emit(50, "文件已重命名为临时名称，正在打乱...")
         
-        # 打乱最终名称列表并重新命名
-        random.shuffle(final_names)
+        # 生成新的文件名列表并打乱
+        new_base_names = list(file_groups.keys())
+        random.shuffle(new_base_names)
         
-        for temp_name, final_name in zip(temp_names, final_names):
+        # 将新名称分配给各组的临时文件
+        for old_base_name, files in file_groups.items():
             if self.cancelled:
                 self.finished_signal.emit("操作已取消")
                 return
             
-            temp_path = source_path / temp_name
-            final_path = source_path / final_name
-            temp_path.rename(final_path)
+            new_base = new_base_names.pop(0)
+            
+            # 按后缀排序，确保相同位置的文件使用相同的扩展名
+            sorted_files = sorted(files, key=lambda x: x.suffix.lower())
+            
+            for i, file_path in enumerate(sorted_files):
+                if self.cancelled:
+                    self.finished_signal.emit("操作已取消")
+                    return
+                
+                temp_name = group_temp_names[old_base_name][i][1]
+                new_name = f"{new_base}{file_path.suffix}"
+                
+                temp_path = source_path / temp_name
+                final_path = source_path / new_name
+                temp_path.rename(final_path)
         
-        self.progress_signal.emit(100, f"已完成 {len(image_files)} 个图片文件的名称打乱")
-        self.finished_signal.emit(f"成功！已打乱 {len(image_files)} 个图片文件的名称")
+        self.progress_signal.emit(95, "文件重命名完成")
+        self.finished_signal.emit(f"成功！已打乱 {len(file_groups)} 组文件的名称，共处理 {len(all_files)} 个文件。同名不同格式的文件已保持配对关系。")
 
 
 class FolderProcessorGUI(QMainWindow):
