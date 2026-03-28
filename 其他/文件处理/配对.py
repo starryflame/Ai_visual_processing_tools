@@ -233,10 +233,37 @@ class ImagePanel:
         self.update_listbox_colors()  # 更新列表颜色
     
     def on_select(self, event):
-        """列表选择事件"""
+        """列表选择事件 - 点击图片时检测另一侧同名文件并选中"""
         selection = self.listbox.curselection()
         if selection:
             self.current_index = selection[0]
+            selected_filename = self.image_files[self.current_index]
+            
+            # 尝试获取主窗口和另一侧面板以进行配对检测
+            main_window = getattr(self, 'main_window', None)
+            other_panel = None
+            
+            if main_window and hasattr(main_window, 'left_panel') and hasattr(main_window, 'right_panel'):
+                if self == main_window.left_panel:
+                    other_panel = main_window.right_panel
+                elif self == main_window.right_panel:
+                    other_panel = main_window.left_panel
+            
+            # 检查另一侧是否有同名文件并选中
+            if other_panel and other_panel.image_files:
+                try:
+                    other_index = other_panel.image_files.index(selected_filename)
+                    # 如果另一侧当前选中的不是这个文件，则切换过去显示
+                    if other_panel.current_index != other_index:
+                        other_panel.current_index = other_index
+                        other_panel.show_image(other_index)
+                        # 清除之前的选择并设置新的选择
+                        other_panel.listbox.selection_clear(0, tk.END)
+                        other_panel.listbox.selection_set(other_index)
+                except ValueError:
+                    # 另一侧没有同名文件，忽略
+                    pass
+            
             self.show_image(self.current_index)
     
     def show_image(self, index):
