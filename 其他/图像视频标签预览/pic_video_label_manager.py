@@ -47,6 +47,13 @@ class VideoLabelManager(QMainWindow):
         # 添加视频播放控制相关变量
         self.is_paused = False  # 视频是否暂停
         
+        # 动画 WebP 支持相关变量
+        self.animated_webp_images = []  # 存储动画 WebP 的所有帧
+        self.webp_timer = QTimer()  # 用于播放动画 WebP
+        self.webp_timer.timeout.connect(self.update_webp_frame)
+        self.current_webp_index = 0  # 当前显示的 WebP 帧索引
+        self.is_animated_webp = False  # 是否为动画 WebP
+        
         # 添加布局模式变量
         self.is_vertical_layout = False  # 是否为竖屏布局模式
         
@@ -715,7 +722,7 @@ class VideoLabelManager(QMainWindow):
         
         # 支持的媒体格式
         video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
-        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif'}
+        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif', '.webp'}
         
         # 递归获取所有媒体文件
         for root, dirs, files in os.walk(self.current_folder):
@@ -804,8 +811,8 @@ class VideoLabelManager(QMainWindow):
         media_path = self.media_files_full_path[self.current_index]
         ext = os.path.splitext(media_path)[1].lower()
         
-        # 判断是图片还是视频
-        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif'}
+        # 判断是图片还是视频（包含 webp 格式）
+        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif', '.webp'}
         video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
         
         if ext in image_extensions:
@@ -822,37 +829,245 @@ class VideoLabelManager(QMainWindow):
             self.current_media_type = None
             self.media_label.setText("不支持的文件类型")
     
+    def is_animated_webp(self, image_path):
+        """检查是否为动画 WebP"""
+        try:
+            from PIL import Image
+            img = Image.open(image_path)
+            
+            # 检查是否是动画 WebP
+            if hasattr(img, 'is_animated'):
+                return img.is_animated
+            
+            # 尝试获取帧数
+            frame_count = 0
+            try:
+                while True:
+                    img.seek(frame_count)
+                    frame_count += 1
+                    if frame_count > 100:  # 防止无限循环
+                        break
+            except EOFError:
+                pass
+            
+            return frame_count > 1
+        except Exception as e:
+            print(f"检查动画 WebP 失败：{e}")
+            return False
+    
+    def play_animated_webp(self, image_path):
+        """播放动画 WebP"""
+        try:
+            from PIL import Image
+            import numpy as np
+            
+            self.animated_webp_images = []
+            pil_img = Image.open(image_path)
+            
+            # 获取第一帧的尺寸信息用于布局判断
+            width, height = pil_img.size
+            
+            # 先检查并更新布局
+            if width > 0 and height > 0:
+                self.check_and_update_layout(width, height)
+            
+            # 读取所有帧
+            frame_count = 0
+            total_duration = 0
+            
+            while True:
+                try:
+                    # 获取当前帧的延迟时间（毫秒）
+                    duration = pil_img.info.get('duration', 100)
+                    total_duration += duration
+                    
+                    # 将 PIL 图像转换为 QImage
+                    if pil_img.mode == 'RGBA':
+                        arr = np.array(pil_img.convert('RGB'))
+                        qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                                         arr.shape[1] * 3, QImage.Format_RGB888)
+                    elif pil_img.mode == 'L':
+                        arr = np.array(pil_img.convert('RGB'))
+                        qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                                         arr.shape[1] * 3, QImage.Format_RGB888)
+                    else:
+                        arr = np.array(pil_img.convert('RGB'))
+                        qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                                         arr.shape[1] * 3, QImage.Format_RGB888)
+                    
+                    pixmap = QPixmap.fromImage(qt_image)
+                    self.animated_webp_images.append(pixmap)
+                    
+                except (EOFError, IndexError):
+                    # EOFError: 已到达文件末尾
+                    # IndexError: seek 超出范围（某些 WebP 文件的特殊情况）
+                    break
+                
+                frame_count += 1
+                
+                # 尝试移动到下一帧，如果失败则退出循环
+                try:
+                    pil_img.seek(frame_count)
+                except (EOFError, IndexError):
+                    break
+            
+            if not self.animated_webp_images:
+                self.media_label.setText("无法加载动画 WebP")
+                return
+            
+            # 设置动画 WebP 相关变量
+            self.is_animated_webp = True
+            self.total_frames = len(self.animated_webp_images)
+            self.current_frame = 0
+            
+            # 计算平均帧率 (fps)
+            if total_duration > 0:
+                avg_fps = len(self.animated_webp_images) * 1000 / total_duration
+                display_fps = int(avg_fps)
+            else:
+                display_fps = 10  # 默认 10fps
+            
+            # 显示第一帧
+            self._scale_and_display_image(self.animated_webp_images[0])
+            
+            # 设置进度条
+            self.progress_slider.setRange(0, self.total_frames - 1)
+            self.progress_slider.setValue(0)
+            
+            # 更新时间显示
+            total_seconds = total_duration / 1000.0
+            current_time_str = QTime(0, 0).addSecs(0).toString("mm:ss")
+            total_time_str = QTime(0, 0).addSecs(int(total_seconds)).toString("mm:ss")
+            self.current_time_label.setText(current_time_str)
+            self.total_time_label.setText(total_time_str)
+            
+            # 启动定时器播放动画
+            self.webp_timer.start(int(1000 / display_fps))
+            self.pause_btn.setEnabled(True)
+            self.is_paused = False
+            
+            print(f"动画 WebP: {len(self.animated_webp_images)} 帧，平均{display_fps}fps")
+            
+        except Exception as e:
+            print(f"播放动画 WebP 失败：{e}")
+            # 回退到显示第一帧静态图像
+            from PIL import Image
+            pil_img = Image.open(image_path)
+            arr = np.array(pil_img.convert('RGB'))
+            qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                             arr.shape[1] * 3, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qt_image)
+            QTimer.singleShot(50, lambda p=pixmap: self._scale_and_display_image(p))
+    
+    def update_webp_frame(self):
+        """更新动画 WebP 帧"""
+        if not self.is_animated_webp or not self.animated_webp_images:
+            return
+        
+        # 暂停时不更新
+        if self.is_paused:
+            return
+        
+        # 显示下一帧
+        self.current_frame = (self.current_frame + 1) % len(self.animated_webp_images)
+        pixmap = self.animated_webp_images[self.current_frame]
+        
+        # 缩放并显示
+        scaled_pixmap = pixmap.scaled(
+            self.media_label.size(), 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        self.media_label.setPixmap(scaled_pixmap)
+        
+        # 更新进度条
+        if not hasattr(self, 'slider_pressed') or not self.slider_pressed:
+            self.progress_slider.setValue(self.current_frame)
+            
+        # 更新时间显示
+        total_seconds = int(self.total_frames / (self.fps if self.fps > 0 else 10))
+        current_time_str = QTime(0, 0).addSecs(int(self.current_frame * total_seconds / max(len(self.animated_webp_images), 1))).toString("mm:ss")
+        self.current_time_label.setText(current_time_str)
+    
+    def stop_animated_webp(self):
+        """停止动画 WebP 播放"""
+        self.webp_timer.stop()
+        self.is_animated_webp = False
+        self.animated_webp_images = []
+        self.current_frame = 0
+        self.pause_btn.setEnabled(False)
+        self.is_paused = False
+    
     def display_image(self, image_path):
-        """显示图片"""
-        # 获取图片尺寸信息用于布局判断
+        """显示图片（包括静态和动画 WebP）"""
+        # 检查是否为动画 WebP
+        if os.path.splitext(image_path)[1].lower() == '.webp':
+            try:
+                from PIL import Image
+                pil_img = Image.open(image_path)
+                
+                if hasattr(pil_img, 'is_animated') and pil_img.is_animated:
+                    # 是动画 WebP，播放它
+                    self.play_animated_webp(image_path)
+                    return
+            except Exception as e:
+                print(f"检查动画 WebP 失败：{e}")
+        
+        # 普通图片显示逻辑
         width, height = 0, 0
         try:
             img = cv2.imread(image_path)
             if img is not None:
                 height, width, channels = img.shape
             else:
-                # 如果cv2无法读取，尝试使用PIL
                 from PIL import Image
                 pil_img = Image.open(image_path)
                 width, height = pil_img.size
         except Exception as e:
-            print(f"读取图片尺寸时出错: {e}")
+            print(f"读取图片尺寸时出错：{e}")
         
         # 先检查并更新布局
         if width > 0 and height > 0:
             self.check_and_update_layout(width, height)
             
-        pixmap = QPixmap(image_path)
-        if not pixmap.isNull():
-            # 使用 QTimer.singleShot 延迟执行，确保布局更新完成后再显示图片
-            QTimer.singleShot(50, lambda: self._scale_and_display_image(pixmap))
-        else:
-            self.media_label.setText("无法加载图片")
+        # 使用 PIL 加载 WebP 等格式，然后转换为 QPixmap
+        try:
+            from PIL import Image
+            import numpy as np
+            
+            pil_img = Image.open(image_path)
+            
+            # 将 PIL 图像转换为 numpy 数组
+            if pil_img.mode == 'RGBA':
+                arr = np.array(pil_img.convert('RGB'))
+                qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                                 arr.shape[1] * 3, QImage.Format_RGB888)
+            elif pil_img.mode == 'L':
+                arr = np.array(pil_img.convert('RGB'))
+                qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                                 arr.shape[1] * 3, QImage.Format_RGB888)
+            else:
+                arr = np.array(pil_img.convert('RGB'))
+                qt_image = QImage(arr.data, arr.shape[1], arr.shape[0], 
+                                 arr.shape[1] * 3, QImage.Format_RGB888)
+            
+            pixmap = QPixmap.fromImage(qt_image)
+            
+            if not pixmap.isNull():
+                QTimer.singleShot(50, lambda p=pixmap: self._scale_and_display_image(p))
+            else:
+                self.media_label.setText("无法加载图片")
+        except Exception as e:
+            print(f"使用 PIL 加载图片失败：{e}")
+            pixmap = QPixmap(image_path)
+            if not pixmap.isNull():
+                QTimer.singleShot(50, lambda p=pixmap: self._scale_and_display_image(p))
+            else:
+                self.media_label.setText("无法加载图片")
     
     def _scale_and_display_image(self, pixmap):
         """缩放并显示图片"""
         if not pixmap.isNull() and hasattr(self, 'media_label'):
-            # 缩放以适应标签大小
             scaled_pixmap = pixmap.scaled(
                 self.media_label.size(), 
                 Qt.KeepAspectRatio, 
@@ -951,10 +1166,15 @@ class VideoLabelManager(QMainWindow):
             self.update_time_display()
             
     def stop_video(self):
+        # 停止视频播放
         self.playback_timer.stop()
         if self.video_capture is not None:
             self.video_capture.release()
             self.video_capture = None
+        
+        # 停止动画 WebP 播放
+        self.stop_animated_webp()
+        
         # 重置进度相关变量
         self.current_frame = 0
         self.total_frames = 0
@@ -965,9 +1185,9 @@ class VideoLabelManager(QMainWindow):
         # 禁用暂停按钮
         self.pause_btn.setEnabled(False)
         self.is_paused = False
-        # 修改: 重置媒体标签为初始状态，但保持其可扩展性
+        # 修改：重置媒体标签为初始状态，但保持其可扩展性
         self.media_label.setText("媒体预览将在此显示")
-        self.media_label.setPixmap(QPixmap())  # 使用空的QPixmap对象清除现有的pixmap
+        self.media_label.setPixmap(QPixmap())  # 使用空的 QPixmap 对象清除现有的 pixmap
         self.media_label.setStyleSheet("""
             QLabel {
                 background-color: black;
@@ -1242,7 +1462,22 @@ class VideoLabelManager(QMainWindow):
         self.next_btn.setEnabled(has_next)
         
     def toggle_pause(self):
-        """切换视频播放/暂停状态"""
+        """切换视频/动画 WebP 播放/暂停状态"""
+        # 检查是否为动画 WebP
+        if self.is_animated_webp:
+            if self.is_paused:
+                # 恢复播放
+                self.webp_timer.start(int(1000 / (self.total_frames / max(self.fps, 1))))
+                self.is_paused = False
+                self.pause_btn.setText("⏸️")
+            else:
+                # 暂停播放
+                self.webp_timer.stop()
+                self.is_paused = True
+                self.pause_btn.setText("▶️")
+            return
+        
+        # 普通视频播放控制
         if self.video_capture is None:
             return
             
@@ -1269,7 +1504,7 @@ class VideoLabelManager(QMainWindow):
             # 重新检测当前媒体的布局适配性
             current_media_path = self.media_files_full_path[self.current_index]
             ext = os.path.splitext(current_media_path)[1].lower()
-            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif'}
+            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.gif', '.webp'}
             video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
             
             width, height = 0, 0
