@@ -95,32 +95,6 @@
       "title": "K采样器"
     }
   },
-  "7": {
-    "inputs": {
-      "image1_text": "original1",
-      "image2_text": "original2",
-      "image3_text": "final",
-      "image4_text": "final",
-      "reel_height": 2048,
-      "border": 32,
-      "image1": [
-        "12",
-        0
-      ],
-      "image2": [
-        "13",
-        0
-      ],
-      "image3": [
-        "21",
-        0
-      ]
-    },
-    "class_type": "LayerUtility: ImageReel",
-    "_meta": {
-      "title": "图层工具：图像卷轴"
-    }
-  },
   "8": {
     "inputs": {
       "prompt": "让图1的人物穿上图2的衣服",
@@ -155,19 +129,6 @@
       "title": "TextEncodeQwenImageEditPlusAdvance lrzjason"
     }
   },
-  "9": {
-    "inputs": {
-      "filename_prefix": "2026-03-29/20260329_232833_QwenEdit",
-      "images": [
-        "21",
-        0
-      ]
-    },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "保存图像"
-    }
-  },
   "12": {
     "inputs": {
       "image": "INF_00001.png"
@@ -196,11 +157,7 @@
       "round_to_multiple": "8",
       "scale_to_side": "longest",
       "scale_to_length": 1280,
-      "background_color": "#000000",
-      "image": [
-        "23",
-        0
-      ]
+      "background_color": "#000000"
     },
     "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
     "_meta": {
@@ -233,12 +190,12 @@
           {
             "name": "A",
             "selected": true,
-            "url": "/api/view?filename=rgthree.compare._temp_oviap_00003_.png&type=temp&subfolder=&rand=0.4028898619238187"
+            "url": "/api/view?filename=rgthree.compare._temp_amova_00001_.png&type=temp&subfolder=&rand=0.12514166476137045"
           },
           {
             "name": "B",
             "selected": true,
-            "url": "/api/view?filename=rgthree.compare._temp_oviap_00004_.png&type=temp&subfolder=&rand=0.32481047346290504"
+            "url": "/api/view?filename=rgthree.compare._temp_amova_00002_.png&type=temp&subfolder=&rand=0.03295163283284597"
           }
         ]
       },
@@ -284,25 +241,9 @@
       "title": "保存图像"
     }
   },
-  "19": {
-    "inputs": {
-      "font_file": "Alibaba-PuHuiTi-Heavy.ttf",
-      "font_size": 40,
-      "border": 32,
-      "color_theme": "light",
-      "reel_1": [
-        "7",
-        0
-      ]
-    },
-    "class_type": "LayerUtility: ImageReelComposit",
-    "_meta": {
-      "title": "图层工具：图像卷轴合成"
-    }
-  },
   "20": {
     "inputs": {
-      "seed": 2168087752,
+      "seed": 22347241,
       "resolution": 1440,
       "max_resolution": 0,
       "batch_size": 1,
@@ -346,27 +287,6 @@
     "class_type": "VAEDecode",
     "_meta": {
       "title": "VAE解码"
-    }
-  },
-  "22": {
-    "inputs": {
-      "images": [
-        "19",
-        0
-      ]
-    },
-    "class_type": "PreviewImage",
-    "_meta": {
-      "title": "预览图像"
-    }
-  },
-  "23": {
-    "inputs": {
-      "image": "图片 (72).png"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "图3"
     }
   },
   "26": {

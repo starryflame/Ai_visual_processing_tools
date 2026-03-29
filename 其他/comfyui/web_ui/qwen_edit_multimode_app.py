@@ -120,19 +120,19 @@ def load_workflow(workflow_type):
             os.path.dirname(__file__),
             "..",
             "工作流",
-            "qwen_edit_aio_单图编辑.json"
+            "单图编辑.json"
         ),
         "double": os.path.join(
             os.path.dirname(__file__),
             "..",
             "工作流",
-            "qwen_edit_aio_双图编辑.json"
+            "双图编辑.json"
         ),
         "triple": os.path.join(
             os.path.dirname(__file__),
             "..",
             "工作流",
-            "qwen_edit_aio_三图编辑.json"
+            "三图编辑.json"
         )
     }
 
@@ -495,6 +495,7 @@ if generate_btn:
                             download_filename = f"{filename_prefix}_{selected_mode}_{prompt_id}.png"
                             st.download_button(
                                 label="📥 下载图像",
+                                key=f"download_{prompt_id}",
                                 data=response.content,
                                 file_name=download_filename,
                                 mime="image/png"
