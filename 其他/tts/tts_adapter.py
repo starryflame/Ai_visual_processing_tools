@@ -15,9 +15,15 @@ class TTSAAdapter:
     def generate_tts(
         self,
         text: str,
+<<<<<<< HEAD
+        voice: str = "少女音 1",
+        speed: float = 1.0,
+        temperature: float = 0.6,
+=======
         voice: str = "少女音1",
         speed: float = 1.0,
         temperature: float = 0.1,
+>>>>>>> 531b38728e0aaa3c472072e842ac247b4140d84f
         response_format: str = "wav"
     ) -> tuple:
         """
@@ -39,10 +45,17 @@ class TTSAAdapter:
             prompt_text="",
             prompt_audio=None,
             speed=speed,
+<<<<<<< HEAD
+            chunk_size=200,
+            batch=25,
+            lang="Auto",
+            model_type="0.6B",
+=======
             chunk_size=900,
             batch=25,
             lang="Auto",
             model_type="1.7B",
+>>>>>>> 531b38728e0aaa3c472072e842ac247b4140d84f
             temperature=temperature,
             auto_up=False,
             api_name="/do_job"
@@ -54,9 +67,15 @@ class TTSAAdapter:
         """获取可用的音色列表"""
         # 这里可以根据实际服务返回的选项来硬编码或动态获取
         return [
+<<<<<<< HEAD
+            "少女音 1",
+            "御姐", 
+            "萝莉 1",
+=======
             "少女音1",
             "御姐", 
             "萝莉1",
+>>>>>>> 531b38728e0aaa3c472072e842ac247b4140d84f
             "老男人"
         ]
 
@@ -68,7 +87,11 @@ if __name__ == "__main__":
     # 测试生成
     result = adapter.generate_tts(
         text="这是一个测试，欢迎使用 OpenAI 兼容的 TTS 服务。",
+<<<<<<< HEAD
+        voice="少女音 1",
+=======
         voice="少女音1",
+>>>>>>> 531b38728e0aaa3c472072e842ac247b4140d84f
         speed=1.0,
         temperature=0.6,
         response_format="wav"
