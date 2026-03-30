@@ -290,28 +290,23 @@ with st.sidebar:
 
 # 根据选择显示对应工具
 if tool == "🎬 Wan2.2 首尾帧视频生成器":
-    # Wan2.2 视频生成器子页面
+    # Wan2.2 视频生成器子页面 - 参考 wan22_i2v_app.py 完整实现
     st.markdown('<div class="tool-card">', unsafe_allow_html=True)
     st.header("🎬 Wan2.2 首尾帧视频生成器")
     st.markdown('基于 ComfyUI 工作流的交互式视频生成工具，支持首尾帧控制')
     st.markdown('</div>')
     
-    # 侧边栏 - 高级设置
-    with st.sidebar:
-        st.header("⚙️ 采样设置")
-        
-        total_steps = st.number_input("总步数", min_value=1, max_value=100, value=6)
-        high_noise_steps = st.number_input("高噪阶段步数", min_value=1, max_value=total_steps, value=3)
-        
-        frame_rate = st.number_input("帧率 (fps)", min_value=1, max_value=60, value=16)
-        bitrate = st.number_input("比特率 (Mbps)", min_value=1, max_value=50, value=10)
-        video_length = st.number_input("视频长度 (帧数)", min_value=1, max_value=240, value=81)
-        
-        seed = st.number_input("随机种子", min_value=0, max_value=(1 << 53) - 1, value=807591005692968)
-        
-        filename_prefix = st.text_input("文件名前缀", value="wan22_i2v")
+    # CSS 样式增强
+    st.markdown("""
+    <style>
+    .upload-section { background-color: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    .prompt-section { background-color: #e3f2fd; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    video { max-height: 80vh !important; width: auto !important; object-fit: contain !important; }
+    </style>
+    """, unsafe_allow_html=True)
     
     # 图像输入区域
+    st.markdown('<div class="upload-section">', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         start_image = st.file_uploader("上传首帧图像", type=["png", "jpg", "jpeg"], key="start_img")
@@ -322,92 +317,123 @@ if tool == "🎬 Wan2.2 首尾帧视频生成器":
         end_image = st.file_uploader("上传尾帧图像", type=["png", "jpg", "jpeg"], key="end_img")
         if end_image:
             st.image(end_image, caption="尾帧图像", use_container_width=True)
+    st.markdown('</div>')
     
     # 提示词区域
-    positive_prompt = st.text_area(
-        "正向提示词",
-        value="镜头中景全身侧坐开始，镜头拉远，旋转运镜，双腿屈膝交叠，双手叉腰，切镜中景正面全身正面坐姿，镜头拉近，双腿屈膝，双手抬起摸发饰发饰，切镜近景全身侧身跪姿，旋转运镜，单膝跪地",
-        height=100,
-        help="描述期望的视频内容和运镜方式"
-    )
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.markdown('<div class="prompt-section">', unsafe_allow_html=True)
+        positive_prompt = st.text_area(
+            "正向提示词",
+            value="镜头中景全身侧坐开始，镜头拉远，旋转运镜，双腿屈膝交叠，双手叉腰，切镜中景正面全身正面坐姿，镜头拉近，双腿屈膝，双手抬起摸发饰发饰，切镜近景全身侧身跪姿，旋转运镜，单膝跪地，切镜近景半身正面，单手轻触嘴唇",
+            height=150,
+            help="描述期望的视频内容和运镜方式"
+        )
+        
+        negative_prompt = st.text_area(
+            "负向提示词",
+            value="色彩艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG 压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+            height=100,
+            help="描述需要避免的内容和质量问题"
+        )
+        st.markdown('</div>')
     
-    negative_prompt = st.text_area(
-        "负向提示词",
-        value="色彩艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG 压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，畸形的肢体，杂乱的背景",
-        height=80,
-        help="描述需要避免的内容"
-    )
+    with col2:
+        seed = st.number_input("随机种子", min_value=0, max_value=(1 << 53) - 1, value=int(time.time()) % (2**53))
+        video_length = st.number_input("视频长度 (帧数)", min_value=1, max_value=240, value=81)
+    
+    # Wan2.2 参数
+    filename_prefix = "i2v/wan2.2i2v"
+    frame_rate = 16
+    bitrate = 10
     
     # 生成按钮
-    if st.button("🚀 生成视频", type="primary"):
+    generate_btn = st.button("🚀 生成视频", type="primary")
+    
+    if generate_btn:
         if not positive_prompt.strip():
             st.error("❌ 请输入正向提示词！")
-        elif check_comfyui_connection(COMFYUI_SERVER):
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+            st.stop()
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        client = ComfyUIClient()
+        
+        try:
+            # 上传图像
+            start_filename, end_filename = None, None
             
-            try:
-                client = ComfyUIClient()
-                progress_bar.progress(10)
-                
-                # 上传图像
-                start_filename = None
-                end_filename = None
-                
-                if start_image:
-                    result = client.upload_image(start_image)
-                    start_filename = result["name"]
-                
-                if end_image:
-                    result = client.upload_image(end_image)
-                    end_filename = result["name"]
-                
-                progress_bar.progress(30)
-                status_text.markdown('⚙️ 正在加载工作流...')
-                
-                # 加载工作流 JSON
-                workflow_path = r"其他/comfyui/工作流/wan2.2i2v_首尾帧.json"
-                if not os.path.exists(workflow_path):
-                    st.error(f"未找到工作流文件：{workflow_path}")
-                    st.stop()
-                
-                with open(workflow_path, 'r', encoding='utf-8') as f:
-                    workflow = json.load(f)
-                
-                # 配置参数
-                workflow["6"]["inputs"]["text"] = positive_prompt.strip() if "6" in workflow else ""
-                if "7" in workflow:
-                    workflow["7"]["inputs"]["text"] = negative_prompt.strip()
-
-
-                progress_bar.progress(50)
-                
-                # 提交任务
-                prompt_id, _ = client.queue_prompt(workflow)
-                st.success(f"✅ 任务已提交，Prompt ID: {prompt_id}")
-                progress_bar.progress(60)
-                
-                status_text.markdown('⏳ 正在生成视频...')
-                history = client.wait_for_completion(prompt_id, timeout=600)
-                progress_bar.progress(80)
-                
-                # 获取结果
-                video_filename, _ = client.get_video_from_history(prompt_id)
-                
-                if video_filename:
-                    video_data = client.get_image(video_filename)
-                    progress_bar.progress(100)
-                    status_text.markdown('✅ 视频生成完成！')
-                    
-                    st.video(video_data)
-                    st.download_button("📥 下载视频", video_data, f"{filename_prefix}_{prompt_id}.mp4", "video/mp4")
-                else:
-                    st.warning("⚠️ 未找到生成的视频文件")
+            if start_image:
+                start_result = client.upload_image(start_image)
+                start_filename = start_result["name"]
             
-            except Exception as e:
-                st.error(f"❌ 生成失败：{str(e)}")
-                with st.expander("详细错误信息"):
-                    st.code(traceback.format_exc())
+            if end_image:
+                end_result = client.upload_image(end_image)
+                end_filename = end_result["name"]
+            
+            progress_bar.progress(20)
+            
+            # 选择工作流文件
+            default_workflow_path = r"其他/comfyui/工作流/wan2.2i2v_首尾帧.json"
+            end_frame_only_path = r"其他/comfyui/工作流/wan2.2i2v_尾帧.json"
+            
+            if end_image and not start_image:
+                workflow_path = end_frame_only_path
+                st.info("检测到仅上传尾帧，已切换至尾帧专用工作流")
+            else:
+                workflow_path = default_workflow_path
+            
+            with open(workflow_path, 'r', encoding='utf-8') as f:
+                workflow = json.load(f)
+            
+            progress_bar.progress(40)
+            
+            # 配置工作流参数
+            if "6" in workflow:
+                workflow["6"]["inputs"]["text"] = positive_prompt.strip()
+            if "7" in workflow:
+                workflow["7"]["inputs"]["text"] = negative_prompt.strip()
+            
+            # 处理首帧图像节点 (假设节点 68)
+            if start_filename and "68" in workflow:
+                workflow["68"]["inputs"]["image"] = start_filename
+            
+            # 处理尾帧图像节点 (假设节点 62)  
+            if end_filename and "62" in workflow:
+                workflow["62"]["inputs"]["image"] = end_filename
+            
+            if "100" in workflow:
+                workflow["100"]["inputs"]["filename_prefix"] = filename_prefix
+            if "67" in workflow:
+                workflow["67"]["inputs"]["length"] = video_length
+            
+            progress_bar.progress(60)
+            
+            # 提交任务
+            prompt_id, _ = client.queue_prompt(workflow)
+            st.success(f"✅ 任务已提交，Prompt ID: {prompt_id}")
+            progress_bar.progress(80)
+            
+            status_text.markdown('⏳ 正在生成视频...')
+            history = client.wait_for_completion(prompt_id, timeout=600)
+            
+            # 获取结果
+            video_filename, video_subfolder = client.get_video_from_history(prompt_id)
+            
+            if video_filename:
+                video_data = client.get_image(video_filename, subfolder=video_subfolder)
+                progress_bar.progress(100)
+                
+                st.markdown('<div class="prompt-section">', unsafe_allow_html=True)
+                st.header("🎉 生成结果")
+                st.video(video_data)
+                download_name = f"{filename_prefix}_{prompt_id}.mp4"
+                st.download_button("📥 下载视频", video_data, download_name, "video/mp4")
+            else:
+                st.warning("⚠️ 未找到生成的视频文件")
+            
+        except Exception as e:
+            st.error(f"❌ 生成失败：{str(e)}")
 
 elif tool == "🎨 Qwen-Image 多模式编辑器":
     # Qwen 图像编辑器子页面
