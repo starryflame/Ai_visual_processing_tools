@@ -13,6 +13,7 @@ from pathlib import Path
 import shutil
 from PIL import Image, ImageTk
 import threading
+import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 尝试导入 tkinterdnd2 以支持拖拽功能
@@ -723,9 +724,25 @@ class ImagePairToolGUI:
             "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
         )
         
+        # 询问是否启用重命名功能
+        enable_rename = messagebox.askyesno(
+            "文件名重命名选项",
+            "是否对导出文件进行重命名？\n\n是：按序号重命名为 pair_001.jpg, pair_002.jpg...\n否：保持原始文件名不变"
+        )
+        
+        # 询问是否打乱顺序（仅在启用重命名时）
+        shuffle_order = False
+        if enable_rename:
+            shuffle_order = messagebox.askyesno(
+                "文件顺序选项",
+                "是否打乱所有文件对的导出顺序？\n\n是：随机打乱序号分配，避免规律性排序\n否：按原文件名顺序依次编号"
+            )
+        
         # 确认对话框
         fill_text = "并填充为 1:1 白色背景" if fill_ratio else ""
-        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值{fill_text}，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
+        rename_text = "（启用序号重命名）" if enable_rename else "（使用原文件名）"
+        order_text = "（已打乱顺序）" if shuffle_order else ""
+        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值{fill_text}{rename_text}{order_text}，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
         if not messagebox.askyesno("确认", confirm_msg):
             return
         
@@ -735,8 +752,10 @@ class ImagePairToolGUI:
         os.makedirs(control_folder, exist_ok=True)
         os.makedirs(target_folder, exist_ok=True)
         
-        # 排序文件列表
+        # 排序文件列表，如果启用打乱则随机打乱
         sorted_files = sorted(common_files)
+        if shuffle_order:
+            random.shuffle(sorted_files)
         total_count = len(sorted_files)
         
         # 重置进度条和状态
@@ -777,6 +796,15 @@ class ImagePairToolGUI:
             
             return background.convert('RGB')
 
+        # 定义序号重命名函数
+        def generate_renamed_filename(original_name, index, total_count):
+            """根据索引生成新的文件名（pair_001.jpg, pair_002.jpg...）"""
+            name_part = Path(original_name).stem
+            ext_part = Path(original_name).suffix
+            # 使用三位序号，如 001, 002, ...
+            new_name = f"pair_{index:03d}{ext_part}"
+            return new_name
+        
         # 定义单个文件处理函数
         def process_pair(filename):
             left_path = os.path.join(left_folder, filename)
@@ -805,15 +833,23 @@ class ImagePairToolGUI:
                     img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
                     img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
                 
+                # 确定导出文件名
+                if enable_rename:
+                    # 使用序号重命名（需要在外层获取索引）
+                    file_index = sorted_files.index(filename) + 1  # 从 1 开始计数
+                    export_name = generate_renamed_filename(filename, file_index, total_count)
+                else:
+                    export_name = filename
+                
                 # 保存左图到 control 文件夹
-                control_dest = os.path.join(control_folder, filename)
+                control_dest = os.path.join(control_folder, export_name)
                 img_left_processed.save(control_dest)
                 
                 # 保存右图 to target 文件夹
-                target_dest = os.path.join(target_folder, filename)
+                target_dest = os.path.join(target_folder, export_name)
                 img_right_processed.save(target_dest)
                 
-                return (filename, True, None)
+                return (export_name, True, None)
                 
             except Exception as e:
                 return (filename, False, str(e))
