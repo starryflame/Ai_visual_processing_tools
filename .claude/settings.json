@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python)",
+      "Bash(python modify_layout.py)",
+      "Bash(python modify_toolbar.py)",
+      "Bash(python add_methods.py)",
+      "Bash(python 配对.py)",
+      "Bash(python -m py_compile 配对.py)",
+      "Bash(python -c \"import配对; print\\('Syntax OK'\\)\")"
+    ]
+  }
+}

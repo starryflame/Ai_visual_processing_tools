@@ -1,0 +1,517 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+双面板图片配对工具 - GUI 主界面
+"""
+
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import os
+from pathlib import Path
+import shutil
+import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from PIL import Image
+
+from config import (
+    DARK_BG, DARK_FG, DARK_ENTRY_BG, DARK_BUTTON_BG, DARK_BUTTON_FG,
+    DARK_CONTAINER_BG, DARK_HIGHLIGHT, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
+)
+from panel import ImagePanel
+from utils import fill_image_with_background, generate_renamed_filename, get_image_files
+
+
+class ImagePairToolGUI:
+    """图片配对工具 GUI 界面"""
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("双面板图片配对工具 - 深色模式")
+        self.root.geometry(f"{DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT}")
+
+        # 设置深色模式
+        self.dark_mode = True
+        self.setup_dark_mode()
+
+        self.export_folder = tk.StringVar()
+        self.export_disabled = False
+
+        # 进度条变量
+        self.progress_var = tk.DoubleVar()
+
+        self.create_widgets()
+
+    def setup_dark_mode(self):
+        """设置深色模式"""
+        if self.dark_mode:
+            self.root.config(bg=DARK_BG)
+            style = ttk.Style()
+            style.theme_use('clam')
+            style.configure('TFrame', background=DARK_BG)
+            style.configure('TLabel', background=DARK_BG, foreground=DARK_FG)
+            style.configure('TButton', background=DARK_BUTTON_BG, foreground=DARK_BUTTON_FG)
+
+    def create_widgets(self):
+        """创建界面组件"""
+        # 顶部工具栏
+        toolbar = tk.Frame(self.root, pady=10, bg=DARK_BG if self.dark_mode else None)
+        toolbar.pack(fill=tk.X, padx=10)
+
+        tk.Label(toolbar, text="导出文件夹:", width=12,
+                 bg=DARK_BG if self.dark_mode else None,
+                 fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT)
+        tk.Entry(toolbar, textvariable=self.export_folder, width=40,
+                 bg=DARK_ENTRY_BG if self.dark_mode else None,
+                 fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=5)
+        tk.Button(toolbar, text="浏览", command=self.select_export_folder, width=8,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT)
+
+        # 同步下一张按钮
+        tk.Button(toolbar, text="同步下一张", command=self.sync_next_image, width=15,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
+
+        # 同步上一张按钮
+        tk.Button(toolbar, text="同步上一张", command=self.sync_prev_image, width=15,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
+
+        # 同步删除按钮
+        tk.Button(toolbar, text="同步删除", command=self.sync_delete_images, width=15,
+                  bg="#d9534f" if self.dark_mode else "#d9534f",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+
+        # 一键自动配对按钮
+        tk.Button(toolbar, text="一键自动配对", command=self.auto_pair_all, width=15,
+                  bg="#0078d4" if self.dark_mode else "#0078d4",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+
+        # 左图覆盖右图按钮
+        tk.Button(toolbar, text="左图覆盖右图", command=self.copy_left_to_right, width=15,
+                  bg="#d98e04" if self.dark_mode else "#d98e04",
+                  fg="white").pack(side=tk.RIGHT, padx=5)
+
+        # 导出按钮
+        self.export_button = tk.Button(toolbar, text="导出配对", command=self.export_pairs,
+                                       width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50",
+                                       fg="white")
+        self.export_button.pack(side=tk.RIGHT, padx=10)
+
+        # 中间双面板区域
+        panel_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
+        panel_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # 左侧面板
+        self.left_panel = ImagePanel(panel_frame, "左侧面板 (control)", tk.LEFT,
+                                     self, dark_mode=self.dark_mode)
+
+        # 右侧面板
+        self.right_panel = ImagePanel(panel_frame, "右侧面板 (target)", tk.RIGHT,
+                                      self, dark_mode=self.dark_mode)
+
+        # 进度条区域
+        progress_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
+        progress_frame.pack(fill=tk.X, padx=10)
+
+        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var,
+                                            maximum=100, mode='determinate',
+                                            style='dark.Horizontal.TProgressbar' if self.dark_mode else 'Horizontal.TProgressbar')
+        self.progress_bar.pack(fill=tk.X)
+
+        # 配置进度条样式
+        if self.dark_mode:
+            style = ttk.Style()
+            style.configure('dark.Horizontal.TProgressbar',
+                            background=DARK_HIGHLIGHT,
+                            troughcolor=DARK_ENTRY_BG,
+                            bordercolor=DARK_BG,
+                            lightcolor=DARK_HIGHLIGHT,
+                            darkcolor=DARK_HIGHLIGHT)
+
+        # 底部状态栏
+        status_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
+        status_frame.pack(fill=tk.X, padx=10)
+        self.status_label = tk.Label(status_frame, text="就绪", relief=tk.SUNKEN, anchor=tk.W,
+                                     bg=DARK_ENTRY_BG if self.dark_mode else None,
+                                     fg=DARK_FG if self.dark_mode else None)
+        self.status_label.pack(fill=tk.X)
+
+    def enable_export_button(self):
+        """恢复导出按钮为可点击状态"""
+        if self.export_disabled:
+            self.export_button.config(state=tk.NORMAL, bg="#2d7a3e" if self.dark_mode else "#4CAF50")
+            self.export_disabled = False
+
+    def disable_export_button(self):
+        """禁用导出按钮"""
+        self.export_button.config(state=tk.DISABLED, bg="#666666")
+        self.export_disabled = True
+
+    def select_export_folder(self):
+        """选择导出文件夹"""
+        folder = filedialog.askdirectory()
+        if folder:
+            self.export_folder.set(folder)
+
+    def sync_next_image(self):
+        """两侧面板同时切换到下一张图片"""
+        left_has_next = self.left_panel.current_index < len(self.left_panel.image_files) - 1
+        right_has_next = self.right_panel.current_index < len(self.right_panel.image_files) - 1
+
+        if not left_has_next and not right_has_next:
+            messagebox.showinfo("提示", "两侧都已到最后一张图片")
+            return
+
+        if left_has_next:
+            self.left_panel.next_image()
+        if right_has_next:
+            self.right_panel.next_image()
+
+        left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左：无"
+        right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右：无"
+        self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+
+    def sync_prev_image(self):
+        """两侧面板同时切换到上一张图片"""
+        left_has_prev = self.left_panel.current_index > 0
+        right_has_prev = self.right_panel.current_index > 0
+
+        if not left_has_prev and not right_has_prev:
+            messagebox.showinfo("提示", "两侧都已到第一张图片")
+            return
+
+        if left_has_prev:
+            self.left_panel.prev_image()
+        if right_has_prev:
+            self.right_panel.prev_image()
+
+        left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左：无"
+        right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右：无"
+        self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+
+    def sync_delete_images(self):
+        """同时删除左右两侧选中的图片"""
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+
+        if not left_path and not right_path:
+            messagebox.showwarning("警告", "两侧都没有可删除的图片")
+            return
+
+        left_name = Path(left_path).name if left_path else "无"
+        right_name = Path(right_path).name if right_path else "无"
+
+        confirm_msg = f"确定要删除以下图片吗？\n\n左侧：{left_name}\n右侧：{right_name}"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+
+        # 删除左侧图片
+        if left_path and os.path.exists(left_path):
+            try:
+                os.remove(left_path)
+                self.left_panel.image_files.pop(self.left_panel.current_index)
+                self.left_panel.listbox.delete(self.left_panel.current_index)
+                if self.left_panel.current_index >= len(self.left_panel.image_files):
+                    self.left_panel.current_index = max(0, len(self.left_panel.image_files) - 1)
+                if self.left_panel.image_files:
+                    self.left_panel.show_image(self.left_panel.current_index)
+                else:
+                    self.left_panel.clear_preview()
+                self.left_panel.update_status()
+            except Exception as e:
+                messagebox.showerror("错误", f"左侧删除失败：{str(e)}")
+                return
+
+        # 删除右侧图片
+        if right_path and os.path.exists(right_path):
+            try:
+                os.remove(right_path)
+                self.right_panel.image_files.pop(self.right_panel.current_index)
+                self.right_panel.listbox.delete(self.right_panel.current_index)
+                if self.right_panel.current_index >= len(self.right_panel.image_files):
+                    self.right_panel.current_index = max(0, len(self.right_panel.image_files) - 1)
+                if self.right_panel.image_files:
+                    self.right_panel.show_image(self.right_panel.current_index)
+                else:
+                    self.right_panel.clear_preview()
+                self.right_panel.update_status()
+            except Exception as e:
+                messagebox.showerror("错误", f"右侧删除失败：{str(e)}")
+                return
+
+        left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左：无"
+        right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右：无"
+        self.status_label.config(text=f"✓ 同步删除完成 | {left_info} | {right_info}")
+
+        self.enable_export_button()
+
+    def copy_left_to_right(self):
+        """将当前左图复制并覆盖右图"""
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+
+        if not left_path:
+            messagebox.showwarning("警告", "左侧面板没有选中的图片")
+            return
+
+        if not right_path:
+            messagebox.showwarning("警告", "右侧面板没有选中的图片，无法覆盖")
+            return
+
+        left_name = Path(left_path).name
+        right_name = Path(right_path).name
+
+        confirm_msg = f"确定要用左图覆盖右图吗？\n\n源文件：{left_name}\n目标文件：{right_name}\n\n注意：右侧原文件将被永久替换！"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+
+        try:
+            shutil.copy2(left_path, right_path)
+
+            self.right_panel.refresh_images()
+
+            if right_name in self.right_panel.image_files:
+                new_index = self.right_panel.image_files.index(right_name)
+                self.right_panel.current_index = new_index
+                self.right_panel.show_image(new_index)
+                self.right_panel.listbox.selection_clear(0, tk.END)
+                self.right_panel.listbox.selection_set(new_index)
+
+            self.status_label.config(text=f"✓ 已用左图 ({left_name}) 覆盖右图 ({right_name})")
+
+            self.enable_export_button()
+
+        except Exception as e:
+            messagebox.showerror("错误", f"覆盖失败：{str(e)}")
+            self.status_label.config(text="覆盖失败")
+
+    def auto_pair_all(self):
+        """一键自动配对所有同名文件并导出 (多线程优化版)"""
+        export_folder = self.export_folder.get()
+
+        if not export_folder:
+            messagebox.showerror("错误", "请先选择导出文件夹")
+            return
+
+        left_folder = self.left_panel.folder_path.get()
+        right_folder = self.right_panel.folder_path.get()
+
+        if not left_folder or not os.path.exists(left_folder):
+            messagebox.showerror("错误", "左侧面板未选择有效文件夹")
+            return
+
+        if not right_folder or not os.path.exists(right_folder):
+            messagebox.showerror("错误", "右侧面板未选择有效文件夹")
+            return
+
+        # 获取左右两侧的图片文件列表
+        left_files = set(f for f in os.listdir(left_folder)
+                        if Path(f).suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
+        right_files = set(f for f in os.listdir(right_folder)
+                         if Path(f).suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
+
+        # 找出同名文件
+        common_files = left_files & right_files
+
+        if not common_files:
+            messagebox.showinfo("提示", "没有找到同名文件")
+            return
+
+        # 询问是否进行比例填充
+        fill_ratio = messagebox.askyesno(
+            "图片比例填充选项",
+            "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
+        )
+
+        # 询问是否启用重命名功能
+        enable_rename = messagebox.askyesno(
+            "文件名重命名选项",
+            "是否对导出文件进行重命名？\n\n是：按序号重命名为 pair_001.jpg, pair_002.jpg...\n否：保持原始文件名不变"
+        )
+
+        # 询问是否打乱顺序（仅在启用重命名时）
+        shuffle_order = False
+        if enable_rename:
+            shuffle_order = messagebox.askyesno(
+                "文件顺序选项",
+                "是否打乱所有文件对的导出顺序？\n\n是：随机打乱序号分配，避免规律性排序\n否：按原文件名顺序依次编号"
+            )
+
+        # 确认对话框
+        fill_text = "并填充为 1:1 白色背景" if fill_ratio else ""
+        rename_text = "（启用序号重命名）" if enable_rename else "（使用原文件名）"
+        order_text = "（已打乱顺序）" if shuffle_order else ""
+        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值{fill_text}{rename_text}{order_text}，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
+        if not messagebox.askyesno("确认", confirm_msg):
+            return
+
+        # 创建导出子文件夹
+        control_folder = os.path.join(export_folder, "control")
+        target_folder = os.path.join(export_folder, "target")
+        os.makedirs(control_folder, exist_ok=True)
+        os.makedirs(target_folder, exist_ok=True)
+
+        # 排序文件列表，如果启用打乱则随机打乱
+        sorted_files = sorted(common_files)
+        if shuffle_order:
+            random.shuffle(sorted_files)
+        total_count = len(sorted_files)
+
+        # 重置进度条和状态
+        self.progress_var.set(0)
+        self.status_label.config(text=f"正在初始化线程池...")
+        self.root.update()
+
+        success_count = 0
+        error_count = 0
+        errors = []
+        paired_files = []
+
+        def process_pair(filename):
+            left_path = os.path.join(left_folder, filename)
+            right_path = os.path.join(right_folder, filename)
+
+            try:
+                img_left = Image.open(left_path)
+                img_right = Image.open(right_path)
+
+                w1, h1 = img_left.size
+                w2, h2 = img_right.size
+
+                target_w = min(w1, w2)
+                target_h = min(h1, h2)
+
+                if fill_ratio:
+                    target_square_size = max(target_w, target_h)
+                    img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                    img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                else:
+                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+
+                if enable_rename:
+                    file_index = sorted_files.index(filename) + 1
+                    export_name = generate_renamed_filename(filename, file_index, total_count)
+                else:
+                    export_name = filename
+
+                control_dest = os.path.join(control_folder, export_name)
+                img_left_processed.save(control_dest)
+
+                target_dest = os.path.join(target_folder, export_name)
+                img_right_processed.save(target_dest)
+
+                return (export_name, True, None)
+
+            except Exception as e:
+                return (filename, False, str(e))
+
+        with ThreadPoolExecutor() as executor:
+            future_to_file = {executor.submit(process_pair, fname): fname for fname in sorted_files}
+
+            completed = 0
+            for future in as_completed(future_to_file):
+                filename, success, error_msg = future.result()
+                completed += 1
+
+                if success:
+                    success_count += 1
+                    paired_files.append(filename)
+                else:
+                    error_count += 1
+                    errors.append(f"{filename}: {error_msg}")
+
+                progress_percent = (completed / total_count) * 100
+                self.progress_var.set(progress_percent)
+                self.status_label.config(text=f"正在处理 {completed}/{total_count}... 成功:{success_count} 失败:{error_count}")
+                self.root.update_idletasks()
+
+        # 显示结果
+        if error_count == 0:
+            fill_info = "（已填充为 1:1 白色背景）" if fill_ratio else ""
+            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}")
+        else:
+            error_details = "\n".join(errors[:5])
+            if error_count > 5:
+                error_details += f"\n... 还有 {error_count - 5} 个错误"
+            messagebox.showwarning("部分完成",
+                                   f"成功导出 {success_count} 对图片，失败 {error_count} 对。\n\n错误详情:\n{error_details}")
+
+        self.status_label.config(text=f"✓ 自动配对完成 | 成功:{success_count} | 失败:{error_count}")
+
+        for fname in paired_files:
+            self.left_panel.mark_as_paired(fname)
+            self.right_panel.mark_as_paired(fname)
+
+        self.left_panel.update_listbox_colors()
+        self.right_panel.update_listbox_colors()
+
+    def export_pairs(self):
+        """导出配对图片（调整分辨率后分别保存）"""
+        export_folder = self.export_folder.get()
+
+        if not export_folder:
+            messagebox.showerror("错误", "请选择导出文件夹")
+            return
+
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+
+        if not left_path:
+            messagebox.showerror("错误", "左侧面板没有选中的图片")
+            return
+
+        if not right_path:
+            messagebox.showerror("错误", "右侧面板没有选中的图片")
+            return
+
+        fill_ratio = messagebox.askyesno(
+            "图片比例填充选项",
+            "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
+        )
+
+        control_folder = os.path.join(export_folder, "control")
+        target_folder = os.path.join(export_folder, "target")
+        os.makedirs(control_folder, exist_ok=True)
+        os.makedirs(target_folder, exist_ok=True)
+
+        left_name = Path(left_path).name
+        right_name = Path(right_path).name
+        export_name = left_name
+
+        try:
+            img_left = Image.open(left_path)
+            img_right = Image.open(right_path)
+
+            w1, h1 = img_left.size
+            w2, h2 = img_right.size
+
+            if fill_ratio:
+                target_square_size = max(w1, w2, h1, h2)
+                img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                final_size = f"{target_square_size}x{target_square_size}"
+            else:
+                target_w = min(w1, w2)
+                target_h = min(h1, h2)
+                img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+                final_size = f"{target_w}x{target_h}"
+
+            control_dest = os.path.join(control_folder, export_name)
+            img_left_processed.save(control_dest)
+
+            target_dest = os.path.join(target_folder, export_name)
+            img_right_processed.save(target_dest)
+
+            fill_text = "（已填充为 1:1 白色背景）" if fill_ratio else ""
+            self.status_label.config(text=f"✓ 已导出{fill_text}：{export_name} ({final_size}) | 切换图片后可再次导出")
+            self.disable_export_button()
+
+            self.left_panel.mark_as_paired(left_name)
+            self.right_panel.mark_as_paired(right_name)
+
+        except Exception as e:
+            messagebox.showerror("错误", f"导出失败：{str(e)}")
+            self.status_label.config(text="导出失败")

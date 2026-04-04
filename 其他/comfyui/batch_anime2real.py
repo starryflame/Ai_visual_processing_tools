@@ -21,7 +21,7 @@ class ComfyUIBatchProcessor:
     
     def __init__(self, server_address="127.0.0.1:8188"):
         self.server_address = server_address
-        self.workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原.json"
+        self.workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json"
         
     def load_workflow(self):
         """加载工作流配置"""
