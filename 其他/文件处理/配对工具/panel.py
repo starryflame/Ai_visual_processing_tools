@@ -26,12 +26,13 @@ from utils import get_image_files
 class ImagePanel:
     """单侧图片面板"""
 
-    def __init__(self, parent, name, main_window, dark_mode=True, with_listbox=True):
+    def __init__(self, parent, name, main_window, dark_mode=True, with_listbox=True, image_align=tk.E):
         self.parent = parent
         self.name = name
         self.main_window = main_window
         self.dark_mode = dark_mode
         self.with_listbox = with_listbox
+        self.image_align = image_align  # 图片对齐方向：tk.E 靠右，tk.W 靠左
         self.folder_path = tk.StringVar()
         self.image_files = []
         self.current_index = 0
@@ -83,7 +84,7 @@ class ImagePanel:
                                     bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
                                     fg=DARK_FG if self.dark_mode else None,
                                     width=80, height=50,
-                                    anchor=tk.CENTER)
+                                    anchor=self.image_align)
         self.image_label.pack(fill=tk.BOTH, expand=True)
 
         # 绑定拖拽事件（如果支持）

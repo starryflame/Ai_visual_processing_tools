@@ -123,21 +123,23 @@ class ImagePairToolGUI:
 
         # ========== 中列：左侧图片预览 ==========
         left_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
-        left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
+        left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 1))
 
         # ========== 右列：右侧图片预览 ==========
         right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
-        right_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        right_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(1, 0))
 
-        # 创建左侧面板（不带列表框）
+        # 创建左侧面板（不带列表框，图片靠右对齐）
         self.left_panel = ImagePanel(left_preview_frame, "左侧面板 (control)",
-                                     self, dark_mode=self.dark_mode, with_listbox=False)
+                                     self, dark_mode=self.dark_mode, with_listbox=False,
+                                     image_align=tk.E)
         # 在左列创建左侧列表框
         self.left_panel.create_listbox(left_list_frame, height=15)
 
-        # 创建右侧面板（不带列表框）
+        # 创建右侧面板（不带列表框，图片靠左对齐）
         self.right_panel = ImagePanel(right_preview_frame, "右侧面板 (target)",
-                                      self, dark_mode=self.dark_mode, with_listbox=False)
+                                      self, dark_mode=self.dark_mode, with_listbox=False,
+                                      image_align=tk.W)
         # 在左列创建右侧列表框
         self.right_panel.create_listbox(right_list_frame, height=15)
 
