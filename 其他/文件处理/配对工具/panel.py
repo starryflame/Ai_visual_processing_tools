@@ -26,12 +26,12 @@ from utils import get_image_files
 class ImagePanel:
     """单侧图片面板"""
 
-    def __init__(self, parent, name, side, main_window, dark_mode=True):
+    def __init__(self, parent, name, main_window, dark_mode=True, with_listbox=True):
         self.parent = parent
         self.name = name
-        self.side = side
         self.main_window = main_window
         self.dark_mode = dark_mode
+        self.with_listbox = with_listbox
         self.folder_path = tk.StringVar()
         self.image_files = []
         self.current_index = 0
@@ -48,7 +48,7 @@ class ImagePanel:
                                   bg=DARK_BG, fg=DARK_FG)
         else:
             frame = tk.LabelFrame(self.parent, text=self.name, padx=10, pady=10)
-        frame.pack(side=self.side, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        frame.pack(fill=tk.BOTH, expand=True)
 
         # 文件夹选择
         folder_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
@@ -83,27 +83,30 @@ class ImagePanel:
                                     bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
                                     fg=DARK_FG if self.dark_mode else None,
                                     width=80, height=50,
-                                    anchor=tk.E if self.side == tk.LEFT else tk.W)
+                                    anchor=tk.CENTER)
         self.image_label.pack(fill=tk.BOTH, expand=True)
 
         # 绑定拖拽事件（如果支持）
         if DND_AVAILABLE and self.dark_mode:
             self.bind_drag_drop(image_container)
 
-        # 图片列表
-        list_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        tk.Label(list_frame, text="图片列表:",
-                 bg=DARK_BG if self.dark_mode else None,
-                 fg=DARK_FG if self.dark_mode else None).pack(anchor=tk.W)
-        list_frame.config(height=100)
-        self.listbox = tk.Listbox(list_frame, height=5,
-                                  bg=DARK_ENTRY_BG if self.dark_mode else None,
-                                  fg=DARK_FG if self.dark_mode else None,
-                                  selectbackground=DARK_HIGHLIGHT,
-                                  selectforeground=DARK_FG)
-        self.listbox.pack(fill=tk.BOTH, expand=True)
-        self.listbox.bind('<<ListboxSelect>>', self.on_select)
+        # 图片列表（可选）
+        if self.with_listbox:
+            list_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
+            list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+            tk.Label(list_frame, text="图片列表:",
+                     bg=DARK_BG if self.dark_mode else None,
+                     fg=DARK_FG if self.dark_mode else None).pack(anchor=tk.W)
+            list_frame.config(height=100)
+            self.listbox = tk.Listbox(list_frame, height=5,
+                                      bg=DARK_ENTRY_BG if self.dark_mode else None,
+                                      fg=DARK_FG if self.dark_mode else None,
+                                      selectbackground=DARK_HIGHLIGHT,
+                                      selectforeground=DARK_FG)
+            self.listbox.pack(fill=tk.BOTH, expand=True)
+            self.listbox.bind('<<ListboxSelect>>', self.on_select)
+        else:
+            self.listbox = None
 
         # 导航按钮
         nav_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
@@ -122,6 +125,25 @@ class ImagePanel:
         self.status_label = tk.Label(frame, text="", fg="blue" if not self.dark_mode else "#4da6ff",
                                      bg=DARK_BG if self.dark_mode else None)
         self.status_label.pack()
+
+    def create_listbox(self, parent, height=10):
+        """在指定父容器中创建列表框（用于外部布局）"""
+        list_frame = tk.Frame(parent, bg=DARK_BG if self.dark_mode else None)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(list_frame, text=f"{self.name} - 图片列表:",
+                 bg=DARK_BG if self.dark_mode else None,
+                 fg=DARK_FG if self.dark_mode else None).pack(anchor=tk.W)
+
+        self.listbox = tk.Listbox(list_frame, height=height,
+                                  bg=DARK_ENTRY_BG if self.dark_mode else None,
+                                  fg=DARK_FG if self.dark_mode else None,
+                                  selectbackground=DARK_HIGHLIGHT,
+                                  selectforeground=DARK_FG)
+        self.listbox.pack(fill=tk.BOTH, expand=True)
+        self.listbox.bind('<<ListboxSelect>>', self.on_select)
+
+        return list_frame
 
     def bind_drag_drop(self, container):
         """绑定拖拽事件"""

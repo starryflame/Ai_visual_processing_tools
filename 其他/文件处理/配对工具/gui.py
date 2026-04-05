@@ -98,17 +98,48 @@ class ImagePairToolGUI:
                                        fg="white")
         self.export_button.pack(side=tk.RIGHT, padx=10)
 
-        # 中间双面板区域
-        panel_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
-        panel_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        # 主体区域 - 三列布局
+        main_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # 左侧面板
-        self.left_panel = ImagePanel(panel_frame, "左侧面板 (control)", tk.LEFT,
-                                     self, dark_mode=self.dark_mode)
+        # ========== 左列：文件列表（上下放置）==========
+        list_column_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=250)
+        list_column_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5))
+        list_column_frame.pack_propagate(False)  # 固定宽度
 
-        # 右侧面板
-        self.right_panel = ImagePanel(panel_frame, "右侧面板 (target)", tk.RIGHT,
-                                      self, dark_mode=self.dark_mode)
+        # 左侧面板列表框（上半部分）
+        left_list_frame = tk.LabelFrame(list_column_frame, text="左侧面板列表",
+                                        padx=5, pady=5,
+                                        bg=DARK_BG if self.dark_mode else None,
+                                        fg=DARK_FG if self.dark_mode else None)
+        left_list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+
+        # 右侧面板列表框（下半部分）
+        right_list_frame = tk.LabelFrame(list_column_frame, text="右侧面板列表",
+                                         padx=5, pady=5,
+                                         bg=DARK_BG if self.dark_mode else None,
+                                         fg=DARK_FG if self.dark_mode else None)
+        right_list_frame.pack(fill=tk.BOTH, expand=True)
+
+        # ========== 中列：左侧图片预览 ==========
+        left_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
+        left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
+
+        # ========== 右列：右侧图片预览 ==========
+        right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
+        right_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        # 创建左侧面板（不带列表框）
+        self.left_panel = ImagePanel(left_preview_frame, "左侧面板 (control)",
+                                     self, dark_mode=self.dark_mode, with_listbox=False)
+        # 在左列创建左侧列表框
+        self.left_panel.create_listbox(left_list_frame, height=15)
+
+        # 创建右侧面板（不带列表框）
+        self.right_panel = ImagePanel(right_preview_frame, "右侧面板 (target)",
+                                      self, dark_mode=self.dark_mode, with_listbox=False)
+        # 在左列创建右侧列表框
+        self.right_panel.create_listbox(right_list_frame, height=15)
 
         # 进度条区域
         progress_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
