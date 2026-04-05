@@ -51,21 +51,39 @@ class ImagePanel:
             frame = tk.LabelFrame(self.parent, text=self.name, padx=10, pady=10)
         frame.pack(fill=tk.BOTH, expand=True)
 
-        # 文件夹选择
+        # 文件夹选择和导航按钮（同一行）
         folder_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
         folder_frame.pack(fill=tk.X, pady=5)
+
+        # 文件夹标签和输入框
         tk.Label(folder_frame, text="文件夹:", width=8,
                  bg=DARK_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT)
-        tk.Entry(folder_frame, textvariable=self.folder_path, width=25,
+        tk.Entry(folder_frame, textvariable=self.folder_path, width=14,
                  bg=DARK_ENTRY_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=5)
-        tk.Button(folder_frame, text="浏览", command=self.select_folder, width=8,
+        tk.Button(folder_frame, text="浏览", command=self.select_folder, width=6,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT)
-        tk.Button(folder_frame, text="刷新", command=self.refresh_images, width=8,
+        tk.Button(folder_frame, text="刷新", command=self.refresh_images, width=6,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=5)
+
+        # 导航按钮
+        tk.Button(folder_frame, text="← 上一个", command=self.prev_image, width=10,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
+        tk.Button(folder_frame, text="下一个 →", command=self.next_image, width=10,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
+        tk.Button(folder_frame, text="删除", command=self.delete_image, width=10,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
+
+        # 状态标签（右侧）
+        self.status_label = tk.Label(folder_frame, text="", fg="blue" if not self.dark_mode else "#4da6ff",
+                                     bg=DARK_BG if self.dark_mode else None)
+        self.status_label.pack(side=tk.RIGHT, padx=5)
 
         # 图片展示框
         image_container = tk.Frame(frame, relief=tk.SUNKEN, borderwidth=2,
@@ -108,24 +126,6 @@ class ImagePanel:
             self.listbox.bind('<<ListboxSelect>>', self.on_select)
         else:
             self.listbox = None
-
-        # 导航按钮
-        nav_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
-        nav_frame.pack(fill=tk.X, pady=5)
-        tk.Button(nav_frame, text="← 上一个", command=self.prev_image, width=10,
-                  bg=DARK_BUTTON_BG if self.dark_mode else None,
-                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
-        tk.Button(nav_frame, text="下一个 →", command=self.next_image, width=10,
-                  bg=DARK_BUTTON_BG if self.dark_mode else None,
-                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
-        tk.Button(nav_frame, text="删除", command=self.delete_image, width=10,
-                  bg=DARK_BUTTON_BG if self.dark_mode else None,
-                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
-
-        # 状态标签
-        self.status_label = tk.Label(frame, text="", fg="blue" if not self.dark_mode else "#4da6ff",
-                                     bg=DARK_BG if self.dark_mode else None)
-        self.status_label.pack()
 
     def create_listbox(self, parent, height=10):
         """在指定父容器中创建列表框（用于外部布局）"""

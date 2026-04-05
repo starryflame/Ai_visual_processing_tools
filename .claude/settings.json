@@ -8,7 +8,8 @@
       "Bash(python 配对.py)",
       "Bash(python -m py_compile 配对.py)",
       "Bash(python -c \"import配对; print\\('Syntax OK'\\)\")",
-      "Bash(python -c \"import main; print\\('OK'\\)\")"
+      "Bash(python -c \"import main; print\\('OK'\\)\")",
+      "Bash(python -c \"import panel; print\\('OK'\\)\")"
     ]
   }
 }
