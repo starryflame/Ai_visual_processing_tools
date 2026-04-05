@@ -391,6 +391,80 @@ class ImagePairToolGUI:
             random.shuffle(sorted_files)
         total_count = len(sorted_files)
 
+        # 如果启用重命名，先扫描已存在的文件，获取已使用的序号和文件
+        used_indices = set()
+        existing_files = []  # 已存在的文件列表
+        if enable_rename:
+            image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
+            for folder in [control_folder, target_folder]:
+                for f in os.listdir(folder):
+                    if f.startswith("pair_") and f.lower().endswith(image_extensions):
+                        try:
+                            num = int(f[5:8])
+                            used_indices.add(num)
+                            existing_files.append(f)
+                        except ValueError:
+                            pass
+
+        # 为每个文件分配序号
+        file_index_map = {}
+        existing_index_map = {}  # 已存在文件的序号映射：旧序号 -> 新序号
+        if enable_rename and shuffle_order:
+            # 彻底打乱模式：所有文件（已存在 + 新导出）一起分配随机序号
+            total_files = len(used_indices) + total_count  # 总文件数
+            all_indices = list(range(1, total_files + 1))  # 连续序号 1 到总数
+            random.shuffle(all_indices)  # 打乱序号
+
+            # 先为已存在的文件分配序号
+            used_indices_list = sorted(list(used_indices))  # 排序保证一致性
+            for i, old_idx in enumerate(used_indices_list):
+                existing_index_map[old_idx] = all_indices[i]
+
+            # 再为新文件分配剩余的序号
+            remaining_indices = all_indices[len(used_indices_list):]
+            for i, filename in enumerate(sorted_files):
+                file_index_map[filename] = remaining_indices[i]
+        else:
+            # 顺序模式：从 1 开始依次分配，跳过已使用的
+            next_index = 1
+            for filename in sorted_files:
+                while next_index in used_indices:
+                    next_index += 1
+                file_index_map[filename] = next_index
+                next_index += 1
+
+        # 如果启用打乱，先重命名已存在的文件
+        if enable_rename and shuffle_order and existing_index_map:
+            image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
+            for folder in [control_folder, target_folder]:
+                # 第一步：将所有文件重命名为临时名称
+                temp_map = {}  # 旧序号 -> (临时名称，新序号)
+                for f in os.listdir(folder):
+                    if f.startswith("pair_") and f.lower().endswith(image_extensions):
+                        try:
+                            old_idx = int(f[5:8])
+                            if old_idx in existing_index_map:
+                                new_idx = existing_index_map[old_idx]
+                                ext = Path(f).suffix
+                                temp_name = f"_temp_{old_idx:03d}{ext}"
+                                old_path = os.path.join(folder, f)
+                                temp_path = os.path.join(folder, temp_name)
+                                os.rename(old_path, temp_path)
+                                temp_map[old_idx] = (temp_name, new_idx)
+                        except ValueError:
+                            pass
+
+                # 第二步：将临时文件重命名为最终名称
+                for old_idx, (temp_name, new_idx) in temp_map.items():
+                    ext = Path(temp_name).suffix
+                    temp_path = os.path.join(folder, temp_name)
+                    new_name = f"pair_{new_idx:03d}{ext}"
+                    new_path = os.path.join(folder, new_name)
+                    os.rename(temp_path, new_path)
+
+            self.status_label.config(text=f"已重命名已存在的文件，正在导出新文件...")
+            self.root.update()
+
         # 重置进度条和状态
         self.progress_var.set(0)
         self.status_label.config(text=f"正在初始化线程池...")
@@ -424,8 +498,8 @@ class ImagePairToolGUI:
                     img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
 
                 if enable_rename:
-                    file_index = sorted_files.index(filename) + 1
-                    export_name = generate_renamed_filename(filename, file_index, total_count)
+                    file_index = file_index_map[filename]
+                    export_name = f"pair_{file_index:03d}{Path(filename).suffix}"
                 else:
                     export_name = filename
 
