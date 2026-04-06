@@ -18,7 +18,7 @@ from config import (
     DARK_CONTAINER_BG, DARK_HIGHLIGHT, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
 )
 from panel import ImagePanel
-from utils import fill_image_with_background, generate_renamed_filename, get_image_files
+from utils import fill_image_with_background, crop_to_square, generate_renamed_filename, get_image_files
 
 
 class ImagePairToolGUI:
@@ -351,11 +351,23 @@ class ImagePairToolGUI:
             messagebox.showinfo("提示", "没有找到同名文件")
             return
 
+        from utils import crop_to_square
+
         # 询问是否进行比例填充
         fill_ratio = messagebox.askyesno(
             "图片比例填充选项",
             "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
         )
+
+        # 如果启用填充，询问是否使用裁剪模式
+        crop_style = None
+        if fill_ratio:
+            crop_mode = messagebox.askyesno(
+                "裁剪模式选项",
+                "是否启用裁剪模式？\n\n是：直接裁剪为 1:1（竖图裁上面，横图裁中间）\n否：使用白色背景填充"
+            )
+            if crop_mode:
+                crop_style = 'top'
 
         # 询问是否启用重命名功能
         enable_rename = messagebox.askyesno(
@@ -372,7 +384,9 @@ class ImagePairToolGUI:
             )
 
         # 确认对话框
-        fill_text = "并填充为 1:1 白色背景" if fill_ratio else ""
+        fill_text = "并填充为 1:1 白色背景" if fill_ratio and not crop_style else ""
+        if fill_ratio and crop_style:
+            fill_text = "并裁剪为 1:1（竖图裁上面，横图裁中间）"
         rename_text = "（启用序号重命名）" if enable_rename else "（使用原文件名）"
         order_text = "（已打乱顺序）" if shuffle_order else ""
         confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值{fill_text}{rename_text}{order_text}，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
@@ -491,8 +505,16 @@ class ImagePairToolGUI:
 
                 if fill_ratio:
                     target_square_size = max(target_w, target_h)
-                    img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
-                    img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                    if crop_style:
+                        # 裁剪模式：先裁剪为正方形，再调整尺寸
+                        img_left_cropped = crop_to_square(img_left, crop_style)
+                        img_right_cropped = crop_to_square(img_right, crop_style)
+                        img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+                        img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+                    else:
+                        # 填充模式：白色背景填充
+                        img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                        img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
                 else:
                     img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
                     img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
@@ -536,7 +558,13 @@ class ImagePairToolGUI:
 
         # 显示结果
         if error_count == 0:
-            fill_info = "（已填充为 1:1 白色背景）" if fill_ratio else ""
+            if fill_ratio:
+                if crop_style:
+                    fill_info = "（已裁剪为 1:1）"
+                else:
+                    fill_info = "（已填充为 1:1 白色背景）"
+            else:
+                fill_info = ""
             messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}")
         else:
             error_details = "\n".join(errors[:5])
@@ -578,6 +606,16 @@ class ImagePairToolGUI:
             "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
         )
 
+        # 如果启用填充，询问是否使用裁剪模式
+        crop_style = None
+        if fill_ratio:
+            crop_mode = messagebox.askyesno(
+                "裁剪模式选项",
+                "是否启用裁剪模式？\n\n是：直接裁剪为 1:1（竖图裁上面，横图裁中间）\n否：使用白色背景填充"
+            )
+            if crop_mode:
+                crop_style = 'top'
+
         control_folder = os.path.join(export_folder, "control")
         target_folder = os.path.join(export_folder, "target")
         os.makedirs(control_folder, exist_ok=True)
@@ -596,8 +634,16 @@ class ImagePairToolGUI:
 
             if fill_ratio:
                 target_square_size = max(w1, w2, h1, h2)
-                img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
-                img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                if crop_style:
+                    # 裁剪模式
+                    img_left_cropped = crop_to_square(img_left, crop_style)
+                    img_right_cropped = crop_to_square(img_right, crop_style)
+                    img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+                    img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+                else:
+                    # 填充模式
+                    img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                    img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
                 final_size = f"{target_square_size}x{target_square_size}"
             else:
                 target_w = min(w1, w2)
@@ -612,7 +658,13 @@ class ImagePairToolGUI:
             target_dest = os.path.join(target_folder, export_name)
             img_right_processed.save(target_dest)
 
-            fill_text = "（已填充为 1:1 白色背景）" if fill_ratio else ""
+            if fill_ratio:
+                if crop_style:
+                    fill_text = "（已裁剪为 1:1）"
+                else:
+                    fill_text = "（已填充为 1:1 白色背景）"
+            else:
+                fill_text = ""
             self.status_label.config(text=f"✓ 已导出{fill_text}：{export_name} ({final_size}) | 切换图片后可再次导出")
             self.disable_export_button()
 

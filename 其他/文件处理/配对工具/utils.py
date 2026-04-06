@@ -36,6 +36,42 @@ def fill_image_with_background(img, target_size, bg_color=(255, 255, 255)):
     return background.convert('RGB')
 
 
+def crop_to_square(img, crop_style='top'):
+    """
+    将图片裁剪为 1:1 正方形
+
+    Args:
+        img: PIL Image 对象
+        crop_style: 裁剪方式
+            - 'top': 竖图裁剪上面（保留顶部）
+            - 'center': 横图裁剪中间（居中裁剪）
+
+    Returns:
+        裁剪后的正方形图片
+    """
+    width, height = img.size
+    size = min(width, height)
+
+    if width == height:
+        # 已经是正方形，直接返回
+        return img.copy()
+
+    if width > height:
+        # 横图：从中间裁剪
+        left = (width - height) // 2
+        top = 0
+        right = left + size
+        bottom = height
+    else:
+        # 竖图：裁剪上面（保留顶部）
+        left = 0
+        top = 0
+        right = size
+        bottom = top + size
+
+    return img.crop((left, top, right, bottom))
+
+
 def generate_renamed_filename(original_name, index, total_count):
     """根据索引生成新的文件名（pair_001.jpg, pair_002.jpg...）"""
     from pathlib import Path

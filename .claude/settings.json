@@ -10,7 +10,9 @@
       "Bash(python -c \"import配对; print\\('Syntax OK'\\)\")",
       "Bash(python -c \"import main; print\\('OK'\\)\")",
       "Bash(python -c \"import panel; print\\('OK'\\)\")",
-      "Bash(python -c \"import gui; print\\('OK'\\)\")"
+      "Bash(python -c \"import gui; print\\('OK'\\)\")",
+      "Bash(python -m py_compile panel.py)",
+      "Bash(timeout 5 python main.py)"
     ]
   }
 }
