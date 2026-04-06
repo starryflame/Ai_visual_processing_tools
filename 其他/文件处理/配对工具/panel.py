@@ -103,13 +103,16 @@ class ImagePanel:
                                    bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0")
         image_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=0)
         image_container.pack_propagate(False)
-        image_container.config(height=IMAGE_AREA_HEIGHT)
+        image_container.config(height=IMAGE_AREA_HEIGHT, width=400)  # 固定高度和最小宽度
 
         # 创建 Canvas 用于支持拖拽和缩放
         self.image_canvas = tk.Canvas(image_container,
                                        bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
-                                       highlightthickness=0)
+                                       highlightthickness=0,
+                                       width=400,  # 固定 Canvas 最小宽度
+                                       height=IMAGE_AREA_HEIGHT)  # 固定高度
         self.image_canvas.pack(fill=tk.BOTH, expand=True)
+        self.image_canvas.pack_propagate(False)  # 禁止 Canvas 根据子组件调整大小
 
         # 添加拖拽功能提示标签
         if self.dark_mode:
@@ -340,21 +343,22 @@ class ImagePanel:
             self.drag_offset_x = 0
             self.drag_offset_y = 0
 
-            label_width = self.image_canvas.winfo_width()
-            label_height = self.image_canvas.winfo_height()
+            # 获取 Canvas 实际尺寸（使用固定值作为后备）
+            canvas_width = max(self.image_canvas.winfo_width(), 400)
+            canvas_height = max(self.image_canvas.winfo_height(), IMAGE_AREA_HEIGHT)
 
-            if label_width > 1 and label_height > 1:
-                img.thumbnail((label_width - 20, label_height - 20))
+            if canvas_width > 1 and canvas_height > 1:
+                img.thumbnail((canvas_width - 20, canvas_height - 20))
             else:
-                img.thumbnail((1000, 800))
+                img.thumbnail((400, IMAGE_AREA_HEIGHT - 20))
 
             # 根据 image_align 设置图片位置
             if self.image_align == tk.W:
                 # 左侧面板：图片靠左
                 x_pos = 0
             else:
-                # 右侧面板：图片靠右
-                x_pos = label_width if label_width > 1 else self.image_canvas.winfo_reqwidth()
+                # 右侧面板：图片靠右 - 使用固定宽度计算位置
+                x_pos = canvas_width
 
             self.image_canvas.coords(self.image_id, (x_pos, 0))
 
@@ -410,11 +414,12 @@ class ImagePanel:
         self.current_image = ImageTk.PhotoImage(img_resized)
         self.image_canvas.itemconfig(self.image_id, image=self.current_image)
 
-        # 更新图片位置（保持对齐）
+        # 更新图片位置（保持对齐 - 右侧面板始终使用固定宽度计算）
+        canvas_width = max(self.image_canvas.winfo_width(), 400)
         if self.image_align == tk.W:
             x_pos = 0
         else:
-            x_pos = new_width
+            x_pos = canvas_width
 
         self.image_canvas.coords(self.image_id, (x_pos, 0))
 

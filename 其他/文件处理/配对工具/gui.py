@@ -122,12 +122,14 @@ class ImagePairToolGUI:
         right_list_frame.pack(fill=tk.BOTH, expand=True)
 
         # ========== 中列：左侧图片预览 ==========
-        left_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
+        left_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
         left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 1))
+        left_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
 
         # ========== 右列：右侧图片预览 ==========
-        right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
+        right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
         right_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(1, 0))
+        right_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
 
         # 创建左侧面板（不带列表框，图片靠右对齐）
         self.left_panel = ImagePanel(left_preview_frame, "左侧面板 (control)",
