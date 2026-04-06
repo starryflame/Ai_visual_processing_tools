@@ -39,6 +39,19 @@ class ImagePanel:
         self.current_image = None
         self.paired_images = set()  # 记录已配对的图片文件名
 
+        # 缩放相关
+        self.original_image = None  # 原始图片
+        self.zoom_level = 1.0  # 缩放级别
+        self.min_zoom = 0.1
+        self.max_zoom = 5.0
+
+        # 拖拽相关
+        self.drag_start_x = 0
+        self.drag_start_y = 0
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
+        self.is_dragging = False
+
         self.create_widgets()
 
     def create_widgets(self):
@@ -92,18 +105,35 @@ class ImagePanel:
         image_container.pack_propagate(False)
         image_container.config(height=IMAGE_AREA_HEIGHT)
 
+        # 创建 Canvas 用于支持拖拽和缩放
+        self.image_canvas = tk.Canvas(image_container,
+                                       bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
+                                       highlightthickness=0)
+        self.image_canvas.pack(fill=tk.BOTH, expand=True)
+
         # 添加拖拽功能提示标签
         if self.dark_mode:
-            drop_hint = tk.Label(image_container, text="可拖拽文件夹到此处",
+            self.drag_hint = tk.Label(self.image_canvas, text="可拖拽移动图片 | 滚轮缩放",
                                 bg=DARK_CONTAINER_BG, fg="#888888")
-            drop_hint.pack(side=tk.BOTTOM, pady=5)
+            self.drag_hint.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
-        self.image_label = tk.Label(image_container, text="暂无图片",
-                                    bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
-                                    fg=DARK_FG if self.dark_mode else None,
-                                    width=80, height=50,
-                                    anchor=self.image_align)
-        self.image_label.pack(fill=tk.BOTH, expand=True)
+        # 在 Canvas 上创建图片（使用 create_image 而不是窗口）
+        # 根据 image_align 设置锚点：tk.E=右侧图片从右对齐，tk.W=靠左对齐
+        anchor = tk.NW if self.image_align == tk.W else tk.NE
+        self.image_anchor = anchor  # 保存锚点用于后续缩放
+        self.image_align_pos = 0 if self.image_align == tk.W else tk.RIGHT  # 保存对齐位置
+
+        self.image_id = self.image_canvas.create_image(0, 0, anchor=anchor, image=None)
+
+        # 绑定滚轮事件进行缩放
+        self.image_canvas.bind('<MouseWheel>', self.on_mouse_wheel)
+        self.image_canvas.bind('<Button-4>', self.on_mouse_wheel)
+        self.image_canvas.bind('<Button-5>', self.on_mouse_wheel)
+
+        # 绑定拖拽事件
+        self.image_canvas.bind('<ButtonPress-1>', self.on_drag_start)
+        self.image_canvas.bind('<B1-Motion>', self.on_drag_motion)
+        self.image_canvas.bind('<ButtonRelease-1>', self.on_drag_end)
 
         # 绑定拖拽事件（如果支持）
         if DND_AVAILABLE and self.dark_mode:
@@ -145,6 +175,35 @@ class ImagePanel:
         self.listbox.bind('<<ListboxSelect>>', self.on_select)
 
         return list_frame
+
+    def on_drag_start(self, event):
+        """开始拖拽"""
+        self.is_dragging = True
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
+
+    def on_drag_motion(self, event):
+        """拖拽移动"""
+        if not self.is_dragging:
+            return
+
+        dx = event.x - self.drag_start_x
+        dy = event.y - self.drag_start_y
+
+        # 移动 Canvas 中的图片
+        self.image_canvas.move(self.image_id, dx, dy)
+
+        # 更新拖拽起始位置
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
+
+        # 更新偏移量
+        self.drag_offset_x += dx
+        self.drag_offset_y += dy
+
+    def on_drag_end(self, event):
+        """结束拖拽"""
+        self.is_dragging = False
 
     def bind_drag_drop(self, container):
         """绑定拖拽事件"""
@@ -273,20 +332,45 @@ class ImagePanel:
             img = Image.open(image_path)
             original_width, original_height = img.size
 
-            label_width = self.image_label.winfo_width()
-            label_height = self.image_label.winfo_height()
+            # 保存原始图片用于缩放
+            self.original_image = img
+
+            # 重置缩放和拖拽状态
+            self.zoom_level = 1.0
+            self.drag_offset_x = 0
+            self.drag_offset_y = 0
+
+            label_width = self.image_canvas.winfo_width()
+            label_height = self.image_canvas.winfo_height()
 
             if label_width > 1 and label_height > 1:
                 img.thumbnail((label_width - 20, label_height - 20))
             else:
                 img.thumbnail((1000, 800))
 
+            # 根据 image_align 设置图片位置
+            if self.image_align == tk.W:
+                # 左侧面板：图片靠左
+                x_pos = 0
+            else:
+                # 右侧面板：图片靠右
+                x_pos = label_width if label_width > 1 else self.image_canvas.winfo_reqwidth()
+
+            self.image_canvas.coords(self.image_id, (x_pos, 0))
+
+            # 显示图片
             self.current_image = ImageTk.PhotoImage(img)
-            self.image_label.config(image=self.current_image, text="")
+            self.image_canvas.itemconfig(self.image_id, image=self.current_image)
+
+            # 隐藏提示标签
+            if hasattr(self, 'drag_hint'):
+                self.drag_hint.place_forget()
 
             self.update_status_with_resolution(original_width, original_height)
         except Exception as e:
-            self.image_label.config(image="", text=f"加载失败：{str(e)}")
+            self.image_canvas.itemconfig(self.image_id, image=None)
+            self.drag_hint.config(text=f"加载失败：{str(e)}")
+            self.drag_hint.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(index)
@@ -295,10 +379,59 @@ class ImagePanel:
         if self.main_window and hasattr(self.main_window, 'enable_export_button'):
             self.main_window.enable_export_button()
 
+    def on_mouse_wheel(self, event):
+        """处理鼠标滚轮缩放"""
+        if self.original_image is None:
+            return
+
+        # Windows/Mac: event.delta, Linux: event.num (4=上滚，5=下滚)
+        if hasattr(event, 'delta'):  # Windows/Mac
+            delta = event.delta
+        elif hasattr(event, 'num'):  # Linux
+            delta = 120 if event.num == 4 else -120
+        else:
+            return
+
+        # 计算新的缩放级别
+        zoom_factor = 1.1 if delta > 0 else 0.9
+        new_zoom = self.zoom_level * zoom_factor
+
+        # 限制缩放范围
+        if new_zoom < self.min_zoom or new_zoom > self.max_zoom:
+            return
+
+        self.zoom_level = new_zoom
+
+        # 应用缩放
+        new_width = int(self.original_image.width * self.zoom_level)
+        new_height = int(self.original_image.height * self.zoom_level)
+
+        img_resized = self.original_image.resize((new_width, new_height), Image.LANCZOS)
+        self.current_image = ImageTk.PhotoImage(img_resized)
+        self.image_canvas.itemconfig(self.image_id, image=self.current_image)
+
+        # 更新图片位置（保持对齐）
+        if self.image_align == tk.W:
+            x_pos = 0
+        else:
+            x_pos = new_width
+
+        self.image_canvas.coords(self.image_id, (x_pos, 0))
+
+        # 更新状态显示缩放级别
+        zoom_percent = int(self.zoom_level * 100)
+        self.status_label.config(text=f"{zoom_percent}%")
+
     def clear_preview(self):
         """清除预览"""
-        self.image_label.config(image="", text="暂无图片")
+        self.image_canvas.itemconfig(self.image_id, image=None)
         self.current_image = None
+        self.original_image = None
+
+        # 显示提示标签
+        if hasattr(self, 'drag_hint'):
+            self.drag_hint.config(text="暂无图片")
+            self.drag_hint.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
     def prev_image(self):
         """上一个图片"""
