@@ -41,6 +41,9 @@ class ImagePairToolGUI:
 
         self.create_widgets()
 
+        # 绑定键盘快捷键
+        self.bind_keyboard_shortcuts()
+
     def setup_dark_mode(self):
         """设置深色模式"""
         if self.dark_mode:
@@ -172,6 +175,19 @@ class ImagePairToolGUI:
                                      fg=DARK_FG if self.dark_mode else None)
         self.status_label.pack(fill=tk.X)
 
+    def bind_keyboard_shortcuts(self):
+        """绑定键盘快捷键"""
+        # 小键盘上下键：上=同步上一张，下=同步下一张
+        self.root.bind_all('<KeyPress-KP_Up>', lambda e: self.sync_prev_image())
+        self.root.bind_all('<KeyPress-KP_Down>', lambda e: self.sync_next_image())
+
+        # Backspace: 同步删除（智能确认）
+        self.root.bind_all('<KeyPress-BackSpace>', lambda e: self.sync_delete_images_smart())
+
+        # 删除确认对话框引用
+        self.delete_confirm_dialog = None
+        self.pending_delete = None
+
     def enable_export_button(self):
         """恢复导出按钮为可点击状态"""
         if self.export_disabled:
@@ -226,7 +242,7 @@ class ImagePairToolGUI:
         self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
 
     def sync_delete_images(self):
-        """同时删除左右两侧选中的图片"""
+        """同时删除左右两侧选中的图片（带确认）"""
         left_path = self.left_panel.get_current_image_path()
         right_path = self.right_panel.get_current_image_path()
 
@@ -238,9 +254,104 @@ class ImagePairToolGUI:
         right_name = Path(right_path).name if right_path else "无"
 
         confirm_msg = f"确定要删除以下图片吗？\n\n左侧：{left_name}\n右侧：{right_name}"
-        if not messagebox.askyesno("确认", confirm_msg):
+        if messagebox.askyesno("确认", confirm_msg):
+            self._delete_images_internal(left_path, right_path, left_name, right_name)
+
+    def sync_delete_images_smart(self):
+        """智能删除：第一次按 Backspace 弹窗询问，询问时再按 Backspace 相当于点击'是'"""
+        # 如果确认对话框正在显示，再次按 Backspace 直接确认删除
+        if self.delete_confirm_dialog is not None:
+            self._confirm_and_delete()
             return
 
+        # 第一次按 Backspace，显示确认对话框
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+
+        if not left_path and not right_path:
+            self.status_label.config(text="两侧都没有可删除的图片")
+            return
+
+        left_name = Path(left_path).name if left_path else "无"
+        right_name = Path(right_path).name if right_path else "无"
+
+        # 保存待删除信息
+        self.pending_delete = (left_path, right_path, left_name, right_name)
+
+        # 创建自定义确认对话框（非阻塞）
+        self._show_delete_confirm_dialog(left_name, right_name)
+
+    def _show_delete_confirm_dialog(self, left_name, right_name):
+        """显示自定义确认对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("确认删除")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # 对话框居中
+        dialog_width = 300
+        dialog_height = 150
+        x = (self.root.winfo_width() - dialog_width) // 2
+        y = (self.root.winfo_height() - dialog_height) // 2
+        dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+        dialog.resizable(False, False)
+
+        # 消息标签
+        msg = f"确定要删除以下图片吗？\n\n左侧：{left_name}\n右侧：{right_name}"
+        tk.Label(dialog, text=msg, pady=20).pack()
+
+        # 按钮框架
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack()
+
+        def on_yes():
+            self.delete_confirm_dialog = None
+            dialog.destroy()
+            if self.pending_delete:
+                left_path, right_path, left_name, right_name = self.pending_delete
+                self.pending_delete = None
+                self._delete_images_internal(left_path, right_path, left_name, right_name)
+
+        def on_no():
+            self.delete_confirm_dialog = None
+            self.pending_delete = None
+            dialog.destroy()
+
+        tk.Button(btn_frame, text="是", command=on_yes, width=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(btn_frame, text="否", command=on_no, width=10).pack(side=tk.LEFT, padx=10)
+
+        # 保存对话框引用
+        self.delete_confirm_dialog = dialog
+
+        # 为对话框绑定 Backspace 事件
+        dialog.bind('<KeyPress-BackSpace>', lambda e: on_yes())
+
+    def _confirm_and_delete(self):
+        """确认并执行删除"""
+        if self.delete_confirm_dialog:
+            self.delete_confirm_dialog.destroy()
+            self.delete_confirm_dialog = None
+            if self.pending_delete:
+                left_path, right_path, left_name, right_name = self.pending_delete
+                self.pending_delete = None
+                self._delete_images_internal(left_path, right_path, left_name, right_name)
+
+    def sync_delete_images_no_confirm(self):
+        """同时删除左右两侧选中的图片（无确认，快捷键使用）"""
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+
+        if not left_path and not right_path:
+            self.status_label.config(text="两侧都没有可删除的图片")
+            return
+
+        left_name = Path(left_path).name if left_path else "无"
+        right_name = Path(right_path).name if right_path else "无"
+
+        self._delete_images_internal(left_path, right_path, left_name, right_name)
+
+    def _delete_images_internal(self, left_path, right_path, left_name, right_name):
+        """内部删除逻辑"""
         # 删除左侧图片
         if left_path and os.path.exists(left_path):
             try:

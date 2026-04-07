@@ -169,12 +169,22 @@ class ImagePanel:
                  bg=DARK_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(anchor=tk.W)
 
-        self.listbox = tk.Listbox(list_frame, height=height,
+        # 创建带滚动条的框架
+        listbox_container = tk.Frame(list_frame, bg=DARK_BG if self.dark_mode else None)
+        listbox_container.pack(fill=tk.BOTH, expand=True)
+
+        # 创建垂直滚动条
+        self.listbox_scrollbar = tk.Scrollbar(listbox_container, orient=tk.VERTICAL)
+        self.listbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.listbox = tk.Listbox(listbox_container, height=height,
                                   bg=DARK_ENTRY_BG if self.dark_mode else None,
                                   fg=DARK_FG if self.dark_mode else None,
                                   selectbackground=DARK_HIGHLIGHT,
-                                  selectforeground=DARK_FG)
-        self.listbox.pack(fill=tk.BOTH, expand=True)
+                                  selectforeground=DARK_FG,
+                                  yscrollcommand=self.listbox_scrollbar.set)
+        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.listbox_scrollbar.config(command=self.listbox.yview)
         self.listbox.bind('<<ListboxSelect>>', self.on_select)
 
         return list_frame
@@ -282,8 +292,8 @@ class ImagePanel:
         self.image_files.sort()
 
         self.listbox.delete(0, tk.END)
-        for img in self.image_files:
-            self.listbox.insert(tk.END, img)
+        for i, img in enumerate(self.image_files):
+            self.listbox.insert(tk.END, f"{i + 1}. {img}")
 
         self.current_index = 0
         if self.image_files:
@@ -299,7 +309,9 @@ class ImagePanel:
         selection = self.listbox.curselection()
         if selection:
             self.current_index = selection[0]
-            selected_filename = self.image_files[self.current_index]
+            # 从带序号的文本中提取文件名（格式："1. filename.jpg"）
+            selected_text = self.listbox.get(self.current_index)
+            selected_filename = selected_text.split('. ', 1)[1] if '. ' in selected_text else selected_text
 
             main_window = getattr(self, 'main_window', None)
             other_panel = None
@@ -469,6 +481,9 @@ class ImagePanel:
                 if self.current_index >= len(self.image_files):
                     self.current_index = max(0, len(self.image_files) - 1)
 
+                # 刷新列表序号
+                self.refresh_listbox_display()
+
                 if self.image_files:
                     self.show_image(self.current_index)
                 else:
@@ -516,3 +531,27 @@ class ImagePanel:
             else:
                 self.listbox.itemconfig(i, bg=DARK_ENTRY_BG if self.dark_mode else None,
                                         fg=DARK_FG if self.dark_mode else None)
+
+    def get_filename_from_listbox(self, index):
+        """从列表框中获取文件名（去除序号前缀）"""
+        if index < 0 or index >= self.listbox.size():
+            return None
+        text = self.listbox.get(index)
+        # 从格式 "1. filename.jpg" 中提取文件名
+        if '. ' in text:
+            return text.split('. ', 1)[1]
+        return text
+
+    def refresh_listbox_display(self):
+        """刷新列表框显示（保留配对状态和序号）"""
+        # 保存当前配对状态
+        paired_set = self.paired_images.copy()
+
+        # 重新填充列表框（带序号）
+        self.listbox.delete(0, tk.END)
+        for i, img in enumerate(self.image_files):
+            self.listbox.insert(tk.END, f"{i + 1}. {img}")
+
+        # 恢复配对颜色
+        self.paired_images = paired_set
+        self.update_listbox_colors()
