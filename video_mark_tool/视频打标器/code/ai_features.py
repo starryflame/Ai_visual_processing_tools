@@ -18,46 +18,46 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-class OllamaAPIClient:
-    """Ollama API 客户端封装类，提供统一的 AI 标签生成功能"""
-    
+class LLMClient:
+    """LLM API 客户端封装类，通过 OpenAI 兼容 API 格式调用 AI 服务"""
+
     def __init__(self, config):
         """初始化客户端
-        
+
         Args:
             config: configparser.ConfigParser 对象，包含配置信息
         """
         self.config = config
         self.client = None
         self._init_client()
-    
+
     def _init_client(self):
-        """初始化 OpenAI 客户端"""
-        api_base_url = self.config.get('OLLAMA', 'api_base_url', fallback='http://127.0.0.1:11434/v1')
-        api_key = self.config.get('OLLAMA', 'api_key', fallback='ollama')
-        
+        """初始化 OpenAI 客户端（兼容任何 OpenAI API 格式的服务）"""
+        api_base_url = self.config.get('LLM', 'api_base_url', fallback='http://127.0.0.1:1234/v1')
+        api_key = self.config.get('LLM', 'api_key', fallback='ollama')
+
         self.client = OpenAI(
             api_key=api_key,
             base_url=api_base_url,
             timeout=3600
         )
-    
+
     def get_model_config(self):
         """获取模型和生成参数配置
-        
+
         Returns:
             tuple: (model_name, max_new_tokens, temperature, top_p)
         """
-        model_name = self.config.get('OLLAMA', 'model_name', fallback='qwen3-vl:30b')
-        max_new_tokens = self.config.getint('OLLAMA', 'max_new_tokens', fallback=16384)
+        model_name = self.config.get('LLM', 'model_name', fallback='qwen3-vl:30b')
+        max_new_tokens = self.config.getint('LLM', 'max_new_tokens', fallback=16384)
         temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
         top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
-        
+
         return model_name, max_new_tokens, temperature, top_p
-    
+
     def get_filter_words(self):
         """获取过滤词列表
-        
+
         Returns:
             list: 过滤词列表（小写）
         """
@@ -67,69 +67,69 @@ class OllamaAPIClient:
             if filter_words_str:
                 filter_words = [word.strip().lower() for word in filter_words_str.split(',') if word.strip()]
         return filter_words
-    
+
     def extract_frames(self, processed_frames, start_frame, end_frame):
         """从处理后的帧中提取采样帧
-        
+
         Args:
             processed_frames: 已处理的帧列表（numpy array）
             start_frame: 起始帧索引
             end_frame: 结束帧索引
-            
+
         Returns:
             list: PIL Image 对象列表
         """
         max_sample_frames = self.config.getint('PROCESSING', 'max_sample_frames', fallback=64)
-        
+
         frames = []
         total_frames = end_frame - start_frame + 1
         sample_count = min(max_sample_frames, total_frames)
-        
+
         if total_frames <= sample_count:
             indices = list(range(start_frame, end_frame + 1))
         else:
             indices = np.linspace(start_frame, end_frame, sample_count, dtype=int)
-        
+
         for i in indices:
             if i < len(processed_frames):
                 frame_rgb = processed_frames[i]
                 pil_frame = Image.fromarray(frame_rgb)
                 frames.append(pil_frame)
-        
+
         # 如果只有一帧，复制以满足视频处理要求
         if len(frames) == 1:
             frames.append(frames[0])
-        
+
         return frames
-    
+
     def convert_image_to_base64(self, image):
         """将 PIL 图像转换为 base64 编码
-        
+
         Args:
             image: PIL Image 对象
-            
+
         Returns:
             str: base64 编码的 data URL
         """
         max_size = (720, 720)
         image.thumbnail(max_size, Image.Resampling.LANCZOS)
-        
+
         buffered = io.BytesIO()
         image.save(buffered, format="PNG")
         encoded = base64.b64encode(buffered.getvalue()).decode("utf-8")
         data_url = f"data:image/png;base64,{encoded}"
-        
+
         return data_url
-    
-    def generate_caption_with_ollama(self, frames, prompt_text=None, max_attempts=10, min_length=50):
-        """使用 Ollama 为多个帧生成统一描述
-        
+
+    def generate_caption(self, frames, prompt_text=None, max_attempts=10, min_length=50):
+        """通过 OpenAI 兼容 API 为多个帧生成统一描述
+
         Args:
             frames: PIL Image 对象列表
             prompt_text: 用户自定义提示词，默认为 None
             max_attempts: 最大重试次数
             min_length: 最小生成长度
-            
+
         Returns:
             str: 生成的标签文本
         """
@@ -174,8 +174,8 @@ class OllamaAPIClient:
                 )
 
                 caption = response.choices[0].message.content.strip()
-                
-                # 【新增】过滤掉模型输出的思考过程 (<think> ... </think>)
+
+                # 过滤掉模型输出的思考过程 (<think> ... </think>)
                 import re
                 thought_pattern = r"<think>.*?</think>"
                 cleaned_caption = re.sub(thought_pattern, "", caption, flags=re.DOTALL | re.IGNORECASE).strip()
@@ -234,7 +234,7 @@ class OllamaAPIClient:
 # ==================== 主功能函数 ====================
 
 def auto_segment_and_recognize(self):
-    """自动读取视频文件列表并使用 AI 识别生成标签"""
+    """批量处理视频文件列表，为每个视频生成 AI 标签"""
     # 显示选择调用方式的窗口
     method_window = tk.Toplevel(self.root)
     method_window.title("自动读取视频文件列表并使用 AI 识别生成标签")
@@ -268,8 +268,8 @@ def auto_segment_and_recognize(self):
         processed_count = 0
         total_videos = len(self.video_list)
 
-        # 初始化 Ollama API 客户端 (复用 _generate_ai_caption_local_thread 中的客户端初始化逻辑)
-        ollama_client = OllamaAPIClient(self.config)
+        # 初始化 LLM API 客户端
+        llm_client = LLMClient(self.config)
 
         for idx, video_path in enumerate(self.video_list):
             try:
@@ -306,14 +306,14 @@ def auto_segment_and_recognize(self):
                 # 【核心修改】复用 _generate_ai_caption_local_thread 中的 AI 调用逻辑
                 # 这里直接调用其内部使用的核心步骤，确保调用方式一致
                 try:
-                    # 1. 提取帧 (复用 extract_frames)
-                    frames = ollama_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
-                    
-                    # 2. 获取用户提示词 (复用相同的获取方式)
+                    # 1. 提取帧
+                    frames = llm_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
+
+                    # 2. 获取用户提示词
                     user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
                     
-                    # 3. 生成描述 (复用 generate_caption_with_ollama)
-                    new_caption = ollama_client.generate_caption_with_ollama(frames, user_prompt)
+                    # 3. 生成描述 (复用 generate_caption)
+                    new_caption = llm_client.generate_caption(frames, user_prompt)
 
                     if new_caption:  # 如果成功生成了新标签
                         # 创建新的标签信息并添加到标签列表
@@ -370,16 +370,15 @@ def generate_ai_caption(self):
         messagebox.showerror("错误", "请先设置开始帧和结束帧")
         return
 
-    # 优先尝试本地模型，失败后再尝试 vLLM API
     try:
         self._generate_ai_caption_local()
     except Exception as local_error:
-        print(f"本地模型生成失败：{local_error}")
+        print(f"AI 生成失败：{local_error}")
 
 
 
 def _generate_ai_caption_local(self):
-    """使用 Ollama API 生成标签"""
+    """通过 OpenAI 兼容 API 生成标签"""
     # 启动新线程执行 AI 生成任务
     thread = threading.Thread(target=self._generate_ai_caption_local_thread)
     thread.daemon = True
@@ -402,22 +401,22 @@ def _generate_ai_caption_local_thread(self):
     y = (loading_window.winfo_screenheight() // 2) - (100 // 2)
     loading_window.geometry(f"300x100+{x}+{y}")
     
-    tk.Label(loading_window, text="正在使用 Ollama 生成标签...", font=self.font).pack(pady=20)
-    
+    tk.Label(loading_window, text="正在使用 AI 生成标签...", font=self.font).pack(pady=20)
+
     try:
         # 获取选中的视频片段帧
         if self.start_frame < len(self.processed_frames) and self.end_frame < len(self.processed_frames):
-            # 初始化 Ollama API 客户端
-            ollama_client = OllamaAPIClient(self.config)
-            
+            # 初始化 LLM API 客户端
+            llm_client = LLMClient(self.config)
+
             # 从处理后的帧中提取视频片段
-            frames = ollama_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
-            
+            frames = llm_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
+
             # 获取用户自定义的提示词
             user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
-            
+
             # 生成描述
-            caption = ollama_client.generate_caption_with_ollama(frames, user_prompt)
+            caption = llm_client.generate_caption(frames, user_prompt)
             
             # 在主线程中更新 UI
             def update_ui():
@@ -464,18 +463,18 @@ def _generate_single_tag_caption(self):
     try:
         # 获取选中的视频片段帧
         if self.start_frame < len(self.processed_frames) and self.end_frame < len(self.processed_frames):
-            # 初始化 Ollama API 客户端
-            ollama_client = OllamaAPIClient(self.config)
-            
+            # 初始化 LLM API 客户端
+            llm_client = LLMClient(self.config)
+
             # 从处理后的帧中提取视频片段
-            frames = ollama_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
-            
+            frames = llm_client.extract_frames(self.processed_frames, self.start_frame, self.end_frame)
+
             # 获取用户自定义的提示词
             user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
-            
+
             # 生成描述
-            caption = ollama_client.generate_caption_with_ollama(frames, user_prompt)
-            
+            caption = llm_client.generate_caption(frames, user_prompt)
+
             return caption
         else:
             return None
@@ -485,7 +484,7 @@ def _generate_single_tag_caption(self):
 
 
 def _auto_segment_and_recognize_local(self):
-    """使用 Ollama API 自动按 5 秒分段并使用 AI 识别生成标签"""
+    """通过 OpenAI 兼容 API 自动按 5 秒分段并使用 AI 识别生成标签"""
     
     if self.total_frames <= 0 or self.fps <= 0:
         messagebox.showerror("错误", "无效的视频信息")
@@ -553,24 +552,24 @@ def _auto_segment_and_recognize_local(self):
     def process_segments():
         try:
             import numpy as np
-            
-            # 初始化 Ollama API 客户端
-            ollama_client = OllamaAPIClient(self.config)
-            
+
+            # 初始化 LLM API 客户端
+            llm_client = LLMClient(self.config)
+
             start_time = time.time()
             completed_count = 0
-            
+
             for i, segment in enumerate(segments):
                 segment_start_time = time.time()
-                
+
                 # 使用封装的方法提取帧
-                frames = ollama_client.extract_frames(self.processed_frames, segment["start"], segment["end"])
+                frames = llm_client.extract_frames(self.processed_frames, segment["start"], segment["end"])
                 
                 # 获取用户自定义的提示词
                 user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
                 
                 # 生成描述（使用不同的参数）
-                caption = ollama_client.generate_caption_with_ollama(
+                caption = llm_client.generate_caption(
                     frames, 
                     user_prompt,
                     max_attempts=20,
@@ -624,5 +623,5 @@ __all__ = [
     '_generate_ai_caption_local_thread',
     '_generate_single_tag_caption',
     '_auto_segment_and_recognize_local',
-    'OllamaAPIClient'
+    'LLMClient'
 ]

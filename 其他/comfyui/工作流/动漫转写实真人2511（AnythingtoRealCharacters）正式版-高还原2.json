@@ -145,7 +145,7 @@
   },
   "110": {
     "inputs": {
-      "prompt": "动漫转真人,无水印",
+      "prompt": "动漫转真人,无水印,纯白背景",
       "clip": [
         "38",
         0
@@ -193,7 +193,7 @@
   },
   "297": {
     "inputs": {
-      "lora_name": "qwen_edit\\自创\\动漫转真人_萝莉_000006250.safetensors",
+      "lora_name": "qwen_edit\\自创\\动漫转真人_4-6_000002000.safetensors",
       "strength_model": 1,
       "model": [
         "169",

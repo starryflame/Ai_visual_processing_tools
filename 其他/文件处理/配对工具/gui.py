@@ -35,6 +35,7 @@ class ImagePairToolGUI:
 
         self.export_folder = tk.StringVar()
         self.export_disabled = False
+        self.ask_export_options = tk.BooleanVar(value=False)  # 默认不勾选，导出时不询问处理选项
 
         # 进度条变量
         self.progress_var = tk.DoubleVar()
@@ -100,6 +101,19 @@ class ImagePairToolGUI:
                                        width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50",
                                        fg="white")
         self.export_button.pack(side=tk.RIGHT, padx=10)
+
+        # 导出时询问选项勾选框
+        self.ask_options_checkbutton = tk.Checkbutton(
+            toolbar,
+            text="导出时询问处理选项",
+            variable=self.ask_export_options,
+            bg=DARK_BG if self.dark_mode else None,
+            fg=DARK_FG if self.dark_mode else None,
+            activebackground=DARK_BG if self.dark_mode else None,
+            activeforeground=DARK_FG if self.dark_mode else None,
+            selectcolor=DARK_HIGHLIGHT  # 勾选时的背景色
+        )
+        self.ask_options_checkbutton.pack(side=tk.RIGHT, padx=10)
 
         # 主体区域 - 三列布局
         main_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
@@ -714,20 +728,26 @@ class ImagePairToolGUI:
             messagebox.showerror("错误", "右侧面板没有选中的图片")
             return
 
-        fill_ratio = messagebox.askyesno(
-            "图片比例填充选项",
-            "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
-        )
-
-        # 如果启用填充，询问是否使用裁剪模式
-        crop_style = None
-        if fill_ratio:
-            crop_mode = messagebox.askyesno(
-                "裁剪模式选项",
-                "是否启用裁剪模式？\n\n是：直接裁剪为 1:1（竖图裁上面，横图裁中间）\n否：使用白色背景填充"
+        # 根据勾选框决定是否询问处理选项
+        if self.ask_export_options.get():
+            fill_ratio = messagebox.askyesno(
+                "图片比例填充选项",
+                "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
             )
-            if crop_mode:
-                crop_style = 'top'
+
+            # 如果启用填充，询问是否使用裁剪模式
+            crop_style = None
+            if fill_ratio:
+                crop_mode = messagebox.askyesno(
+                    "裁剪模式选项",
+                    "是否启用裁剪模式？\n\n是：直接裁剪为 1:1（竖图裁上面，横图裁中间）\n否：使用白色背景填充"
+                )
+                if crop_mode:
+                    crop_style = 'top'
+        else:
+            # 不询问，直接原样导出
+            fill_ratio = False
+            crop_style = None
 
         control_folder = os.path.join(export_folder, "control")
         target_folder = os.path.join(export_folder, "target")

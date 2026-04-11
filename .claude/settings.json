@@ -16,7 +16,13 @@
       "Bash(python gui.py)",
       "Bash(dir /b /ad)",
       "Bash(ls -d */)",
-      "Bash(dir /b)"
+      "Bash(dir /b)",
+      "Bash(powershell -Command \"Get-Content '其他/comfyui/工作流/动漫转写实真人 2511（AnythingtoRealCharacters）正式版 - 高还原 2.json' -Encoding UTF8\")",
+      "Read(//d j:/Ai_visual_processing_tools/其他/comfyui/**)",
+      "Bash(python -c \"import json; f=open\\(r'其他\\\\comfyui\\\\工作流\\\\动漫转写实真人 2511（AnythingtoRealCharacters）正式版 - 高还原 2.json','r',encoding='utf-8'\\); print\\(json.dumps\\(json.load\\(f\\), indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python -c \"import os; files=os.listdir\\(r'其他\\\\comfyui\\\\工作流'\\); print\\([f for f in files if '高还原 2' in f]\\)\")",
+      "Bash(python -c \"import os; files=os.listdir\\('其他/comfyui/工作流'\\); [print\\(f\\) for f in files]\")",
+      "Bash(python -c ':*)"
     ]
   }
 }

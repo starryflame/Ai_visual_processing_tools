@@ -264,6 +264,22 @@ class ImagePanel:
                 break
 
         if valid_folder:
+            # 检查是否包含 target 和 control 子文件夹
+            control_folder = os.path.join(valid_folder, "control")
+            target_folder = os.path.join(valid_folder, "target")
+
+            if os.path.isdir(control_folder) and os.path.isdir(target_folder):
+                # 自动分配：左面板=control，右面板=target
+                main_window = getattr(self, 'main_window', None)
+                if main_window and hasattr(main_window, 'left_panel') and hasattr(main_window, 'right_panel'):
+                    main_window.left_panel.folder_path.set(control_folder)
+                    main_window.left_panel.refresh_images()
+                    main_window.right_panel.folder_path.set(target_folder)
+                    main_window.right_panel.refresh_images()
+                    main_window.status_label.config(text=f"✓ 已自动加载：control → 左面板 | target → 右面板")
+                    return
+
+            # 普通模式：只加载当前面板
             self.folder_path.set(valid_folder)
             self.refresh_images()
             self.status_label.config(text=f"已导入：{valid_folder}")

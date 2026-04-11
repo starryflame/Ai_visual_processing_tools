@@ -342,14 +342,14 @@ def _generate_single_tag_caption(self):
             # 如果只有一帧，复制以满足视频处理要求
             if len(frames) == 1:
                 frames.append(frames[0])
-            
-            # 从配置文件读取 Ollama API 设置
-            api_base_url = self.config.get('OLLAMA', 'api_base_url', fallback='http://127.0.0.1:11434/v1')
-            api_key = self.config.get('OLLAMA', 'api_key', fallback='ollama')
-            model_name = self.config.get('OLLAMA', 'model_name', fallback='qwen3-vl:30b')
-            
+
+            # 从配置文件读取 LLM API 设置
+            api_base_url = self.config.get('LLM', 'api_base_url', fallback='http://127.0.0.1:1234/v1')
+            api_key = self.config.get('LLM', 'api_key', fallback='ollama')
+            model_name = self.config.get('LLM', 'model_name', fallback='qwen3-vl:30b')
+
             # 从配置文件读取生成参数
-            max_new_tokens = self.config.getint('OLLAMA', 'max_new_tokens', fallback=300000)
+            max_new_tokens = self.config.getint('LLM', 'max_new_tokens', fallback=300000)
             temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
             top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
             
@@ -381,8 +381,8 @@ def _generate_single_tag_caption(self):
                 
                 return data_url
             
-            def generate_caption_with_ollama(frames, prompt_text=None):
-                """使用 Ollama 为多个帧生成统一描述"""
+            def generate_caption(frames, prompt_text=None):
+                """通过 OpenAI 兼容 API 为多个帧生成统一描述"""
                 # 转换所有帧为 base64
                 image_data_urls = [convert_image_to_base64(frame) for frame in frames]
                 # 使用传入的提示词或者默认提示词
@@ -454,7 +454,7 @@ def _generate_single_tag_caption(self):
             user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
             
             # 生成描述
-            caption = generate_caption_with_ollama(frames, user_prompt)
+            caption = generate_caption(frames, user_prompt)
             
             return caption
         else:

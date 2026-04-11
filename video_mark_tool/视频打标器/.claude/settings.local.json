@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile ai_features.py tag_management.py)"
+    ]
+  }
+}
