@@ -7,6 +7,7 @@ ComfyUI 批量动漫转写实处理脚本 - GUI 版本
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from PIL import Image, ImageTk
 import json
 import requests
 import uuid
@@ -102,7 +103,7 @@ class BatchProcessorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("ComfyUI 批量动漫转写实处理")
-        self.root.geometry("700x550")
+        self.root.geometry("1200x800")
 
         self.input_folder = tk.StringVar()
         self.output_folder = tk.StringVar()
@@ -122,54 +123,100 @@ class BatchProcessorGUI:
         self.current_index = 0  # 当前处理索引
         self.total_count = 0    # 总数
 
+        # 日志区折叠状态
+        self.log_expanded = True
+
+        # 图片预览
+        self.input_photo = None
+        self.output_photo = None
+        self.current_input_img = None
+        self.current_output_img = False
+
+        # 控制面板隐藏状态
+        self.control_panel_hidden = False
+
         self.create_widgets()
+
+        # 绑定 ESC 键退出全屏
+        self.root.bind('<Escape>', lambda _: self.toggle_fullscreen())
+        # 绑定 F11 切换全屏
+        self.root.bind('<F11>', lambda _: self.toggle_fullscreen())
+        # 绑定 Tab 键切换控制面板
+        self.root.bind('<Tab>', lambda _: self.toggle_control_panel())
     
     def create_widgets(self):
         """创建界面组件"""
+        # 主容器 - 上下分栏
+        main_container = tk.Frame(self.root)
+        main_container.pack(fill=tk.BOTH, expand=True)
+
+        # 上部 - 控制面板
+        self.control_frame = tk.Frame(main_container)
+        self.control_frame.pack(fill=tk.X, expand=False, padx=10, pady=10)
+
+        # 下部 - 实时图片预览 - 占据剩余所有空间
+        bottom_frame = tk.Frame(main_container, bg='#1a1a1a', relief=tk.RAISED, bd=2)
+        bottom_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        self.create_control_panel(self.control_frame)
+        self.create_preview_panel(bottom_frame)
+
+        # 全屏提示标签
+        self.fullscreen_hint = tk.Label(
+            self.root,
+            text="F11 全屏 | ESC 退出 | Tab 隐藏控制面板",
+            font=("Microsoft YaHei UI", 9),
+            fg="#888",
+            bg="#f0f0f0"
+        )
+        self.fullscreen_hint.pack(anchor=tk.W, padx=10, pady=(0, 5))
+
+    def create_control_panel(self, parent):
+        """创建左侧控制面板"""
         # 输入文件夹选择
-        input_frame = tk.Frame(self.root, pady=10)
-        input_frame.pack(fill=tk.X, padx=20)
+        input_frame = tk.Frame(parent, pady=5)
+        input_frame.pack(fill=tk.X)
         tk.Label(input_frame, text="输入文件夹:", width=12).pack(side=tk.LEFT)
         tk.Entry(input_frame, textvariable=self.input_folder).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         tk.Button(input_frame, text="浏览", command=self.select_input_folder, width=8).pack(side=tk.LEFT)
 
         # 输出文件夹选择
-        output_frame = tk.Frame(self.root, pady=10)
-        output_frame.pack(fill=tk.X, padx=20)
+        output_frame = tk.Frame(parent, pady=5)
+        output_frame.pack(fill=tk.X)
         tk.Label(output_frame, text="输出文件夹:", width=12).pack(side=tk.LEFT)
         tk.Entry(output_frame, textvariable=self.output_folder).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         tk.Button(output_frame, text="浏览", command=self.select_output_folder, width=8).pack(side=tk.LEFT)
 
         # 提示词输入
-        prompt_frame = tk.Frame(self.root, pady=10)
-        prompt_frame.pack(fill=tk.X, padx=20)
+        prompt_frame = tk.Frame(parent, pady=5)
+        prompt_frame.pack(fill=tk.X)
         tk.Label(prompt_frame, text="提示词:", width=12).pack(side=tk.LEFT)
         tk.Entry(prompt_frame, textvariable=self.prompt_text).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
 
         # LoRA 路径输入
-        lora_frame = tk.Frame(self.root, pady=10)
-        lora_frame.pack(fill=tk.X, padx=20)
+        lora_frame = tk.Frame(parent, pady=5)
+        lora_frame.pack(fill=tk.X)
         tk.Label(lora_frame, text="LoRA 路径:", width=12).pack(side=tk.LEFT)
         tk.Entry(lora_frame, textvariable=self.lora_path).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
 
         # 起始索引输入
-        index_frame = tk.Frame(self.root, pady=10)
-        index_frame.pack(fill=tk.X, padx=20)
+        index_frame = tk.Frame(parent, pady=5)
+        index_frame.pack(fill=tk.X)
         tk.Label(index_frame, text="从第几个开始:", width=12).pack(side=tk.LEFT)
         self.start_index_spinbox = tk.Spinbox(index_frame, textvariable=self.start_index, from_=0, to=9999, width=10)
         self.start_index_spinbox.pack(side=tk.LEFT, padx=5)
         tk.Label(index_frame, text="(0 表示从第一个开始)", fg="#666").pack(side=tk.LEFT)
 
         # 进度条
-        progress_frame = tk.Frame(self.root, pady=10)
-        progress_frame.pack(fill=tk.X, padx=20)
+        progress_frame = tk.Frame(parent, pady=10)
+        progress_frame.pack(fill=tk.X)
         self.progress = ttk.Progressbar(progress_frame, mode='determinate')
         self.progress.pack(fill=tk.X)
         self.progress_label = tk.Label(progress_frame, text="准备就绪", font=("Consolas", 10))
         self.progress_label.pack()
 
         # 控制按钮行
-        button_frame = tk.Frame(self.root, pady=15)
+        button_frame = tk.Frame(parent, pady=10)
         button_frame.pack()
 
         self.start_button = tk.Button(button_frame, text="开始处理", command=self.start_processing, width=15, bg="#4CAF50", fg="white")
@@ -183,13 +230,206 @@ class BatchProcessorGUI:
 
         self.stop_button = tk.Button(button_frame, text="停止", command=self.stop_processing, width=10, state=tk.DISABLED, bg="#f44336", fg="white")
         self.stop_button.pack(side=tk.LEFT, padx=5)
-        
-        # 日志区域
-        log_frame = tk.Frame(self.root, pady=10)
-        log_frame.pack(fill=tk.BOTH, expand=True, padx=20)
-        tk.Label(log_frame, text="处理日志:").pack(anchor=tk.W)
-        self.log_text = tk.Text(log_frame, height=8, width=60)
+
+        # 日志区域 - 添加折叠按钮
+        log_frame = tk.Frame(parent, pady=10)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 日志标题栏
+        log_header_frame = tk.Frame(log_frame)
+        log_header_frame.pack(fill=tk.X, anchor=tk.W)
+
+        tk.Label(log_header_frame, text="处理日志:").pack(side=tk.LEFT)
+
+        self.log_toggle_button = tk.Button(
+            log_header_frame,
+            text="▲ 收起",
+            command=self.toggle_log,
+            width=8,
+            font=("Microsoft YaHei UI", 9)
+        )
+        self.log_toggle_button.pack(side=tk.RIGHT)
+
+        # 日志文本区域 - 放在单独 frame 中以便折叠
+        self.log_container = tk.Frame(log_frame)
+        self.log_container.pack(fill=tk.BOTH, expand=True)
+
+        self.log_text = tk.Text(self.log_container, height=8, width=60)
         self.log_text.pack(fill=tk.BOTH, expand=True)
+
+    def create_preview_panel(self, parent):
+        """创建底部图片预览面板"""
+        # 标题栏
+        title_label = tk.Label(
+            parent,
+            text="🖼️ 实时预览 - 输入/输出对比",
+            font=("Microsoft YaHei UI", 16, "bold"),
+            bg='#1a1a1a',
+            fg='white'
+        )
+        title_label.pack(pady=10)
+
+        # 图片容器 - 左右并排
+        imgs_container = tk.Frame(parent, bg='#1a1a1a')
+        imgs_container.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+
+        # 输入图区域 - 靠右对齐（右边距为 0）
+        input_preview_frame = tk.Frame(imgs_container, bg='#2a2a2a', relief=tk.RAISED, bd=0)
+        input_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0), pady=0)
+
+        tk.Label(
+            input_preview_frame,
+            text="输入图 (原图)",
+            font=("Microsoft YaHei UI", 14, "bold"),
+            bg='#2a2a2a',
+            fg='#2196F3'
+        ).pack(pady=5)
+
+        # 使用 Canvas 显示图片，支持靠右对齐
+        self.input_canvas = tk.Canvas(input_preview_frame, bg='#1a1a1a', highlightthickness=0)
+        self.input_canvas.pack(fill=tk.BOTH, expand=True)
+        self.input_image_id = self.input_canvas.create_image(0, 0, anchor=tk.NE, image=None)
+
+        # 输出图区域 - 靠左对齐（左边距为 0）
+        output_preview_frame = tk.Frame(imgs_container, bg='#2a2a2a', relief=tk.RAISED, bd=0)
+        output_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 0), pady=0)
+
+        tk.Label(
+            output_preview_frame,
+            text="输出图 (生成结果)",
+            font=("Microsoft YaHei UI", 14, "bold"),
+            bg='#2a2a2a',
+            fg='#4CAF50'
+        ).pack(pady=5)
+
+        # 使用 Canvas 显示图片，支持靠左对齐
+        self.output_canvas = tk.Canvas(output_preview_frame, bg='#1a1a1a', highlightthickness=0)
+        self.output_canvas.pack(fill=tk.BOTH, expand=True)
+        self.output_image_id = self.output_canvas.create_image(0, 0, anchor=tk.NW, image=None)
+
+    def toggle_fullscreen(self):
+        """切换全屏模式"""
+        current = self.root.attributes('-fullscreen')
+        self.root.attributes('-fullscreen', not current)
+
+        if not current:
+            # 进入全屏
+            self.fullscreen_hint.pack_forget()
+        else:
+            # 退出全屏
+            self.fullscreen_hint.pack(anchor=tk.W, padx=10, pady=(0, 5))
+
+    def toggle_control_panel(self):
+        """切换控制面板显示/隐藏"""
+        if self.control_panel_hidden:
+            self.control_frame.pack(fill=tk.X, expand=False, padx=10, pady=10)
+            self.control_panel_hidden = False
+        else:
+            self.control_frame.pack_forget()
+            self.control_panel_hidden = True
+
+    def toggle_log(self):
+        """切换日志区显示/隐藏"""
+        if self.log_expanded:
+            # 收起日志区
+            self.log_container.pack_forget()
+            self.log_toggle_button.config(text="▼ 展开")
+            self.log_expanded = False
+        else:
+            # 展开日志区
+            self.log_container.pack(fill=tk.BOTH, expand=True)
+            self.log_toggle_button.config(text="▲ 收起")
+            self.log_expanded = True
+
+    def resize_image(self, img, max_width, max_height):
+        """缩放图片以适应显示区域"""
+        if max_width <= 0 or max_height <= 0:
+            return img
+
+        # 计算缩放比例（保持宽高比，留一些边距）
+        target_width = max_width - 20
+        target_height = max_height - 20
+
+        ratio = min(target_width / img.width, target_height / img.height)
+
+        if ratio < 1:
+            new_width = int(img.width * ratio)
+            new_height = int(img.height * ratio)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        return img
+
+    def update_input_preview(self, image_path):
+        """更新输入图预览"""
+        try:
+            img = Image.open(image_path)
+            canvas_width = self.input_canvas.winfo_width()
+            canvas_height = self.input_canvas.winfo_height()
+
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width = 400
+                canvas_height = 300
+
+            img = self.resize_image(img, canvas_width, canvas_height)
+            self.input_photo = ImageTk.PhotoImage(img)
+
+            # 更新 Canvas 图片，靠右对齐 (anchor=tk.NE)
+            self.input_canvas.itemconfig(self.input_image_id, image=self.input_photo)
+            self.input_canvas.coords(self.input_image_id, (canvas_width, 0))
+        except Exception as e:
+            print(f"显示输入预览错误：{e}")
+
+    def update_output_preview(self, image_path):
+        """更新输出图预览"""
+        try:
+            img = Image.open(image_path)
+            canvas_width = self.output_canvas.winfo_width()
+            canvas_height = self.output_canvas.winfo_height()
+
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width = 400
+                canvas_height = 300
+
+            img = self.resize_image(img, canvas_width, canvas_height)
+            self.output_photo = ImageTk.PhotoImage(img)
+
+            # 更新 Canvas 图片，靠左对齐 (anchor=tk.NW)
+            self.output_canvas.itemconfig(self.output_image_id, image=self.output_photo)
+            self.output_canvas.coords(self.output_image_id, (0, 0))
+        except Exception as e:
+            print(f"显示输出预览错误：{e}")
+
+    def update_both_previews(self, input_path, output_path):
+        """同时更新输入图和输出图预览，确保配对正确"""
+        try:
+            # 读取输入图
+            input_img = Image.open(input_path)
+            input_canvas_width = self.input_canvas.winfo_width()
+            input_canvas_height = self.input_canvas.winfo_height()
+            if input_canvas_width <= 1 or input_canvas_height <= 1:
+                input_canvas_width = self.root.winfo_width() // 2
+                input_canvas_height = self.root.winfo_height() // 2
+
+            input_img = self.resize_image(input_img, input_canvas_width, input_canvas_height)
+            self.input_photo = ImageTk.PhotoImage(input_img)
+            self.input_canvas.itemconfig(self.input_image_id, image=self.input_photo)
+            self.input_canvas.coords(self.input_image_id, (input_canvas_width, 0))  # 靠右对齐
+
+            # 读取输出图
+            output_img = Image.open(output_path)
+            output_canvas_width = self.output_canvas.winfo_width()
+            output_canvas_height = self.output_canvas.winfo_height()
+            if output_canvas_width <= 1 or output_canvas_height <= 1:
+                output_canvas_width = self.root.winfo_width() // 2
+                output_canvas_height = self.root.winfo_height() // 2
+
+            output_img = self.resize_image(output_img, output_canvas_width, output_canvas_height)
+            self.output_photo = ImageTk.PhotoImage(output_img)
+            self.output_canvas.itemconfig(self.output_image_id, image=self.output_photo)
+            self.output_canvas.coords(self.output_image_id, (0, 0))  # 靠左对齐
+
+        except Exception as e:
+            print(f"显示预览错误：{e}")
     
     def select_input_folder(self):
         """选择输入文件夹"""
@@ -328,10 +568,11 @@ class BatchProcessorGUI:
             self.current_index = i
             # 更新进度
             progress = (i + 1) / total * 100
+            input_path = os.path.join(input_folder, image_file)
+
             self.root.after(0, lambda p=progress, f=image_file, idx=i, t=total: self.update_progress(p, f, idx, t))
 
             # 处理图片
-            input_path = os.path.join(input_folder, image_file)
             workflow = self.processor.load_workflow()
             success, result = self.processor.process_image(
                 workflow, input_path, output_folder, original_folder,
@@ -341,6 +582,8 @@ class BatchProcessorGUI:
             if success:
                 success_count += 1
                 self.root.after(0, lambda f=image_file, r=result: self.log(f"✓ {f} -> {r}"))
+                # 生成完成时才同时更新输入图和输出图预览，确保配对正确
+                self.root.after(0, lambda inp=input_path, out=result: self.update_both_previews(inp, out))
             else:
                 self.root.after(0, lambda f=image_file, r=result: self.log(f"✗ {f} - {r}"))
 

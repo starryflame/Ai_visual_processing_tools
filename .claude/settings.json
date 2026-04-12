@@ -22,7 +22,11 @@
       "Bash(python -c \"import json; f=open\\(r'其他\\\\comfyui\\\\工作流\\\\动漫转写实真人 2511（AnythingtoRealCharacters）正式版 - 高还原 2.json','r',encoding='utf-8'\\); print\\(json.dumps\\(json.load\\(f\\), indent=2, ensure_ascii=False\\)\\)\")",
       "Bash(python -c \"import os; files=os.listdir\\(r'其他\\\\comfyui\\\\工作流'\\); print\\([f for f in files if '高还原 2' in f]\\)\")",
       "Bash(python -c \"import os; files=os.listdir\\('其他/comfyui/工作流'\\); [print\\(f\\) for f in files]\")",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(python \"其他\\\\comfyui\\\\实时大屏展示.py\")",
+      "Bash(python \"其他\\\\comfyui\\\\batch_anime2real.py\")",
+      "Bash(python toolkit_launcher.py)",
+      "Read(//c/Windows/TEMP/claude/j--Ai_visual_processing_tools/618cb6bc-a9e5-4ad5-b47a-eb6744b7b8a8/tasks/**)"
     ]
   }
 }
