@@ -26,7 +26,9 @@
       "Bash(python \"其他\\\\comfyui\\\\实时大屏展示.py\")",
       "Bash(python \"其他\\\\comfyui\\\\batch_anime2real.py\")",
       "Bash(python toolkit_launcher.py)",
-      "Read(//c/Windows/TEMP/claude/j--Ai_visual_processing_tools/618cb6bc-a9e5-4ad5-b47a-eb6744b7b8a8/tasks/**)"
+      "Read(//c/Windows/TEMP/claude/j--Ai_visual_processing_tools/618cb6bc-a9e5-4ad5-b47a-eb6744b7b8a8/tasks/**)",
+      "Bash(python -c \"from pic_video_label_manager import VideoLabelManager; print\\('Import successful!'\\)\")",
+      "Bash(python -m py_compile pic_video_label_manager.py)"
     ]
   }
 }
