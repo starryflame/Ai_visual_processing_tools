@@ -574,11 +574,11 @@ class ImagePairToolGUI:
                 file_index_map[filename] = next_index
                 next_index += 1
 
-        # 如果启用打乱，先重命名已存在的文件
+        # 如果启用打乱，先重命名已存在的文件（包括图片和 TXT）
         if enable_rename and shuffle_order and existing_index_map:
             image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
             for folder in [control_folder, target_folder]:
-                # 第一步：将所有文件重命名为临时名称
+                # 第一步：将所有文件重命名为临时名称（包括 TXT）
                 temp_map = {}  # 旧序号 -> (临时名称，新序号)
                 for f in os.listdir(folder):
                     if f.startswith("pair_") and f.lower().endswith(image_extensions):
@@ -595,11 +595,34 @@ class ImagePairToolGUI:
                         except ValueError:
                             pass
 
-                # 第二步：将临时文件重命名为最终名称
+                # 同时处理 TXT 文件
+                txt_temp_map = {}
+                for f in os.listdir(folder):
+                    if f.startswith("pair_") and f.lower().endswith('.txt'):
+                        try:
+                            old_idx = int(f[5:8])
+                            if old_idx in existing_index_map:
+                                new_idx = existing_index_map[old_idx]
+                                temp_name = f"_temp_{old_idx:03d}.txt"
+                                old_path = os.path.join(folder, f)
+                                temp_path = os.path.join(folder, temp_name)
+                                os.rename(old_path, temp_path)
+                                txt_temp_map[old_idx] = (temp_name, new_idx)
+                        except ValueError:
+                            pass
+
+                # 第二步：将临时文件重命名为最终名称（包括 TXT）
                 for old_idx, (temp_name, new_idx) in temp_map.items():
                     ext = Path(temp_name).suffix
                     temp_path = os.path.join(folder, temp_name)
                     new_name = f"pair_{new_idx:03d}{ext}"
+                    new_path = os.path.join(folder, new_name)
+                    os.rename(temp_path, new_path)
+
+                # 重命名 TXT 文件
+                for old_idx, (temp_name, new_idx) in txt_temp_map.items():
+                    temp_path = os.path.join(folder, temp_name)
+                    new_name = f"pair_{new_idx:03d}.txt"
                     new_path = os.path.join(folder, new_name)
                     os.rename(temp_path, new_path)
 
@@ -658,6 +681,25 @@ class ImagePairToolGUI:
                 target_dest = os.path.join(target_folder, export_name)
                 img_right_processed.save(target_dest)
 
+                # 导出同名 TXT 标注文件（保持配对）
+                txt_name = Path(filename).stem + '.txt'
+                left_txt = os.path.join(left_folder, txt_name)
+                right_txt = os.path.join(right_folder, txt_name)
+
+                if os.path.exists(left_txt):
+                    if enable_rename:
+                        txt_export_name = f"pair_{file_index:03d}.txt"
+                        shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
+                    else:
+                        shutil.copy2(left_txt, os.path.join(control_folder, txt_name))
+
+                if os.path.exists(right_txt):
+                    if enable_rename:
+                        txt_export_name = f"pair_{file_index:03d}.txt"
+                        shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
+                    else:
+                        shutil.copy2(right_txt, os.path.join(target_folder, txt_name))
+
                 return (export_name, True, None)
 
             except Exception as e:
@@ -710,7 +752,7 @@ class ImagePairToolGUI:
         self.right_panel.update_listbox_colors()
 
     def export_pairs(self):
-        """导出配对图片（调整分辨率后分别保存）"""
+        """导出配对图片（调整分辨率后分别保存），同时导出同名 TXT 标注文件"""
         export_folder = self.export_folder.get()
 
         if not export_folder:
@@ -757,6 +799,8 @@ class ImagePairToolGUI:
         left_name = Path(left_path).name
         right_name = Path(right_path).name
         export_name = left_name
+        left_folder = Path(left_path).parent
+        right_folder = Path(right_path).parent
 
         try:
             img_left = Image.open(left_path)
@@ -790,6 +834,15 @@ class ImagePairToolGUI:
 
             target_dest = os.path.join(target_folder, export_name)
             img_right_processed.save(target_dest)
+
+            # 导出同名 TXT 标注文件（保持配对）
+            left_txt = Path(left_folder) / Path(left_name).stem.with_suffix('.txt')
+            right_txt = Path(right_folder) / Path(right_name).stem.with_suffix('.txt')
+
+            if left_txt.exists():
+                shutil.copy2(left_txt, os.path.join(control_folder, Path(left_name).stem + '.txt'))
+            if right_txt.exists():
+                shutil.copy2(right_txt, os.path.join(target_folder, Path(right_name).stem + '.txt'))
 
             if fill_ratio:
                 if crop_style:

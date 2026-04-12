@@ -9,6 +9,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QSize
 from image_processor import ImageProcessor
 from styles import *
+from code.settings_ui import SettingsUI
 
 # 页面尺寸配置类
 class PageSizeConfig:
@@ -76,6 +77,7 @@ class TaggerUI(QMainWindow):
     from code.statistics import update_statistics
     from code.ai_caption_generator import generate_caption_for_selected
     from code.shuffle_files import shuffle_current_folder_files
+    from code.settings_ui import SettingsUI
     
     def __init__(self):
         super().__init__()
@@ -93,7 +95,7 @@ class TaggerUI(QMainWindow):
         # 添加预设标签列表
         self.preset_tags = []      # 存储预设标签
         # 添加主题相关属性
-        self.current_theme = "light"  # 默认主题
+        self.current_theme = "dark"  # 默认主题
         self.init_ui()
         # 启用拖拽功能
         self.setAcceptDrops(True)
@@ -130,24 +132,61 @@ class TaggerUI(QMainWindow):
         self.frequency_tab = QWidget()
         self.frequency_tab.setFont(GLOBAL_FONT)
         self.setup_frequency_tab()
-        
+
+        # 创建配置页面
+        self.settings_tab = SettingsUI(self)
+        self.settings_tab.setFont(GLOBAL_FONT)
+
         # 添加标签页
         self.tab_widget.addTab(self.main_tab, "主界面")
         self.tab_widget.addTab(self.frequency_tab, "词频统计")
+        self.tab_widget.addTab(self.settings_tab, "模型配置")
         
         # 设置主布局
         main_layout = QVBoxLayout(central_widget)
         main_layout.addWidget(self.tab_widget)
         
         # 添加主题切换按钮
-        self.theme_button = QPushButton('切换到深色主题')
+        self.theme_button = QPushButton('切换到浅色主题')
         self.theme_button.clicked.connect(self.toggle_theme)
         self.theme_button.setFont(GLOBAL_FONT)
         self.theme_button.setMinimumHeight(50)
         main_layout.addWidget(self.theme_button)
-        
+
+        # 初始化时应用深色主题
+        self.setStyleSheet(DARK_THEME)
         # 初始化时应用按钮样式
         self.apply_button_styles()
+        # 初始化统计标签和图像标签样式
+        self.stats_label.setStyleSheet(STATS_LABEL_STYLE_DARK)
+        self.image_label.setStyleSheet(IMAGE_LABEL_STYLE_DARK)
+        # 初始化标签列表样式（深色）
+        self.tags_list.setStyleSheet("""
+            QListWidget {
+                border: 2px solid #777777;
+                border-radius: 8px;
+                background-color: #2A2A2A;
+                padding: 8px;
+                outline: none;
+            }
+            QListWidget::item {
+                border: 1px solid #555555;
+                border-radius: 6px;
+                padding: 8px 12px;
+                background-color: #3A3A3A;
+                margin: 2px 0;
+                color: white;
+            }
+            QListWidget::item:selected {
+                background-color: #5A9BD9;
+                color: white;
+                font-weight: bold;
+                border: none;
+            }
+            QListWidget::item:hover {
+                background-color: #4A4A4A;
+            }
+        """)
         
     def setup_main_tab(self):
         # 主布局使用分割器
@@ -281,22 +320,51 @@ class TaggerUI(QMainWindow):
         tag_display_layout = QVBoxLayout(tag_display_panel)
         
         # 标签显示区域
-        label = QLabel('标签展示')
+        label = QLabel('标签展示 (双击编辑，拖动排序)')
         label.setFont(GLOBAL_FONT)  # 应用全局字体
         tag_display_layout.addWidget(label)
         
-        # 创建滚动区域用于标签展示
-        self.tags_scroll_area = QScrollArea()
-        self.tags_scroll_area.setWidgetResizable(True)
-        self.tags_container = QWidget()
+        # 创建列表控件用于标签展示，支持编辑和拖动
+        self.tags_list = QListWidget()
+        self.tags_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.tags_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.tags_list.setDefaultDropAction(Qt.MoveAction)
+        self.tags_list.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
         # 应用全局字体
-        self.tags_container.setFont(GLOBAL_FONT)
-        self.tags_layout = QVBoxLayout(self.tags_container)
-        self.tags_scroll_area.setWidget(self.tags_container)
-        # 应用全局字体
-        self.tags_scroll_area.setFont(GLOBAL_FONT)
+        self.tags_list.setFont(GLOBAL_FONT)
+        # 增加标签间距和内边距
+        self.tags_list.setSpacing(8)  # 标签项之间的垂直间距
+        self.tags_list.setStyleSheet("""
+            QListWidget {
+                border: 2px solid #999999;
+                border-radius: 8px;
+                background-color: white;
+                padding: 8px;
+                outline: none;
+            }
+            QListWidget::item {
+                border: 1px solid #DDDDDD;
+                border-radius: 6px;
+                padding: 8px 12px;
+                background-color: #F8F8F8;
+                margin: 2px 0;
+            }
+            QListWidget::item:selected {
+                background-color: #4A90D9;
+                color: white;
+                font-weight: bold;
+                border: none;
+            }
+            QListWidget::item:hover {
+                background-color: #E8F4FC;
+            }
+        """)
+        # 监听拖动顺序改变信号
+        self.tags_list.model().rowsMoved.connect(self.on_tags_reordered)
+        # 监听编辑完成信号
+        self.tags_list.itemChanged.connect(self.on_tag_edited)
 
-        tag_display_layout.addWidget(self.tags_scroll_area)
+        tag_display_layout.addWidget(self.tags_list)
         
         # 添加AI提示词编辑区域
         ai_prompt_label = QLabel('AI提示词设置:')
@@ -631,6 +699,40 @@ class TaggerUI(QMainWindow):
         if current_row < self.file_list.count() - 1:  # 确保不是最后一张图片
             self.file_list.setCurrentRow(current_row + 1)
 
+    def on_tags_reordered(self):
+        """当标签顺序改变时，保存新的顺序到文件"""
+        if not self.current_image_name:
+            return
+            
+        # 获取列表中的所有标签
+        tags = []
+        for i in range(self.tags_list.count()):
+            item = self.tags_list.item(i)
+            if item:
+                tags.append(item.text())
+        
+        # 保存更新后的标签顺序
+        self.image_processor.save_tags_to_image(self.current_image_name, tags)
+        # 刷新统计信息
+        self.update_tag_statistics()
+
+    def on_tag_edited(self, item):
+        """当标签被编辑时，保存修改到文件"""
+        if not self.current_image_name:
+            return
+            
+        # 获取所有标签
+        tags = []
+        for i in range(self.tags_list.count()):
+            tag_item = self.tags_list.item(i)
+            if tag_item:
+                tags.append(tag_item.text())
+        
+        # 保存更新后的标签
+        self.image_processor.save_tags_to_image(self.current_image_name, tags)
+        # 刷新统计信息
+        self.update_tag_statistics()
+
     def toggle_theme(self):
         """切换主题"""
         if self.current_theme == "light":
@@ -651,11 +753,61 @@ class TaggerUI(QMainWindow):
         if self.current_theme == "dark":
             self.stats_label.setStyleSheet(STATS_LABEL_STYLE_DARK)
             self.image_label.setStyleSheet(IMAGE_LABEL_STYLE_DARK)
-            self.tags_scroll_area.setStyleSheet(STATS_LABEL_STYLE_DARK)
+            self.tags_list.setStyleSheet("""
+                QListWidget {
+                    border: 2px solid #777777;
+                    border-radius: 8px;
+                    background-color: #2A2A2A;
+                    padding: 8px;
+                    outline: none;
+                }
+                QListWidget::item {
+                    border: 1px solid #555555;
+                    border-radius: 6px;
+                    padding: 8px 12px;
+                    background-color: #3A3A3A;
+                    margin: 2px 0;
+                    color: white;
+                }
+                QListWidget::item:selected {
+                    background-color: #5A9BD9;
+                    color: white;
+                    font-weight: bold;
+                    border: none;
+                }
+                QListWidget::item:hover {
+                    background-color: #4A4A4A;
+                }
+            """)
         else:
             self.stats_label.setStyleSheet(STATS_LABEL_STYLE_LIGHT)
             self.image_label.setStyleSheet(IMAGE_LABEL_STYLE_LIGHT)
-            self.tags_scroll_area.setStyleSheet(STATS_LABEL_STYLE_LIGHT)
+            self.tags_list.setStyleSheet("""
+                QListWidget {
+                    border: 2px solid #999999;
+                    border-radius: 8px;
+                    background-color: white;
+                    padding: 8px;
+                    outline: none;
+                }
+                QListWidget::item {
+                    border: 1px solid #DDDDDD;
+                    border-radius: 6px;
+                    padding: 8px 12px;
+                    background-color: #F8F8F8;
+                    margin: 2px 0;
+                    color: black;
+                }
+                QListWidget::item:selected {
+                    background-color: #4A90D9;
+                    color: white;
+                    font-weight: bold;
+                    border: none;
+                }
+                QListWidget::item:hover {
+                    background-color: #E8F4FC;
+                }
+            """)
             
     def apply_button_styles(self):
         """应用按钮样式"""

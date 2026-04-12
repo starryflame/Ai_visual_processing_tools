@@ -1,4 +1,4 @@
-# AI提示词生成功能
+# AI 提示词生成功能
 import os
 import io
 import base64
@@ -14,6 +14,7 @@ from PIL import Image
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
 def generate_caption_for_selected(self):
     """ 为选中的图片生成提示词 """
     if not self.selected_images:
@@ -24,25 +25,25 @@ def generate_caption_for_selected(self):
     progress_dialog = QProgressDialog("正在生成提示词...", "取消", 0, len(self.selected_images), self)
     progress_dialog.setWindowModality(Qt.WindowModal)
     progress_dialog.setMinimumDuration(0)
-    
+
     # 增大进度对话框尺寸
-    progress_dialog.setFixedSize(600, 200)  # 设置宽度600px，高度200px
-    
+    progress_dialog.setFixedSize(600, 200)  # 设置宽度 600px，高度 200px
+
     # 设置字体和标题
-    font = QFont("Microsoft YaHei", 10)  # 使用微软雅黑字体，字号10
+    font = QFont("Microsoft YaHei", 10)  # 使用微软雅黑字体，字号 10
     progress_dialog.setFont(font)
-    progress_dialog.setWindowTitle("AI提示词生成中...")
+    progress_dialog.setWindowTitle("AI 提示词生成中...")
 
     generated_count = 0
     for i, image_name in enumerate(self.selected_images):
         if progress_dialog.wasCanceled():
             break
-            
+
         progress_dialog.setValue(i)
-        progress_dialog.setLabelText(f"正在处理: {image_name}")
-        
+        progress_dialog.setLabelText(f"正在处理：{image_name}")
+
         try:
-            # 直接在generate_caption_for_selected中实现generate_caption_with_ai的功能
+            # 直接在 generate_caption_for_selected 中实现 generate_caption_with_ai 的功能
             # 获取图片路径
             image_info = self.image_processor.images[image_name]
             image_path = image_info['image_path']
@@ -52,44 +53,47 @@ def generate_caption_for_selected(self):
             image = Image.open(image_path).convert('RGB')
             max_size = (1024, 1024)
             image.thumbnail(max_size, Image.Resampling.LANCZOS)
-            
-            # 转换图片为base64格式
+
+            # 转换图片为 base64 格式
             import io
             buffered = io.BytesIO()
             image.save(buffered, format="PNG")
             encoded = base64.b64encode(buffered.getvalue()).decode("utf-8")
             data_url = f"data:image/png;base64,{encoded}"
-            
-            # 从配置中获取Ollama API设置
-            # 修复：更正Ollama API的基础URL，应该使用 /v1 而不是 /api/generate
-            api_base_url = "http://127.0.0.1:11434/v1"  # Ollama默认值
-            api_key = "ollama"  # Ollama默认值
-            model_name = "qwen3-vl:30b"  # Ollama模型名称
-            
+
+            # 从配置中获取 API 设置
+            api_base_url = "http://127.0.0.1:11434/v1"  # Ollama 默认值
+            api_key = "ollama"  # Ollama 默认值
+            model_name = "qwen3-vl:30b"  # Ollama 模型名称
+            max_tokens = 16384
+            temperature = 0.3
+            top_p = 0.9
+
             # 尝试从配置文件读取设置
-            import os
-            import configparser
             config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
             filter_words = []  # 过滤词列表
             max_caption_length = 1000  # 默认最大长度
             if os.path.exists(config_path):
                 config = configparser.ConfigParser()
                 config.read(config_path, encoding='utf-8')
-                if 'OLLAMA' in config:  # 修改为从OLLAMA节读取配置
+                if 'OLLAMA' in config:
                     api_base_url = config.get('OLLAMA', 'api_base_url', fallback=api_base_url)
                     api_key = config.get('OLLAMA', 'api_key', fallback=api_key)
                     model_name = config.get('OLLAMA', 'model_name', fallback=model_name)
-                
+                    max_tokens = config.getint('OLLAMA', 'max_tokens', fallback=max_tokens)
+                    temperature = config.getfloat('OLLAMA', 'temperature', fallback=temperature)
+                    top_p = config.getfloat('OLLAMA', 'top_p', fallback=top_p)
+
                 # 读取过滤词列表
                 if 'FILTER_WORDS' in config:
                     filter_words_str = config.get('FILTER_WORDS', 'words', fallback='')
                     if filter_words_str:
                         filter_words = [word.strip().lower() for word in filter_words_str.split(',') if word.strip()]
-                        
+
                 # 读取最大提示词长度限制
                 if 'MAX_CAPTION_LENGTH' in config:
                     max_caption_length = config.getint('MAX_CAPTION_LENGTH', 'max_length', fallback=1000)
-            
+
             # 初始化客户端
             from openai import OpenAI
             client = OpenAI(
@@ -97,7 +101,7 @@ def generate_caption_for_selected(self):
                 base_url=api_base_url,
                 timeout=3600
             )
-            
+
             # 使用传入的提示词或者默认提示词
             prompt_text = self.ai_prompt_input.toPlainText()
             if not prompt_text:
@@ -108,7 +112,7 @@ def generate_caption_for_selected(self):
                     config.read(config_path, encoding='utf-8')
                     if 'PROMPTS' in config:
                         prompt_text = config.get('PROMPTS', 'image_prompt', fallback=prompt_text)
-            
+
             # 构造消息
             content_list = [
                 {
@@ -120,24 +124,24 @@ def generate_caption_for_selected(self):
                     "image_url": {"url": data_url}
                 }
             ]
-            
+
             messages = [{"role": "user", "content": content_list}]
 
            # 发送请求并检查生成的提示词长度
-            max_attempts = 10  # 最多尝试10次
+            max_attempts = 10  # 最多尝试 10 次
             caption = ""
             for attempt in range(max_attempts):
                 # 发送请求
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=messages,
-                    max_tokens=16384,
-                    temperature=0.3,
-                    top_p=0.9,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
                 )
-                
+
                 caption = response.choices[0].message.content.strip()
-                
+
                 # 检查是否包含过滤词
                 contains_filter_word = False
                 caption_lower = caption.lower()
@@ -146,7 +150,7 @@ def generate_caption_for_selected(self):
                         contains_filter_word = True
                         logger.info(f"生成的提示词包含过滤词 '{word}'，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
                         break
-                
+
                 # 检查提示词长度，如果超过设定长度则重新生成
                 if len(caption) > max_caption_length:
                     logger.info(f"生成的提示词长度为 {len(caption)} 字，超过{max_caption_length}字限制，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
@@ -157,29 +161,29 @@ def generate_caption_for_selected(self):
                         # 最后一次尝试后仍然超长，则截断并添加提示
                         logger.warning(f"经过 {max_attempts} 次尝试后，提示词长度仍超过{max_caption_length}字，将截断处理")
                         truncated_caption = caption[:max_caption_length]
-                        
+
                         # 检查英文提示词是否被截断（以英文字母结尾但没有句号）
                         import re
                         if re.search(r'[a-zA-Z]$', truncated_caption) and not re.search(r'\.$', truncated_caption):
                             truncated_caption += "...(内容过长且可能被截断)"
                         else:
                             truncated_caption += "...(内容过长已截断)"
-                            
+
                         caption = truncated_caption
                         break
-                
-                # 新增：检查提示词是否为空或少于10个字
+
+                # 新增：检查提示词是否为空或少于 10 个字
                 if len(caption) < 10:
-                    logger.info(f"生成的提示词长度为 {len(caption)} 字，少于10字，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
+                    logger.info(f"生成的提示词长度为 {len(caption)} 字，少于 10 字，正在重新生成... (尝试 {attempt + 1}/{max_attempts})")
                     # 如果不是最后一次尝试，继续循环重新生成
                     if attempt < max_attempts - 1:
                         continue
                     else:
                         # 最后一次尝试后仍然太短，则返回默认提示
-                        logger.warning(f"经过 {max_attempts} 次尝试后，提示词长度仍少于10字")
+                        logger.warning(f"经过 {max_attempts} 次尝试后，提示词长度仍少于 10 字")
                         caption = "提示词内容过短，无法提供有效描述"
                         break
-                
+
                 # 如果包含过滤词且不是最后一次尝试，则重新生成
                 if contains_filter_word and attempt < max_attempts - 1:
                     continue
@@ -189,7 +193,7 @@ def generate_caption_for_selected(self):
                 # 如果不包含过滤词且长度符合要求，则跳出循环
                 if not contains_filter_word:
                     break
-            
+
             # 如果所有尝试都包含过滤词，则在最后返回时移除过滤词
             if contains_filter_word:
                 logger.warning(f"经过 {max_attempts} 次尝试后，生成的提示词仍包含过滤词，将强制移除")
@@ -201,9 +205,9 @@ def generate_caption_for_selected(self):
             # 保存提示词到标签文件
             self.image_processor.save_tags_to_image(image_name, [caption])
             generated_count += 1
-            
+
         except Exception as e:
-            logger.error(f"生成 {image_name} 的提示词时出错: {e}")
+            logger.error(f"生成 {image_name} 的提示词时出错：{e}")
             # 继续处理其他图片，不中断整个过程
 
     progress_dialog.setValue(len(self.selected_images))
@@ -213,4 +217,3 @@ def generate_caption_for_selected(self):
     self.update_tag_statistics()
 
     QMessageBox.information(self, "完成", f"已为 {generated_count} 张图片生成提示词")
-
