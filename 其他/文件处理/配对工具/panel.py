@@ -321,7 +321,7 @@ class ImagePanel:
         self.update_listbox_colors()
 
     def on_select(self, event):
-        """列表选择事件 - 点击图片时检测另一侧同名文件并选中"""
+        """列表选择事件 - 点击图片时检测另一侧同名文件并选中（支持不同后缀名配对）"""
         selection = self.listbox.curselection()
         if selection:
             self.current_index = selection[0]
@@ -339,15 +339,28 @@ class ImagePanel:
                     other_panel = main_window.left_panel
 
             if other_panel and other_panel.image_files:
+                # 提取文件名主体（不含后缀），用于不同后缀名的配对
+                from pathlib import Path
+                selected_name_stem = Path(selected_filename).stem
+
+                # 先尝试精确匹配（完全相同的文件名）
                 try:
                     other_index = other_panel.image_files.index(selected_filename)
+                except ValueError:
+                    # 精确匹配失败，尝试匹配相同文件名的不同后缀版本
+                    other_index = None
+                    for i, other_filename in enumerate(other_panel.image_files):
+                        other_name_stem = Path(other_filename).stem
+                        if other_name_stem == selected_name_stem:
+                            other_index = i
+                            break
+
+                if other_index is not None:
                     if other_panel.current_index != other_index:
                         other_panel.current_index = other_index
                         other_panel.show_image(other_index)
                         other_panel.listbox.selection_clear(0, tk.END)
                         other_panel.listbox.selection_set(other_index)
-                except ValueError:
-                    pass
 
             self.show_image(self.current_index)
 

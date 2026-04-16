@@ -366,10 +366,14 @@ class ImagePairToolGUI:
 
     def _delete_images_internal(self, left_path, right_path, left_name, right_name):
         """内部删除逻辑"""
-        # 删除左侧图片
+        # 删除左侧图片及同名.txt 文件
         if left_path and os.path.exists(left_path):
             try:
                 os.remove(left_path)
+                # 删除同名.txt 文件
+                left_txt_path = Path(left_path).with_suffix('.txt')
+                if left_txt_path.exists():
+                    os.remove(left_txt_path)
                 self.left_panel.image_files.pop(self.left_panel.current_index)
                 self.left_panel.listbox.delete(self.left_panel.current_index)
                 if self.left_panel.current_index >= len(self.left_panel.image_files):
@@ -383,10 +387,14 @@ class ImagePairToolGUI:
                 messagebox.showerror("错误", f"左侧删除失败：{str(e)}")
                 return
 
-        # 删除右侧图片
+        # 删除右侧图片及同名.txt 文件
         if right_path and os.path.exists(right_path):
             try:
                 os.remove(right_path)
+                # 删除同名.txt 文件
+                right_txt_path = Path(right_path).with_suffix('.txt')
+                if right_txt_path.exists():
+                    os.remove(right_txt_path)
                 self.right_panel.image_files.pop(self.right_panel.current_index)
                 self.right_panel.listbox.delete(self.right_panel.current_index)
                 if self.right_panel.current_index >= len(self.right_panel.image_files):
@@ -671,9 +679,10 @@ class ImagePairToolGUI:
 
                 if enable_rename:
                     file_index = file_index_map[filename]
-                    export_name = f"pair_{file_index:03d}{Path(filename).suffix}"
+                    export_name = f"pair_{file_index:03d}.png"
                 else:
-                    export_name = filename
+                    # 统一使用 .png 后缀
+                    export_name = Path(filename).stem + '.png'
 
                 control_dest = os.path.join(control_folder, export_name)
                 img_left_processed.save(control_dest)
@@ -798,7 +807,8 @@ class ImagePairToolGUI:
 
         left_name = Path(left_path).name
         right_name = Path(right_path).name
-        export_name = left_name
+        # 统一使用 .png 后缀
+        export_name = Path(left_name).stem + '.png'
         left_folder = Path(left_path).parent
         right_folder = Path(right_path).parent
 
