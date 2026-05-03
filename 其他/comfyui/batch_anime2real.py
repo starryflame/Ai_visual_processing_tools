@@ -58,9 +58,9 @@ class ComfyUIBatchProcessor:
         if "110" in workflow:
             workflow["110"]["inputs"]["prompt"] = prompt
 
-        # 修改 LoRA 路径（节点 297）
-        if "297" in workflow:
-            workflow["297"]["inputs"]["lora_name"] = lora_name
+        # 修改 LoRA 路径（节点 337）
+        if "337" in workflow:
+            workflow["337"]["inputs"]["lora_name"] = lora_name
 
         # 提交任务
         result = self.queue_prompt(workflow)
@@ -110,7 +110,10 @@ class BatchProcessorGUI:
         self.output_folder = tk.StringVar()
         self.prompt_text = tk.StringVar(value="动漫转真人，无水印")
         self.lora_path = tk.StringVar(value=r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors")
+        # 用于存储完整路径的映射
+        self.lora_full_paths = {}
         self.start_index = tk.IntVar(value=0)
+        self.process_mode = tk.StringVar(value="全自动模式")  # 全自动模式/半自动模式
         self.processor = ComfyUIBatchProcessor()
 
         # 控制变量
@@ -123,6 +126,10 @@ class BatchProcessorGUI:
         self.current_thread = None
         self.current_index = 0  # 当前处理索引
         self.total_count = 0    # 总数
+
+        # 半自动模式专用
+        self.semi_result = None  # None=等待中，"next"=下一张，"retry"=重新生成，"stop"=停止
+        self.semi_done_event = threading.Event()
 
         # 日志区折叠状态
         self.log_expanded = True
@@ -194,11 +201,24 @@ class BatchProcessorGUI:
         tk.Label(prompt_frame, text="提示词:", width=12).pack(side=tk.LEFT)
         tk.Entry(prompt_frame, textvariable=self.prompt_text).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
 
-        # LoRA 路径输入
+        # 模式选择 - 下拉框
+        mode_frame = tk.Frame(parent, pady=5)
+        mode_frame.pack(fill=tk.X)
+        tk.Label(mode_frame, text="处理模式:", width=12).pack(side=tk.LEFT)
+        mode_combo = ttk.Combobox(mode_frame, textvariable=self.process_mode, state="readonly", width=20)
+        mode_combo['values'] = ["全自动模式", "半自动模式"]
+        mode_combo.pack(side=tk.LEFT, padx=5)
+        # 设置默认值
+        mode_combo.current(0)
+
+        # LoRA 路径选择 - 下拉框
         lora_frame = tk.Frame(parent, pady=5)
         lora_frame.pack(fill=tk.X)
         tk.Label(lora_frame, text="LoRA 路径:", width=12).pack(side=tk.LEFT)
-        tk.Entry(lora_frame, textvariable=self.lora_path).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        self.lora_combo = ttk.Combobox(lora_frame, textvariable=self.lora_path, state="readonly")
+        self.lora_combo.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        # 加载模型列表
+        self.load_lora_models()
 
         # 起始索引输入
         index_frame = tk.Frame(parent, pady=5)
@@ -444,6 +464,38 @@ class BatchProcessorGUI:
         folder = filedialog.askdirectory()
         if folder:
             self.output_folder.set(folder)
+
+    def load_lora_models(self):
+        """加载 LoRA 模型列表"""
+        lora_folder = r"J:\models\loras\qwen_edit\自创"
+        base_path = r"J:\models\loras"
+
+        if os.path.exists(lora_folder):
+            model_files = []
+            # 遍历文件夹获取所有文件
+            for root, _, files in os.walk(lora_folder):
+                for file in files:
+                    if file.lower().endswith('.safetensors') or file.lower().endswith('.pt') or file.lower().endswith('.pth'):
+                        # 存储完整路径
+                        full_path = os.path.join(root, file)
+                        # 生成相对路径（从 qwen_edit\自创 开始）
+                        rel_path = os.path.relpath(full_path, base_path)
+                        model_files.append(rel_path)
+                        # 保存相对路径到完整路径的映射
+                        self.lora_full_paths[rel_path] = full_path
+
+            # 设置下拉框选项
+            self.lora_combo['values'] = model_files
+
+            # 设置默认选中项
+            if model_files:
+                default_model = r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors"
+                if default_model in model_files:
+                    self.lora_path.set(default_model)
+                else:
+                    self.lora_path.set(model_files[0])
+        else:
+            messagebox.showwarning("警告", f"模型文件夹不存在：{lora_folder}")
     
     def log(self, message):
         """添加日志"""
@@ -524,6 +576,107 @@ class BatchProcessorGUI:
                 self.pause_event.set()  # 如果在暂停状态，先恢复以便退出
                 self.log("⏹ 正在停止...")
 
+    def wait_semi_decision(self):
+        """半自动模式：等待用户确认"""
+        self.semi_result = None
+        self.semi_new_prompt = None  # 存储新提示词
+        self.semi_done_event.clear()
+
+        # 在主线程中显示对话框
+        self.root.after(0, self.show_semi_dialog)
+
+        # 等待用户决定
+        self.semi_done_event.wait()
+
+        # 如果用户修改了提示词，更新主界面的提示词
+        if self.semi_new_prompt is not None:
+            self.prompt_text.set(self.semi_new_prompt)
+
+    def show_semi_dialog(self):
+        """显示半自动模式确认对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("生成完成 - 请选择操作")
+        dialog.geometry("450x280")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()  # 模态对话框
+
+        # 居中显示
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (280 // 2)
+        dialog.geometry(f"450x280+{x}+{y}")
+
+        # 标题
+        tk.Label(
+            dialog,
+            text="图片已生成完成",
+            font=("Microsoft YaHei UI", 14, "bold")
+        ).pack(pady=10)
+
+        # 提示词编辑区域
+        prompt_edit_frame = tk.Frame(dialog)
+        prompt_edit_frame.pack(fill=tk.X, padx=20, pady=5)
+
+        tk.Label(
+            prompt_edit_frame,
+            text="提示词:",
+            font=("Microsoft YaHei UI", 10)
+        ).pack(side=tk.LEFT)
+
+        prompt_entry = tk.Entry(prompt_edit_frame, font=("Microsoft YaHei UI", 10))
+        prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        prompt_entry.insert(0, self.prompt_text.get())
+
+        # 按钮框架
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=15)
+
+        # 重新生成按钮
+        retry_btn = tk.Button(
+            btn_frame,
+            text="↻ 不满意，重新生成",
+            command=lambda: self.semi_decide("retry", dialog, prompt_entry.get()),
+            width=18,
+            bg="#FF9800",
+            fg="white",
+            font=("Microsoft YaHei UI", 10)
+        )
+        retry_btn.pack(side=tk.LEFT, padx=10)
+
+        # 下一张按钮
+        next_btn = tk.Button(
+            btn_frame,
+            text="✓ 满意，下一张",
+            command=lambda: self.semi_decide("next", dialog, prompt_entry.get()),
+            width=15,
+            bg="#4CAF50",
+            fg="white",
+            font=("Microsoft YaHei UI", 10)
+        )
+        next_btn.pack(side=tk.LEFT, padx=10)
+
+        # 停止按钮
+        stop_btn = tk.Button(
+            btn_frame,
+            text="⏹ 停止处理",
+            command=lambda: self.semi_decide("stop", dialog, prompt_entry.get()),
+            width=10,
+            bg="#f44336",
+            fg="white",
+            font=("Microsoft YaHei UI", 10)
+        )
+        stop_btn.pack(side=tk.LEFT, padx=10)
+
+    def semi_decide(self, decision, dialog, new_prompt=None):
+        """处理用户的决定"""
+        self.semi_result = decision
+        # 如果提示词有变化，保存新提示词
+        if new_prompt is not None and new_prompt != self.prompt_text.get():
+            self.semi_new_prompt = new_prompt
+        self.semi_done_event.set()
+        dialog.destroy()
+
     def _update_button_state(self, running, paused):
         """更新按钮状态"""
         if running:
@@ -543,17 +696,17 @@ class BatchProcessorGUI:
         success_count = 0
 
         # 创建原图和输出图片子文件夹
-        original_folder = os.path.join(output_folder, "原图")
-        output_image_folder = os.path.join(output_folder, "输出图片")
+        original_folder = os.path.join(output_folder, "control")
+        output_image_folder = os.path.join(output_folder, "target")
         os.makedirs(original_folder, exist_ok=True)
         os.makedirs(output_image_folder, exist_ok=True)
 
-        # 获取用户输入的提示词和 LoRA 路径
-        prompt = self.prompt_text.get().strip()
-        lora_name = self.lora_path.get().strip()
+        # 检查是否为半自动模式
+        is_semi_auto = self.process_mode.get() == "半自动模式"
 
         # 从指定索引开始处理
-        for i in range(start_index, len(image_files)):
+        i = start_index
+        while i < len(image_files):
             # 检查是否被停止
             if self.stop_flag:
                 self.root.after(0, lambda: self.log("⏹ 处理已停止"))
@@ -564,6 +717,10 @@ class BatchProcessorGUI:
                 time.sleep(0.5)
                 if self.stop_flag:
                     break
+
+            # 每次循环前获取最新的提示词和 LoRA 路径（支持在半自动模式下修改）
+            prompt = self.prompt_text.get().strip()
+            lora_name = self.lora_path.get().strip()
 
             image_file = image_files[i]
             # 更新当前索引
@@ -586,8 +743,45 @@ class BatchProcessorGUI:
                 self.root.after(0, lambda f=image_file, r=result: self.log(f"✓ {f} -> {r}"))
                 # 生成完成时才同时更新输入图和输出图预览，确保配对正确
                 self.root.after(0, lambda inp=input_path, out=result: self.update_both_previews(inp, out))
+
+                # 半自动模式下等待用户确认
+                if is_semi_auto:
+                    self.root.after(0, lambda: self.log("⏸ 等待用户确认..."))
+                    self.wait_semi_decision()
+
+                    # 检查用户决定
+                    if self.semi_result == "stop":
+                        self.start_index.set(self.current_index)
+                        self.root.after(0, lambda: self.log("⏹ 处理已停止"))
+                        break
+                    elif self.semi_result == "retry":
+                        # 重新生成，不增加索引（提示词已在 wait_semi_decision 中更新）
+                        self.root.after(0, lambda: self.log("↻ 重新生成当前图片..."))
+                        continue
+                    elif self.semi_result == "next":
+                        # 下一张
+                        i += 1
+                        continue
             else:
                 self.root.after(0, lambda f=image_file, r=result: self.log(f"✗ {f} - {r}"))
+                # 失败时也等待用户确认
+                if is_semi_auto:
+                    self.root.after(0, lambda: self.log("⏸ 等待用户确认..."))
+                    self.wait_semi_decision()
+
+                    if self.semi_result == "stop":
+                        self.start_index.set(self.current_index)
+                        break
+                    elif self.semi_result == "retry":
+                        continue
+                    elif self.semi_result == "next":
+                        i += 1
+                        continue
+                else:
+                    i += 1
+                    continue
+
+            i += 1
 
         self.root.after(0, lambda sc=success_count, t=total, si=start_index: self.finish_processing(sc, t, si))
 

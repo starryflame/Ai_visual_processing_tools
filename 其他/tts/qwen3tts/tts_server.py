@@ -5,7 +5,7 @@ OpenAI API 兼容的 TTS 服务端点
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 import uvicorn
-from tts_adapter import TTSAAdapter
+from 其他.tts.qwen3tts.tts_adapter import TTSAAdapter
 
 app = FastAPI(title="TTS OpenAI Compatible Server")
 tts_adapter = TTSAAdapter()

@@ -71,29 +71,14 @@ class ImagePairToolGUI:
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT)
 
-        # 同步下一张按钮
-        tk.Button(toolbar, text="同步下一张", command=self.sync_next_image, width=15,
-                  bg=DARK_BUTTON_BG if self.dark_mode else None,
-                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
-
-        # 同步上一张按钮
-        tk.Button(toolbar, text="同步上一张", command=self.sync_prev_image, width=15,
-                  bg=DARK_BUTTON_BG if self.dark_mode else None,
-                  fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.RIGHT, padx=5)
-
-        # 同步删除按钮
-        tk.Button(toolbar, text="同步删除", command=self.sync_delete_images, width=15,
-                  bg="#d9534f" if self.dark_mode else "#d9534f",
+        # 左图覆盖右图按钮
+        tk.Button(toolbar, text="左图覆盖右图", command=self.copy_left_to_right, width=15,
+                  bg="#d98e04" if self.dark_mode else "#d98e04",
                   fg="white").pack(side=tk.RIGHT, padx=5)
 
         # 一键自动配对按钮
         tk.Button(toolbar, text="一键自动配对", command=self.auto_pair_all, width=15,
                   bg="#0078d4" if self.dark_mode else "#0078d4",
-                  fg="white").pack(side=tk.RIGHT, padx=5)
-
-        # 左图覆盖右图按钮
-        tk.Button(toolbar, text="左图覆盖右图", command=self.copy_left_to_right, width=15,
-                  bg="#d98e04" if self.dark_mode else "#d98e04",
                   fg="white").pack(side=tk.RIGHT, padx=5)
 
         # 导出按钮
@@ -145,7 +130,7 @@ class ImagePairToolGUI:
 
         # ========== 右列：右侧图片预览 ==========
         right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
-        right_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(1, 0))
+        right_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(1, 5))
         right_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
 
         # 创建左侧面板（不带列表框，图片靠右对齐）
@@ -161,6 +146,33 @@ class ImagePairToolGUI:
                                       image_align=tk.W)
         # 在左列创建右侧列表框
         self.right_panel.create_listbox(right_list_frame, height=15)
+
+        # ========== 最右列：同步操作按钮 ==========
+        self.sync_column_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=90)
+        self.sync_column_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+        self.sync_column_frame.columnconfigure(0, weight=1)
+        self.sync_column_frame.rowconfigure(0, weight=1)
+        self.sync_column_frame.rowconfigure(1, weight=1)
+        self.sync_column_frame.rowconfigure(2, weight=1)
+
+        tk.Button(self.sync_column_frame, text="同步上一张", command=self.sync_prev_image,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None) \
+            .grid(row=0, column=0, sticky="nsew", padx=8, pady=(20, 8))
+
+        tk.Button(self.sync_column_frame, text="同步下一张", command=self.sync_next_image,
+                  bg=DARK_BUTTON_BG if self.dark_mode else None,
+                  fg=DARK_BUTTON_FG if self.dark_mode else None) \
+            .grid(row=1, column=0, sticky="nsew", padx=8, pady=8)
+
+        tk.Button(self.sync_column_frame, text="同步删除", command=self.sync_delete_images,
+                  bg="#d9534f" if self.dark_mode else "#d9534f",
+                  fg="white") \
+            .grid(row=2, column=0, sticky="nsew", padx=8, pady=(8, 20))
+
+        # 绑定主体区域大小变化，让同步列高度始终填充
+        main_frame.bind('<Configure>', lambda e: self.sync_column_frame.config(height=e.height))
 
         # 进度条区域
         progress_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
@@ -807,10 +819,27 @@ class ImagePairToolGUI:
 
         left_name = Path(left_path).name
         right_name = Path(right_path).name
-        # 统一使用 .png 后缀
-        export_name = Path(left_name).stem + '.png'
+        base_name = Path(left_name).stem
+
+        control_folder = os.path.join(export_folder, "control")
+        target_folder = os.path.join(export_folder, "target")
+        os.makedirs(control_folder, exist_ok=True)
+        os.makedirs(target_folder, exist_ok=True)
+
+        # 如果目标文件夹已有同名文件对，添加 _1、_2 等后缀避免覆盖
+        export_name = base_name + '.png'
+        counter = 1
+        while (os.path.exists(os.path.join(control_folder, export_name)) or
+               os.path.exists(os.path.join(target_folder, export_name))):
+            export_name = f"{base_name}_{counter}.png"
+            counter += 1
+
         left_folder = Path(left_path).parent
         right_folder = Path(right_path).parent
+
+        # TXT 标注文件路径
+        left_txt = Path(left_folder) / (base_name + '.txt')
+        right_txt = Path(right_folder) / (base_name + '.txt')
 
         try:
             img_left = Image.open(left_path)
@@ -846,13 +875,11 @@ class ImagePairToolGUI:
             img_right_processed.save(target_dest)
 
             # 导出同名 TXT 标注文件（保持配对）
-            left_txt = Path(left_folder) / Path(left_name).stem.with_suffix('.txt')
-            right_txt = Path(right_folder) / Path(right_name).stem.with_suffix('.txt')
-
+            txt_export_name = Path(export_name).stem + '.txt'
             if left_txt.exists():
-                shutil.copy2(left_txt, os.path.join(control_folder, Path(left_name).stem + '.txt'))
+                shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
             if right_txt.exists():
-                shutil.copy2(right_txt, os.path.join(target_folder, Path(right_name).stem + '.txt'))
+                shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
 
             if fill_ratio:
                 if crop_style:

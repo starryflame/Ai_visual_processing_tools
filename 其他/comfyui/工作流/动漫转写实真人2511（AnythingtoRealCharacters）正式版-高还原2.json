@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 843220227274102,
+      "seed": 786725570531223,
       "steps": 5,
       "cfg": 1,
       "sampler_name": "euler",
@@ -75,24 +75,11 @@
       "title": "加载VAE"
     }
   },
-  "66": {
-    "inputs": {
-      "shift": 3,
-      "model": [
-        "297",
-        0
-      ]
-    },
-    "class_type": "ModelSamplingAuraFlow",
-    "_meta": {
-      "title": "采样算法（AuraFlow）"
-    }
-  },
   "75": {
     "inputs": {
       "strength": 1,
       "model": [
-        "66",
+        "337",
         0
       ]
     },
@@ -115,12 +102,12 @@
     },
     "class_type": "TextEncodeQwenImageEdit",
     "_meta": {
-      "title": "TextEncodeQwenImageEdit"
+      "title": "文本编码（QwenImageEdit）"
     }
   },
   "78": {
     "inputs": {
-      "image": "000009.png"
+      "image": "illust_124522119_20241122_124822.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -145,7 +132,7 @@
   },
   "110": {
     "inputs": {
-      "prompt": "动漫转真人,无水印,无毛刺",
+      "prompt": "动漫转真人",
       "clip": [
         "38",
         0
@@ -161,13 +148,13 @@
     },
     "class_type": "TextEncodeQwenImageEditPlus",
     "_meta": {
-      "title": "TextEncodeQwenImageEditPlus"
+      "title": "文本编码（QwenImageEditPlus）"
     }
   },
   "169": {
     "inputs": {
       "lora_name": "qwen_edit\\edit2511\\Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
-      "strength_model": 1,
+      "strength_model": 1.0000000000000002,
       "model": [
         "37",
         0
@@ -191,20 +178,6 @@
       "title": "保存图像"
     }
   },
-  "297": {
-    "inputs": {
-      "lora_name": "qwen_edit\\自创\\动漫转真人_4-6_000002000.safetensors",
-      "strength_model": 1,
-      "model": [
-        "169",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "LoRA加载器（仅模型）"
-    }
-  },
   "301": {
     "inputs": {
       "aspect_ratio": "original",
@@ -214,7 +187,7 @@
       "method": "nearest",
       "round_to_multiple": "None",
       "scale_to_side": "longest",
-      "scale_to_length": 2024,
+      "scale_to_length": 2048,
       "background_color": "#000000",
       "image": [
         "78",
@@ -250,6 +223,20 @@
     "class_type": "FluxKontextMultiReferenceLatentMethod",
     "_meta": {
       "title": "FluxKontext多参考潜在方法"
+    }
+  },
+  "337": {
+    "inputs": {
+      "lora_name": "qwen_edit\\自创\\动漫转真人_我的人物2_000003250.safetensors",
+      "strength_model": 1,
+      "model": [
+        "169",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
     }
   }
 }

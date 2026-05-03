@@ -1,7 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python main.py)"
+      "Bash(python main.py)",
+      "Bash(python -c \"import json; f=open\\(r'j:\\\\Ai_visual_processing_tools\\\\其他\\\\comfyui\\\\工作流\\\\动漫转写实真人 2511（AnythingtoRealCharacters）正式版 - 高还原 2.json','r',encoding='utf-8'\\); d=json.load\\(f\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if '297' in k}, indent=2\\)\\)\")",
+      "Bash(python -c \"import json; f=open\\(r'J:\\\\Ai_visual_processing_tools\\\\其他\\\\comfyui\\\\工作流\\\\动漫转写实真人 2511（AnythingtoRealCharacters）正式版 - 高还原 2.json','r',encoding='utf-8'\\); d=json.load\\(f\\); print\\(d.get\\('297',{}\\)\\)\")",
+      "Bash(python batch_anime2real.py)",
+      "Bash(cargo build *)",
+      "Bash(python 音频拼接_GUI.py)",
+      "Bash(\".venv/Scripts/python.exe\" \"其他/文件处理/多段音频拼接/音频拼接_GUI.py\")",
+      "Bash(ffmpeg -version)",
+      "Bash(python audio_merger_gui.py)",
+      "Bash(python -c \"from pathlib import Path; files = list\\(Path\\(r'D:\\\\训练用素材\\\\语音合集\\\\YaoYao'\\).glob\\('*'\\)\\); print\\(f'文件总数：{len\\(files\\)}'\\); [print\\(f.name\\) for f in files]\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from PyQt5.QtWidgets import QApplication; print\\('PyQt5 available'\\)\")",
+      "Bash(python -c \"from PIL import Image; print\\('Pillow available'\\)\")",
+      "Bash(python -c \"import importlib.util; spec = importlib.util.spec_from_file_location\\('image_resizer', 'j:/Ai_visual_processing_tools/图片缩放/image_resizer.py'\\); mod = importlib.util.module_from_spec\\(spec\\); spec.loader.exec_module\\(mod\\); print\\('All imports OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('其他/图像视频标签预览/image_resizer.py', doraise=True\\); print\\('Syntax OK'\\)\")",
+      "Bash(python -c \"import PyQt5; print\\('PyQt5 OK'\\); from PIL import Image; print\\('Pillow OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('其他/图片缩放/image_resizer.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('其他/图片缩放/image_resizer.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('其他/图片缩放/image_cropper.py', doraise=True\\); print\\('Syntax OK'\\)\")",
+      "Bash(timeout 5 python \"其他/图片缩放/image_cropper.py\")"
     ]
   }
 }
