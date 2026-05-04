@@ -58,55 +58,56 @@ class ImagePanel:
         """创建面板组件"""
         # 面板框架
         if self.dark_mode:
-            frame = tk.LabelFrame(self.parent, text=self.name, padx=10, pady=10,
+            self.panel_frame = tk.LabelFrame(self.parent, text=self.name, padx=10, pady=10,
                                   bg=DARK_BG, fg=DARK_FG)
         else:
-            frame = tk.LabelFrame(self.parent, text=self.name, padx=10, pady=10)
-        frame.pack(fill=tk.BOTH, expand=True)
+            self.panel_frame = tk.LabelFrame(self.parent, text=self.name, padx=10, pady=10)
+        self.panel_frame.pack(fill=tk.BOTH, expand=True)
+        frame = self.panel_frame
 
         # 文件夹选择和导航按钮（同一行）
-        folder_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
-        folder_frame.pack(fill=tk.X, pady=5)
+        self.folder_frame = tk.Frame(frame, bg=DARK_BG if self.dark_mode else None)
+        self.folder_frame.pack(fill=tk.X, pady=5)
 
         # 文件夹标签和输入框
-        tk.Label(folder_frame, text="文件夹:", width=8,
+        tk.Label(self.folder_frame, text="文件夹:", width=8,
                  bg=DARK_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT)
-        tk.Entry(folder_frame, textvariable=self.folder_path, width=14,
+        tk.Entry(self.folder_frame, textvariable=self.folder_path, width=14,
                  bg=DARK_ENTRY_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=5)
-        tk.Button(folder_frame, text="浏览", command=self.select_folder, width=6,
+        tk.Button(self.folder_frame, text="浏览", command=self.select_folder, width=6,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT)
-        tk.Button(folder_frame, text="刷新", command=self.refresh_images, width=6,
+        tk.Button(self.folder_frame, text="刷新", command=self.refresh_images, width=6,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=5)
 
         # 导航按钮
-        tk.Button(folder_frame, text="← 上一个", command=self.prev_image, width=10,
+        tk.Button(self.folder_frame, text="← 上一个", command=self.prev_image, width=10,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
-        tk.Button(folder_frame, text="下一个 →", command=self.next_image, width=10,
+        tk.Button(self.folder_frame, text="下一个 →", command=self.next_image, width=10,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
-        tk.Button(folder_frame, text="删除", command=self.delete_image, width=10,
+        tk.Button(self.folder_frame, text="删除", command=self.delete_image, width=10,
                   bg=DARK_BUTTON_BG if self.dark_mode else None,
                   fg=DARK_BUTTON_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=2)
 
         # 状态标签（右侧）
-        self.status_label = tk.Label(folder_frame, text="", fg="blue" if not self.dark_mode else "#4da6ff",
+        self.status_label = tk.Label(self.folder_frame, text="", fg="blue" if not self.dark_mode else "#4da6ff",
                                      bg=DARK_BG if self.dark_mode else None)
         self.status_label.pack(side=tk.RIGHT, padx=5)
 
         # 图片展示框
-        image_container = tk.Frame(frame, relief=tk.SUNKEN, borderwidth=2,
+        self.image_container = tk.Frame(frame, relief=tk.SUNKEN, borderwidth=2,
                                    bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0")
-        image_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=0)
-        image_container.pack_propagate(False)
-        image_container.config(height=IMAGE_AREA_HEIGHT, width=400)  # 固定高度和最小宽度
+        self.image_container.pack(fill=tk.BOTH, expand=True, pady=5, padx=0)
+        self.image_container.pack_propagate(False)
+        self.image_container.config(height=IMAGE_AREA_HEIGHT, width=400)  # 固定高度和最小宽度
 
         # 创建 Canvas 用于支持拖拽和缩放
-        self.image_canvas = tk.Canvas(image_container,
+        self.image_canvas = tk.Canvas(self.image_container,
                                        bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
                                        highlightthickness=0,
                                        width=400,  # 固定 Canvas 最小宽度
@@ -140,7 +141,7 @@ class ImagePanel:
 
         # 绑定拖拽事件（如果支持）
         if DND_AVAILABLE and self.dark_mode:
-            self.bind_drag_drop(image_container)
+            self.bind_drag_drop(self.image_container)
 
         # 图片列表（可选）
         if self.with_listbox:

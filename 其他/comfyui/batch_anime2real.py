@@ -281,14 +281,14 @@ class BatchProcessorGUI:
     def create_preview_panel(self, parent):
         """创建底部图片预览面板"""
         # 标题栏
-        title_label = tk.Label(
+        self.title_label = tk.Label(
             parent,
             text="🖼️ 实时预览 - 输入/输出对比",
             font=("Microsoft YaHei UI", 16, "bold"),
             bg='#1a1a1a',
             fg='white'
         )
-        title_label.pack(pady=10)
+        self.title_label.pack(pady=10)
 
         # 图片容器 - 左右并排
         imgs_container = tk.Frame(parent, bg='#1a1a1a')
@@ -298,13 +298,14 @@ class BatchProcessorGUI:
         input_preview_frame = tk.Frame(imgs_container, bg='#2a2a2a', relief=tk.RAISED, bd=0)
         input_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0), pady=0)
 
-        tk.Label(
+        self.input_label = tk.Label(
             input_preview_frame,
             text="输入图 (原图)",
             font=("Microsoft YaHei UI", 14, "bold"),
             bg='#2a2a2a',
             fg='#2196F3'
-        ).pack(pady=5)
+        )
+        self.input_label.pack(pady=5)
 
         # 使用 Canvas 显示图片，支持靠右对齐
         self.input_canvas = tk.Canvas(input_preview_frame, bg='#1a1a1a', highlightthickness=0)
@@ -315,13 +316,14 @@ class BatchProcessorGUI:
         output_preview_frame = tk.Frame(imgs_container, bg='#2a2a2a', relief=tk.RAISED, bd=0)
         output_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 0), pady=0)
 
-        tk.Label(
+        self.output_label = tk.Label(
             output_preview_frame,
             text="输出图 (生成结果)",
             font=("Microsoft YaHei UI", 14, "bold"),
             bg='#2a2a2a',
             fg='#4CAF50'
-        ).pack(pady=5)
+        )
+        self.output_label.pack(pady=5)
 
         # 使用 Canvas 显示图片，支持靠左对齐
         self.output_canvas = tk.Canvas(output_preview_frame, bg='#1a1a1a', highlightthickness=0)
@@ -345,9 +347,15 @@ class BatchProcessorGUI:
         if self.control_panel_hidden:
             # 使用 before 参数确保放在 bottom_frame 之前
             self.control_frame.pack(fill=tk.X, expand=False, padx=10, pady=10, before=self.bottom_frame)
+            self.title_label.pack(pady=10)
+            self.input_label.pack(pady=5)
+            self.output_label.pack(pady=5)
             self.control_panel_hidden = False
         else:
             self.control_frame.pack_forget()
+            self.title_label.pack_forget()
+            self.input_label.pack_forget()
+            self.output_label.pack_forget()
             self.control_panel_hidden = True
 
     def toggle_log(self):

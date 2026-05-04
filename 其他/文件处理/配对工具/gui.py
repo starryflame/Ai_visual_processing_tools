@@ -45,6 +45,9 @@ class ImagePairToolGUI:
         # 绑定键盘快捷键
         self.bind_keyboard_shortcuts()
 
+        # 全屏模式状态
+        self.is_fullscreen = False
+
     def setup_dark_mode(self):
         """设置深色模式"""
         if self.dark_mode:
@@ -58,8 +61,9 @@ class ImagePairToolGUI:
     def create_widgets(self):
         """创建界面组件"""
         # 顶部工具栏
-        toolbar = tk.Frame(self.root, pady=10, bg=DARK_BG if self.dark_mode else None)
-        toolbar.pack(fill=tk.X, padx=10)
+        self.toolbar = tk.Frame(self.root, pady=10, bg=DARK_BG if self.dark_mode else None)
+        self.toolbar.pack(fill=tk.X, padx=10)
+        toolbar = self.toolbar
 
         tk.Label(toolbar, text="导出文件夹:", width=12,
                  bg=DARK_BG if self.dark_mode else None,
@@ -105,9 +109,10 @@ class ImagePairToolGUI:
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # ========== 左列：文件列表（上下放置）==========
-        list_column_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=250)
-        list_column_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5))
-        list_column_frame.pack_propagate(False)  # 固定宽度
+        self.list_column_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=250)
+        self.list_column_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5))
+        self.list_column_frame.pack_propagate(False)  # 固定宽度
+        list_column_frame = self.list_column_frame
 
         # 左侧面板列表框（上半部分）
         left_list_frame = tk.LabelFrame(list_column_frame, text="左侧面板列表",
@@ -124,14 +129,16 @@ class ImagePairToolGUI:
         right_list_frame.pack(fill=tk.BOTH, expand=True)
 
         # ========== 中列：左侧图片预览 ==========
-        left_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
-        left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 1))
-        left_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
+        self.left_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
+        self.left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 1))
+        self.left_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
+        left_preview_frame = self.left_preview_frame
 
         # ========== 右列：右侧图片预览 ==========
-        right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
-        right_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(1, 5))
-        right_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
+        self.right_preview_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=400)
+        self.right_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(1, 5))
+        self.right_preview_frame.pack_propagate(False)  # 固定宽度，防止子组件影响
+        right_preview_frame = self.right_preview_frame
 
         # 创建左侧面板（不带列表框，图片靠右对齐）
         self.left_panel = ImagePanel(left_preview_frame, "左侧面板 (control)",
@@ -150,6 +157,7 @@ class ImagePairToolGUI:
         # ========== 最右列：同步操作按钮 ==========
         self.sync_column_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=90)
         self.sync_column_frame.pack(side=tk.LEFT, fill=tk.Y)
+        sync_column_frame = self.sync_column_frame
 
         self.sync_column_frame.columnconfigure(0, weight=1)
         self.sync_column_frame.rowconfigure(0, weight=1)
@@ -175,8 +183,9 @@ class ImagePairToolGUI:
         main_frame.bind('<Configure>', lambda e: self.sync_column_frame.config(height=e.height))
 
         # 进度条区域
-        progress_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
-        progress_frame.pack(fill=tk.X, padx=10)
+        self.progress_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
+        self.progress_frame.pack(fill=tk.X, padx=10)
+        progress_frame = self.progress_frame
 
         self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var,
                                             maximum=100, mode='determinate',
@@ -194,8 +203,9 @@ class ImagePairToolGUI:
                             darkcolor=DARK_HIGHLIGHT)
 
         # 底部状态栏
-        status_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
-        status_frame.pack(fill=tk.X, padx=10)
+        self.status_frame = tk.Frame(self.root, pady=5, bg=DARK_BG if self.dark_mode else None)
+        self.status_frame.pack(fill=tk.X, padx=10)
+        status_frame = self.status_frame
         self.status_label = tk.Label(status_frame, text="就绪", relief=tk.SUNKEN, anchor=tk.W,
                                      bg=DARK_ENTRY_BG if self.dark_mode else None,
                                      fg=DARK_FG if self.dark_mode else None)
@@ -203,6 +213,9 @@ class ImagePairToolGUI:
 
     def bind_keyboard_shortcuts(self):
         """绑定键盘快捷键"""
+        # Tab: 全屏切换（override 所有控件类的默认 Tab 焦点切换）
+        self._setup_tab_binding()
+
         # 小键盘上下键：上=同步上一张，下=同步下一张
         self.root.bind_all('<KeyPress-KP_Up>', lambda e: self.sync_prev_image())
         self.root.bind_all('<KeyPress-KP_Down>', lambda e: self.sync_next_image())
@@ -213,6 +226,83 @@ class ImagePairToolGUI:
         # 删除确认对话框引用
         self.delete_confirm_dialog = None
         self.pending_delete = None
+
+    def _setup_tab_binding(self):
+        """覆盖 Tab 焦点切换，改为全屏切换"""
+        # 用 Tcl 直接设置 break 来阻止默认焦点切换
+        self.root.tk.call('bind', 'all', '<Tab>', 'break')
+
+        # 全局绑定 Tab
+        self.root.bind_all('<Tab>', lambda e: self.toggle_fullscreen())
+
+        # 给所有已创建的控件绑定 Tab
+        for widget in self._all_widgets():
+            widget.bind('<Tab>', lambda e: self.toggle_fullscreen() or "break")
+
+    def _all_widgets(self):
+        """递归获取所有子控件"""
+        widgets = []
+        def collect(parent):
+            for child in parent.winfo_children():
+                widgets.append(child)
+                collect(child)
+        collect(self.root)
+        return widgets
+
+    def toggle_fullscreen(self, event=None):
+        """Tab键切换全屏模式：隐藏所有组件只保留两个图片展示区域"""
+        self.is_fullscreen = not self.is_fullscreen
+
+        if self.is_fullscreen:
+            # 进入全屏模式
+            self.toolbar.pack_forget()
+            self.list_column_frame.pack_forget()
+            self.sync_column_frame.pack_forget()
+            self.progress_frame.pack_forget()
+            self.status_frame.pack_forget()
+
+            for panel in [self.left_panel, self.right_panel]:
+                panel.folder_frame.pack_forget()
+
+            # 移除并恢复图片面板（放在最后，确保它们占满剩余空间）
+            self.left_preview_frame.pack_forget()
+            self.right_preview_frame.pack_forget()
+            self.left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                         padx=5, pady=5)
+            self.right_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                          padx=5, pady=5)
+
+            self.status_label.config(text="全屏模式 (按Tab退出)")
+        else:
+            # 退出全屏模式
+            self.left_preview_frame.pack_forget()
+            self.right_preview_frame.pack_forget()
+
+            self.toolbar.pack(fill=tk.X, padx=10)
+
+            main_frame = self.left_preview_frame.master
+            self.list_column_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5), in_=main_frame)
+            self.list_column_frame.pack_propagate(False)
+
+            self.left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                         padx=(0, 1), in_=main_frame)
+            self.left_preview_frame.pack_propagate(False)
+
+            self.right_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                          padx=(1, 5), in_=main_frame)
+            self.right_preview_frame.pack_propagate(False)
+
+            self.sync_column_frame.pack(side=tk.LEFT, fill=tk.Y, in_=main_frame)
+
+            self.progress_frame.pack(fill=tk.X, padx=10)
+            self.status_frame.pack(fill=tk.X, padx=10)
+
+            for panel in [self.left_panel, self.right_panel]:
+                panel.folder_frame.pack(fill=tk.X, pady=5, in_=panel.panel_frame)
+
+            self.status_label.config(text="退出全屏模式")
+
+        return "break"  # 阻止 tkinter 默认的 Tab 焦点切换行为
 
     def enable_export_button(self):
         """恢复导出按钮为可点击状态"""
