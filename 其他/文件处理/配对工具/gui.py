@@ -556,6 +556,75 @@ class ImagePairToolGUI:
             messagebox.showerror("错误", f"覆盖失败：{str(e)}")
             self.status_label.config(text="覆盖失败")
 
+    def _show_export_config_dialog(self):
+        """弹出导出配置对话框，返回配置字典或 None（用户取消）"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("导出配置")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        bg = DARK_BG if self.dark_mode else "#f0f0f0"
+        fg = DARK_FG if self.dark_mode else "#000000"
+        dialog.config(bg=bg)
+
+        # 尺寸处理方式: 0=调整到较小值, 1=1:1裁剪, 2=1:1填充
+        size_mode = tk.IntVar(value=2)
+        rename_mode = tk.IntVar(value=1)  # 0=保留原名, 1=序号重命名
+        shuffle_var = tk.BooleanVar(value=False)
+
+        body = tk.Frame(dialog, bg=bg)
+        body.pack(padx=24, pady=16)
+
+        def label(text, bold=False):
+            font = ("", 10, "bold") if bold else ("", 10)
+            tk.Label(body, text=text, font=font, bg=bg, fg=fg, anchor="w").pack(fill=tk.X, pady=(6, 2))
+
+        def radio(text, var, value, **extra):
+            tk.Radiobutton(body, text=text, variable=var, value=value,
+                          bg=bg, fg=fg, selectcolor=bg, anchor="w",
+                          **extra).pack(fill=tk.X, padx=(16, 0), pady=1)
+
+        def checkbox(text, var):
+            tk.Checkbutton(body, text=text, variable=var,
+                          bg=bg, fg=fg, selectcolor=bg, anchor="w").pack(fill=tk.X, padx=(32, 0), pady=1)
+
+        label("图片尺寸处理", bold=True)
+        radio("调整为两者中较小的宽高值", size_mode, 0)
+        radio("转为 1:1 正方形（裁剪：竖图裁上面，横图裁中间）", size_mode, 1)
+        radio("转为 1:1 正方形（白色背景填充，保留完整内容）", size_mode, 2)
+
+        label("文件命名方式", bold=True)
+        radio("保留原始文件名（统一导出为 .png）", rename_mode, 0)
+        radio("按序号重命名（pair_001.png, pair_002.png...）", rename_mode, 1)
+        checkbox("随机打乱顺序", shuffle_var)
+
+        tk.Label(body, text=f"共 {self._pending_export_count} 对同名文件",
+                 bg=bg, fg=DARK_HIGHLIGHT if self.dark_mode else "#0078d4",
+                 font=("", 10, "bold")).pack(pady=(12, 8), anchor="w")
+
+        btn_frame = tk.Frame(dialog, bg=bg)
+        btn_frame.pack(pady=(0, 12))
+
+        result = {"ok": False}
+
+        def on_ok():
+            result["ok"] = True
+            result["fill_ratio"] = size_mode.get() >= 1
+            result["crop_style"] = 'top' if size_mode.get() == 1 else None
+            result["enable_rename"] = rename_mode.get() == 1
+            result["shuffle_order"] = shuffle_var.get() if rename_mode.get() == 1 else False
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        tk.Button(btn_frame, text="确定", command=on_ok, width=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(btn_frame, text="取消", command=on_cancel, width=10).pack(side=tk.LEFT, padx=10)
+
+        dialog.wait_window()
+        return result if result["ok"] else None
+
     def auto_pair_all(self):
         """一键自动配对所有同名文件并导出 (多线程优化版)"""
         export_folder = self.export_folder.get()
@@ -590,45 +659,16 @@ class ImagePairToolGUI:
 
         from utils import crop_to_square
 
-        # 询问是否进行比例填充
-        fill_ratio = messagebox.askyesno(
-            "图片比例填充选项",
-            "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
-        )
-
-        # 如果启用填充，询问是否使用裁剪模式
-        crop_style = None
-        if fill_ratio:
-            crop_mode = messagebox.askyesno(
-                "裁剪模式选项",
-                "是否启用裁剪模式？\n\n是：直接裁剪为 1:1（竖图裁上面，横图裁中间）\n否：使用白色背景填充"
-            )
-            if crop_mode:
-                crop_style = 'top'
-
-        # 询问是否启用重命名功能
-        enable_rename = messagebox.askyesno(
-            "文件名重命名选项",
-            "是否对导出文件进行重命名？\n\n是：按序号重命名为 pair_001.jpg, pair_002.jpg...\n否：保持原始文件名不变"
-        )
-
-        # 询问是否打乱顺序（仅在启用重命名时）
-        shuffle_order = False
-        if enable_rename:
-            shuffle_order = messagebox.askyesno(
-                "文件顺序选项",
-                "是否打乱所有文件对的导出顺序？\n\n是：随机打乱序号分配，避免规律性排序\n否：按原文件名顺序依次编号"
-            )
-
-        # 确认对话框
-        fill_text = "并填充为 1:1 白色背景" if fill_ratio and not crop_style else ""
-        if fill_ratio and crop_style:
-            fill_text = "并裁剪为 1:1（竖图裁上面，横图裁中间）"
-        rename_text = "（启用序号重命名）" if enable_rename else "（使用原文件名）"
-        order_text = "（已打乱顺序）" if shuffle_order else ""
-        confirm_msg = f"找到 {len(common_files)} 对同名文件，是否全部导出？\n\n将调整分辨率为两者中的较小值{fill_text}{rename_text}{order_text}，并分别保存到 control 和 target 文件夹。\n(已启用多线程加速)"
-        if not messagebox.askyesno("确认", confirm_msg):
+        # 显示导出配置对话框
+        self._pending_export_count = len(common_files)
+        cfg = self._show_export_config_dialog()
+        if not cfg:
             return
+
+        fill_ratio = cfg["fill_ratio"]
+        crop_style = cfg["crop_style"]
+        enable_rename = cfg["enable_rename"]
+        shuffle_order = cfg["shuffle_order"]
 
         # 创建导出子文件夹
         control_folder = os.path.join(export_folder, "control")
