@@ -568,17 +568,17 @@ class ImagePairToolGUI:
         fg = DARK_FG if self.dark_mode else "#000000"
         dialog.config(bg=bg)
 
-        # 尺寸处理方式: 0=调整到较小值, 1=1:1裁剪, 2=1:1填充
-        size_mode = tk.IntVar(value=2)
-        rename_mode = tk.IntVar(value=1)  # 0=保留原名, 1=序号重命名
+        size_mode = tk.IntVar(value=2)   # 0=较小值, 1=裁剪, 2=填充
+        rename_mode = tk.IntVar(value=1)  # 0=原名, 1=序号
         shuffle_var = tk.BooleanVar(value=False)
+        crop_direction = tk.StringVar(value="top")
 
         body = tk.Frame(dialog, bg=bg)
         body.pack(padx=24, pady=16)
 
         def label(text, bold=False):
-            font = ("", 10, "bold") if bold else ("", 10)
-            tk.Label(body, text=text, font=font, bg=bg, fg=fg, anchor="w").pack(fill=tk.X, pady=(6, 2))
+            tk.Label(body, text=text, font=("", 10, "bold") if bold else ("", 10),
+                     bg=bg, fg=fg, anchor="w").pack(fill=tk.X, pady=(6, 2))
 
         def radio(text, var, value, **extra):
             tk.Radiobutton(body, text=text, variable=var, value=value,
@@ -591,8 +591,27 @@ class ImagePairToolGUI:
 
         label("图片尺寸处理", bold=True)
         radio("调整为两者中较小的宽高值", size_mode, 0)
-        radio("转为 1:1 正方形（裁剪：竖图裁上面，横图裁中间）", size_mode, 1)
+        radio("转为 1:1 正方形（裁剪：横图居中，竖图方向见下方）", size_mode, 1)
         radio("转为 1:1 正方形（白色背景填充，保留完整内容）", size_mode, 2)
+
+        # 裁剪方向区域（占位 + 内容，初始隐藏但占布局顺序）
+        crop_holder = tk.Frame(body, bg=bg)
+        crop_holder.pack(fill=tk.X)
+        crop_row = tk.Frame(crop_holder, bg=bg)
+        tk.Label(crop_row, text="竖图裁剪方向：", bg=bg, fg=fg).pack(side=tk.LEFT)
+        crop_cb = ttk.Combobox(crop_row, textvariable=crop_direction,
+                               values=["上方（top）", "下方（bottom）"],
+                               state="readonly", width=14)
+        crop_cb.pack(side=tk.LEFT)
+        crop_cb["state"] = "readonly"
+
+        def on_mode_change(*_):
+            if size_mode.get() == 1:
+                crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
+            else:
+                crop_row.pack_forget()
+
+        size_mode.trace_add("write", on_mode_change)
 
         label("文件命名方式", bold=True)
         radio("保留原始文件名（统一导出为 .png）", rename_mode, 0)
@@ -611,7 +630,10 @@ class ImagePairToolGUI:
         def on_ok():
             result["ok"] = True
             result["fill_ratio"] = size_mode.get() >= 1
-            result["crop_style"] = 'top' if size_mode.get() == 1 else None
+            if size_mode.get() == 1:
+                result["crop_style"] = 'bottom' if crop_direction.get().startswith("下方") else 'top'
+            else:
+                result["crop_style"] = None
             result["enable_rename"] = rename_mode.get() == 1
             result["shuffle_order"] = shuffle_var.get() if rename_mode.get() == 1 else False
             dialog.destroy()

@@ -43,8 +43,8 @@ def crop_to_square(img, crop_style='top'):
     Args:
         img: PIL Image 对象
         crop_style: 裁剪方式
-            - 'top': 竖图裁剪上面（保留顶部）
-            - 'center': 横图裁剪中间（居中裁剪）
+            - 'top': 竖图裁剪上面（保留顶部），横图居中
+            - 'bottom': 竖图裁剪下面（保留底部），横图居中
 
     Returns:
         裁剪后的正方形图片
@@ -53,7 +53,6 @@ def crop_to_square(img, crop_style='top'):
     size = min(width, height)
 
     if width == height:
-        # 已经是正方形，直接返回
         return img.copy()
 
     if width > height:
@@ -63,11 +62,15 @@ def crop_to_square(img, crop_style='top'):
         right = left + size
         bottom = height
     else:
-        # 竖图：裁剪上面（保留顶部）
+        # 竖图
         left = 0
-        top = 0
         right = size
-        bottom = top + size
+        if crop_style == 'bottom':
+            top = height - size
+            bottom = height
+        else:
+            top = 0
+            bottom = size
 
     return img.crop((left, top, right, bottom))
 

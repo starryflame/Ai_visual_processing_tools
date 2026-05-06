@@ -28,7 +28,9 @@
       "Bash(python -m py_compile utils.py)",
       "Bash(python -m py_compile gui.py)",
       "Bash(python -c \"import utils; import gui; print\\('OK'\\)\")",
-      "Bash(python -c \"import utils; print\\('utils OK'\\); from gui import ImagePairToolGUI; print\\('gui OK'\\)\")"
+      "Bash(python -c \"import utils; print\\('utils OK'\\); from gui import ImagePairToolGUI; print\\('gui OK'\\)\")",
+      "Bash(python -c \"import utils; print\\('OK'\\)\")",
+      "Bash(python -c \"import gui; import utils; print\\('OK'\\)\")"
     ]
   }
 }
