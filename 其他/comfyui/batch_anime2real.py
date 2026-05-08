@@ -13,6 +13,7 @@ import requests
 import uuid
 import time
 import os
+import random
 from pathlib import Path
 import threading
 
@@ -62,6 +63,11 @@ class ComfyUIBatchProcessor:
         if "337" in workflow:
             workflow["337"]["inputs"]["lora_name"] = lora_name
 
+        # 随机化采样种子，确保每次生成结果不同
+        if "3" in workflow and "seed" in workflow["3"]["inputs"]:
+            max_seed = 2**64 - 1
+            workflow["3"]["inputs"]["seed"] = random.randint(0, max_seed)
+
         # 提交任务
         result = self.queue_prompt(workflow)
         if "prompt_id" not in result:
@@ -101,6 +107,8 @@ class ComfyUIBatchProcessor:
 class BatchProcessorGUI:
     """批量处理 GUI 界面"""
 
+    PRESETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt_presets.json")
+
     def __init__(self, root):
         self.root = root
         self.root.title("ComfyUI 批量动漫转写实处理")
@@ -130,6 +138,8 @@ class BatchProcessorGUI:
         # 半自动模式专用
         self.semi_result = None  # None=等待中，"next"=下一张，"retry"=重新生成，"stop"=停止
         self.semi_done_event = threading.Event()
+        self.semi_dialog_ref = None  # 用于持有对话框引用，更新下一张预览
+        self.prompt_presets = self._load_presets()
 
         # 日志区折叠状态
         self.log_expanded = True
@@ -137,6 +147,7 @@ class BatchProcessorGUI:
         # 图片预览
         self.input_photo = None
         self.output_photo = None
+        self.semi_next_photo = None  # 半自动对话框中下一张预览
         self.current_input_img = None
         self.current_output_img = False
 
@@ -217,6 +228,7 @@ class BatchProcessorGUI:
         tk.Label(lora_frame, text="LoRA 路径:", width=12).pack(side=tk.LEFT)
         self.lora_combo = ttk.Combobox(lora_frame, textvariable=self.lora_path, state="readonly")
         self.lora_combo.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        tk.Button(lora_frame, text="刷新", command=self.load_lora_models, width=6).pack(side=tk.LEFT, padx=2)
         # 加载模型列表
         self.load_lora_models()
 
@@ -504,6 +516,24 @@ class BatchProcessorGUI:
                     self.lora_path.set(model_files[0])
         else:
             messagebox.showwarning("警告", f"模型文件夹不存在：{lora_folder}")
+
+    def _load_presets(self):
+        """加载提示词预设"""
+        if os.path.exists(self.PRESETS_FILE):
+            try:
+                with open(self.PRESETS_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return []
+
+    def _save_presets(self):
+        """保存提示词预设到文件"""
+        try:
+            with open(self.PRESETS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.prompt_presets, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存预设失败: {e}")
     
     def log(self, message):
         """添加日志"""
@@ -584,97 +614,239 @@ class BatchProcessorGUI:
                 self.pause_event.set()  # 如果在暂停状态，先恢复以便退出
                 self.log("⏹ 正在停止...")
 
-    def wait_semi_decision(self):
+    def wait_semi_decision(self, input_folder, next_index):
         """半自动模式：等待用户确认"""
         self.semi_result = None
         self.semi_new_prompt = None  # 存储新提示词
         self.semi_done_event.clear()
 
         # 在主线程中显示对话框
-        self.root.after(0, self.show_semi_dialog)
+        self.root.after(0, lambda: self.show_semi_dialog(input_folder, next_index))
 
-        # 等待用户决定
-        self.semi_done_event.wait()
+        # 等待用户决定（带超时，以便检查 stop_flag）
+        while not self.semi_done_event.is_set():
+            self.semi_done_event.wait(timeout=0.3)
+            if self.stop_flag:
+                self.semi_result = "stop"
+                self.semi_done_event.set()
+                break
 
         # 如果用户修改了提示词，更新主界面的提示词
         if self.semi_new_prompt is not None:
             self.prompt_text.set(self.semi_new_prompt)
 
-    def show_semi_dialog(self):
+        # 清理引用
+        self.semi_dialog_ref = None
+
+    def show_semi_dialog(self, input_folder, next_index):
         """显示半自动模式确认对话框"""
         dialog = tk.Toplevel(self.root)
         dialog.title("生成完成 - 请选择操作")
-        dialog.geometry("450x280")
-        dialog.resizable(False, False)
+        dialog.resizable(True, True)
         dialog.transient(self.root)
         dialog.grab_set()  # 模态对话框
 
+        self.semi_dialog_ref = dialog
+
+        # 计算对话框尺寸：左侧按钮+提示词 + 右侧下一张预览
+        dialog_width = 820
+        dialog_height = 520
+        dialog.geometry(f"{dialog_width}x{dialog_height}")
+
         # 居中显示
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (280 // 2)
-        dialog.geometry(f"450x280+{x}+{y}")
+        x = (dialog.winfo_screenwidth() // 2) - (dialog_width // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog_height // 2)
+        dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
 
         # 标题
         tk.Label(
             dialog,
-            text="图片已生成完成",
-            font=("Microsoft YaHei UI", 14, "bold")
-        ).pack(pady=10)
+            text="图片已生成完成（下方预览区可查看结果）",
+            font=("Microsoft YaHei UI", 12, "bold")
+        ).pack(pady=(8, 5))
+
+        # 提示词预设区域
+        presets_frame = tk.Frame(dialog)
+        presets_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+
+        tk.Label(presets_frame, text="预设:", font=("Microsoft YaHei UI", 9)).pack(side=tk.LEFT, padx=(0, 5))
+
+        preset_btn_frame = tk.Frame(presets_frame)
+        preset_btn_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # 预设按钮列表（用于动态刷新）
+        preset_buttons = []
+
+        def apply_preset(text):
+            """应用预设到输入框"""
+            prompt_entry.delete(0, tk.END)
+            prompt_entry.insert(0, text)
+
+        def add_preset():
+            """添加当前提示词为预设"""
+            current = prompt_entry.get().strip()
+            if not current:
+                return
+            if current in self.prompt_presets:
+                return
+            self.prompt_presets.append(current)
+            self._save_presets()
+            _refresh_preset_buttons()
+
+        def delete_last_preset():
+            """删除最后一个预设"""
+            if self.prompt_presets:
+                self.prompt_presets.pop()
+                self._save_presets()
+                _refresh_preset_buttons()
+
+        def _refresh_preset_buttons():
+            """刷新预设按钮显示"""
+            for btn in preset_buttons:
+                btn.destroy()
+            preset_buttons.clear()
+            for p in self.prompt_presets:
+                display = p[:12] + "..." if len(p) > 12 else p
+                btn = tk.Button(
+                    preset_btn_frame,
+                    text=display,
+                    command=lambda t=p: apply_preset(t),
+                    font=("Microsoft YaHei UI", 8),
+                    bg="#E3F2FD",
+                    fg="#1565C0",
+                    relief=tk.RAISED,
+                    padx=4,
+                    pady=1
+                )
+                btn.bind("<Button-3>", lambda e, t=p: _delete_preset(t))
+                btn.pack(side=tk.LEFT, padx=1)
+                preset_buttons.append(btn)
+
+        def _delete_preset(text):
+            """删除指定预设"""
+            if text in self.prompt_presets:
+                self.prompt_presets.remove(text)
+                self._save_presets()
+                _refresh_preset_buttons()
+
+        _refresh_preset_buttons()
+
+        # 添加/删除按钮
+        tk.Button(
+            presets_frame,
+            text="+",
+            command=add_preset,
+            font=("Microsoft YaHei UI", 9, "bold"),
+            width=3,
+            bg="#E8F5E9",
+            fg="#2E7D32"
+        ).pack(side=tk.LEFT, padx=(5, 2))
+
+        tk.Button(
+            presets_frame,
+            text="−",
+            command=delete_last_preset,
+            font=("Microsoft YaHei UI", 9, "bold"),
+            width=3,
+            bg="#FFEBEE",
+            fg="#C62828"
+        ).pack(side=tk.LEFT, padx=2)
+
+        # 主容器：左右分栏
+        main_pane = tk.Frame(dialog)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # 左侧：提示词编辑 + 按钮
+        left_panel = tk.Frame(main_pane)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
 
         # 提示词编辑区域
-        prompt_edit_frame = tk.Frame(dialog)
-        prompt_edit_frame.pack(fill=tk.X, padx=20, pady=5)
-
-        tk.Label(
-            prompt_edit_frame,
-            text="提示词:",
-            font=("Microsoft YaHei UI", 10)
-        ).pack(side=tk.LEFT)
+        prompt_edit_frame = tk.LabelFrame(left_panel, text="提示词（当前即将处理的）", font=("Microsoft YaHei UI", 9))
+        prompt_edit_frame.pack(fill=tk.X, pady=(0, 8))
 
         prompt_entry = tk.Entry(prompt_edit_frame, font=("Microsoft YaHei UI", 10))
-        prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8, pady=5)
         prompt_entry.insert(0, self.prompt_text.get())
 
-        # 按钮框架
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=15)
+        # 按钮行
+        btn_frame = tk.Frame(left_panel)
+        btn_frame.pack(pady=5)
 
         # 重新生成按钮
         retry_btn = tk.Button(
             btn_frame,
             text="↻ 不满意，重新生成",
             command=lambda: self.semi_decide("retry", dialog, prompt_entry.get()),
-            width=18,
+            width=20,
             bg="#FF9800",
             fg="white",
             font=("Microsoft YaHei UI", 10)
         )
-        retry_btn.pack(side=tk.LEFT, padx=10)
+        retry_btn.pack(side=tk.LEFT, padx=5)
 
         # 下一张按钮
         next_btn = tk.Button(
             btn_frame,
             text="✓ 满意，下一张",
             command=lambda: self.semi_decide("next", dialog, prompt_entry.get()),
-            width=15,
+            width=16,
             bg="#4CAF50",
             fg="white",
             font=("Microsoft YaHei UI", 10)
         )
-        next_btn.pack(side=tk.LEFT, padx=10)
+        next_btn.pack(side=tk.LEFT, padx=5)
 
         # 停止按钮
         stop_btn = tk.Button(
             btn_frame,
-            text="⏹ 停止处理",
+            text="⏹ 停止",
             command=lambda: self.semi_decide("stop", dialog, prompt_entry.get()),
             width=10,
             bg="#f44336",
             fg="white",
             font=("Microsoft YaHei UI", 10)
         )
-        stop_btn.pack(side=tk.LEFT, padx=10)
+        stop_btn.pack(side=tk.LEFT, padx=5)
+
+        # 右侧：下一张预览
+        right_panel = tk.LabelFrame(main_pane, text="下一张输入预览", font=("Microsoft YaHei UI", 9))
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
+
+        next_preview_label = tk.Label(right_panel, text="无更多图片", fg="#888", font=("Microsoft YaHei UI", 10))
+        next_preview_label.pack(expand=True)
+
+        # 加载下一张图片
+        if next_index < len(self.image_files):
+            next_image_file = self.image_files[next_index]
+            next_input_path = os.path.join(input_folder, next_image_file)
+            try:
+                img = Image.open(next_input_path)
+                # 限制预览大小
+                max_w, max_h = 280, 350
+                ratio = min(max_w / img.width, max_h / img.height, 1.0)
+                if ratio < 1.0:
+                    img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                next_preview_label.config(image=photo, text="", anchor=tk.CENTER)
+                next_preview_label.image = photo  # 防止被 GC
+                next_preview_label.config(text=next_image_file, compound=tk.BOTTOM)
+            except Exception as e:
+                next_preview_label.config(text=f"加载失败: {e}", fg="red")
+
+        # 如果还有下张之后的图片，加个小标记
+        if next_index + 1 < len(self.image_files):
+            after_next = self.image_files[next_index + 1]
+            info_text = f"即将: {self.image_files[next_index]}  |  之后: {after_next}"
+        else:
+            info_text = f"即将: {self.image_files[next_index]}  |  这是最后一张"
+
+        tk.Label(
+            left_panel,
+            text=info_text,
+            fg="#666",
+            font=("Microsoft YaHei UI", 8)
+        ).pack(pady=(8, 0), side=tk.BOTTOM)
 
     def semi_decide(self, decision, dialog, new_prompt=None):
         """处理用户的决定"""
@@ -754,8 +926,9 @@ class BatchProcessorGUI:
 
                 # 半自动模式下等待用户确认
                 if is_semi_auto:
+                    next_idx = i + 1
                     self.root.after(0, lambda: self.log("⏸ 等待用户确认..."))
-                    self.wait_semi_decision()
+                    self.wait_semi_decision(input_folder, next_idx)
 
                     # 检查用户决定
                     if self.semi_result == "stop":
@@ -774,8 +947,9 @@ class BatchProcessorGUI:
                 self.root.after(0, lambda f=image_file, r=result: self.log(f"✗ {f} - {r}"))
                 # 失败时也等待用户确认
                 if is_semi_auto:
+                    next_idx = i + 1
                     self.root.after(0, lambda: self.log("⏸ 等待用户确认..."))
-                    self.wait_semi_decision()
+                    self.wait_semi_decision(input_folder, next_idx)
 
                     if self.semi_result == "stop":
                         self.start_index.set(self.current_index)

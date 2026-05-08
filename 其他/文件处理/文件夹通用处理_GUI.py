@@ -23,12 +23,13 @@ class ProcessingWorker(QThread):
     progress_signal = pyqtSignal(int, str)  # 进度百分比，日志信息
     finished_signal = pyqtSignal(str)       # 完成信号
 
-    def __init__(self, operation, source_folder=None, target_folder=None, max_files=1000):
+    def __init__(self, operation, source_folder=None, target_folder=None, max_files=1000, folder_name=None):
         super().__init__()
         self.operation = operation
         self.source_folder = source_folder
         self.target_folder = target_folder
         self.max_files = max_files
+        self.folder_name = folder_name
         self.cancelled = False
 
     def run(self):
@@ -38,6 +39,8 @@ class ProcessingWorker(QThread):
             self.process_flatten()
         elif self.operation == "shuffle":
             self.process_shuffle()
+        elif self.operation == "extract":
+            self.process_extract()
 
     def cancel(self):
         self.cancelled = True
@@ -272,6 +275,62 @@ class ProcessingWorker(QThread):
         self.progress_signal.emit(95, "文件重命名完成")
         self.finished_signal.emit(f"成功！已打乱 {len(file_groups)} 组文件的名称，共处理 {len(all_files)} 个文件。同名不同格式的文件已保持配对关系。")
 
+    def process_extract(self):
+        """按名称提取所有同名文件夹并复制到目标目录"""
+        source_path = Path(self.source_folder)
+        target_path = Path(self.target_folder)
+        folder_name = self.folder_name
+
+        if not source_path.exists():
+            self.finished_signal.emit(f"错误：源文件夹 {self.source_folder} 不存在")
+            return
+
+        if not target_path.exists():
+            target_path.mkdir(parents=True, exist_ok=True)
+
+        self.progress_signal.emit(5, f"正在扫描所有名为「{folder_name}」的文件夹...")
+
+        # 查找所有匹配的文件夹
+        matched_folders = []
+        for root, dirs, _files in os.walk(source_path):
+            if self.cancelled:
+                self.finished_signal.emit("操作已取消")
+                return
+            for d in dirs:
+                if d == folder_name:
+                    matched_folders.append(Path(root) / d)
+
+        if not matched_folders:
+            self.finished_signal.emit(f"没有找到名为「{folder_name}」的文件夹")
+            return
+
+        self.progress_signal.emit(10, f"找到 {len(matched_folders)} 个匹配的文件夹，开始复制...")
+
+        copied_count = 0
+        for i, src_folder in enumerate(matched_folders):
+            if self.cancelled:
+                self.finished_signal.emit("操作已取消")
+                return
+
+            # 目标文件夹名带序号
+            dest_folder = target_path / f"{folder_name}_{i + 1}"
+
+            # 如果目标已存在，递增序号
+            counter = i + 1
+            while dest_folder.exists():
+                counter += 1
+                dest_folder = target_path / f"{folder_name}_{counter}"
+
+            shutil.copytree(str(src_folder), str(dest_folder))
+            copied_count += 1
+
+            if copied_count % 10 == 0:
+                progress = int(20 + (copied_count / len(matched_folders)) * 70)
+                self.progress_signal.emit(progress, f"已复制 {copied_count}/{len(matched_folders)} 个文件夹")
+
+        self.progress_signal.emit(100, f"提取完成，共复制 {copied_count} 个文件夹")
+        self.finished_signal.emit(f"成功！已将 {copied_count} 个名为「{folder_name}」的文件夹复制到目标目录，已自动添加序号。")
+
 
 class FolderProcessorGUI(QMainWindow):
     """主窗口类"""
@@ -328,6 +387,7 @@ class FolderProcessorGUI(QMainWindow):
         # 创建各个功能标签页
         self.create_split_tab()
         self.create_flatten_tab()
+        self.create_extract_tab()
         self.create_shuffle_tab()
         
         # 进度条和日志区域
@@ -595,6 +655,152 @@ class FolderProcessorGUI(QMainWindow):
         
         self.tabs.addTab(tab, "2. 扁平化文件夹结构")
 
+    def create_extract_tab(self):
+        """创建按名称提取文件夹标签页"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # 源文件夹选择
+        source_group = QGroupBox("📁 源文件夹")
+        source_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 22px;
+                margin-top: 15px;
+                padding-top: 20px;
+                border: 4px solid #ccc;
+                border-radius: 12px;
+            }
+        """)
+        source_layout = QHBoxLayout()
+
+        self.extract_source_path = QLineEdit()
+        self.extract_source_path.setPlaceholderText("选择或输入要扫描的大文件夹路径...")
+        self.extract_source_path.setStyleSheet("""
+            QLineEdit {
+                padding: 18px;
+                font-size: 20px;
+                border: 4px solid #ccc;
+                border-radius: 10px;
+            }
+        """)
+        browse_btn = QPushButton("浏览...")
+        browse_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                padding: 18px 25px;
+                border-radius: 10px;
+                font-size: 20px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        browse_btn.clicked.connect(lambda: self.browse_folder(self.extract_source_path))
+
+        source_layout.addWidget(QLabel("源文件夹："))
+        source_layout.addWidget(self.extract_source_path)
+        source_layout.addWidget(browse_btn)
+        source_group.setLayout(source_layout)
+        layout.addWidget(source_group)
+
+        # 文件夹名称
+        name_group = QGroupBox("🏷️ 要提取的文件夹名称")
+        name_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 22px;
+                margin-top: 15px;
+                padding-top: 20px;
+                border: 4px solid #ccc;
+                border-radius: 12px;
+            }
+        """)
+        name_layout = QHBoxLayout()
+
+        self.extract_folder_name = QLineEdit()
+        self.extract_folder_name.setPlaceholderText("输入要提取的文件夹名称，例如：labels")
+        self.extract_folder_name.setStyleSheet("""
+            QLineEdit {
+                padding: 18px;
+                font-size: 20px;
+                border: 4px solid #ccc;
+                border-radius: 10px;
+            }
+        """)
+        name_layout.addWidget(QLabel("文件夹名："))
+        name_layout.addWidget(self.extract_folder_name)
+        name_group.setLayout(name_layout)
+        layout.addWidget(name_group)
+
+        # 目标文件夹选择
+        target_group = QGroupBox("📂 目标文件夹")
+        target_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 22px;
+                margin-top: 15px;
+                padding-top: 20px;
+                border: 4px solid #ccc;
+                border-radius: 12px;
+            }
+        """)
+        target_layout = QHBoxLayout()
+
+        self.extract_target_path = QLineEdit()
+        self.extract_target_path.setPlaceholderText("选择或输入复制目标文件夹路径（不存在将自动创建）...")
+        self.extract_target_path.setStyleSheet("""
+            QLineEdit {
+                padding: 18px;
+                font-size: 20px;
+                border: 4px solid #ccc;
+                border-radius: 10px;
+            }
+        """)
+        browse_btn2 = QPushButton("浏览...")
+        browse_btn2.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                padding: 18px 25px;
+                border-radius: 10px;
+                font-size: 20px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        browse_btn2.clicked.connect(lambda: self.browse_folder(self.extract_target_path))
+
+        target_layout.addWidget(QLabel("目标文件夹："))
+        target_layout.addWidget(self.extract_target_path)
+        target_layout.addWidget(browse_btn2)
+        target_group.setLayout(target_layout)
+        layout.addWidget(target_group)
+
+        # 执行按钮
+        exec_btn = QPushButton("▶️ 开始提取")
+        exec_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                font-weight: bold;
+                padding: 25px;
+                border-radius: 15px;
+                font-size: 28px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        exec_btn.clicked.connect(self.start_extract)
+        layout.addWidget(exec_btn)
+
+        self.tabs.addTab(tab, "4. 按名称提取文件夹")
+
     def create_shuffle_tab(self):
         """创建打乱图片名称标签页"""
         tab = QWidget()
@@ -698,6 +904,27 @@ class FolderProcessorGUI(QMainWindow):
             return
         
         self.worker = ProcessingWorker("flatten", source_folder=source)
+        self.worker.progress_signal.connect(self.update_progress)
+        self.worker.finished_signal.connect(self.on_operation_finished)
+        self.worker.start()
+        self.set_processing_state(True)
+
+    def start_extract(self):
+        """开始按名称提取文件夹操作"""
+        source = self.extract_source_path.text().strip()
+        target = self.extract_target_path.text().strip()
+        name = self.extract_folder_name.text().strip()
+
+        if not source or not os.path.exists(source):
+            QMessageBox.warning(self, "警告", "请选择有效的源文件夹！")
+            return
+        if not target or not os.path.exists(target):
+            os.makedirs(target, exist_ok=True)
+        if not name:
+            QMessageBox.warning(self, "警告", "请输入要提取的文件夹名称！")
+            return
+
+        self.worker = ProcessingWorker("extract", source_folder=source, target_folder=target, folder_name=name)
         self.worker.progress_signal.connect(self.update_progress)
         self.worker.finished_signal.connect(self.on_operation_finished)
         self.worker.start()

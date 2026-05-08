@@ -187,7 +187,7 @@
       "method": "nearest",
       "round_to_multiple": "None",
       "scale_to_side": "longest",
-      "scale_to_length": 2048,
+      "scale_to_length": 1440,
       "background_color": "#000000",
       "image": [
         "78",

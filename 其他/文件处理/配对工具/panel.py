@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageTk
 
 try:
@@ -44,6 +45,10 @@ class ImagePanel:
         self.zoom_level = 1.0  # 缩放级别
         self.min_zoom = 0.1
         self.max_zoom = 5.0
+
+        # 预加载缓存（key=index, value=PIL.Image）
+        self._image_cache = {}
+        self._preload_executor = ThreadPoolExecutor(max_workers=2)
 
         # 拖拽相关
         self.drag_start_x = 0
@@ -370,60 +375,132 @@ class ImagePanel:
         if not self.image_files or index < 0 or index >= len(self.image_files):
             return
 
+        # 检查预加载缓存
+        if index in self._image_cache:
+            cached = self._image_cache.pop(index)
+            img = cached['img']
+            original_width = cached['original_width']
+            original_height = cached['original_height']
+            self._display_image(img, original_width, original_height)
+            self._preload_neighbors(index)
+            return
+
         folder = self.folder_path.get()
         image_path = os.path.join(folder, self.image_files[index])
 
-        try:
+        def load_in_background():
+            """后台加载图片（非主线程）"""
             img = Image.open(image_path)
             original_width, original_height = img.size
 
-            # 保存原始图片用于缩放
-            self.original_image = img
-
-            # 重置缩放和拖拽状态
-            self.zoom_level = 1.0
-            self.drag_offset_x = 0
-            self.drag_offset_y = 0
-
-            # 获取 Canvas 实际尺寸（使用固定值作为后备）
             canvas_width = max(self.image_canvas.winfo_width(), 400)
             canvas_height = max(self.image_canvas.winfo_height(), IMAGE_AREA_HEIGHT)
+            target_w = canvas_width - 20
+            target_h = canvas_height - 20
 
-            if canvas_width > 1 and canvas_height > 1:
-                img.thumbnail((canvas_width - 20, canvas_height - 20))
-            else:
-                img.thumbnail((400, IMAGE_AREA_HEIGHT - 20))
+            # 计算适配缩放（放大和缩小都处理）
+            scale = min(target_w / original_width, target_h / original_height)
+            if scale != 1.0:
+                new_w = max(1, int(original_width * scale))
+                new_h = max(1, int(original_height * scale))
+                img = img.resize((new_w, new_h), Image.LANCZOS)
 
-            # 根据 image_align 设置图片位置
-            if self.image_align == tk.W:
-                # 左侧面板：图片靠左
-                x_pos = 0
-            else:
-                # 右侧面板：图片靠右 - 使用固定宽度计算位置
-                x_pos = canvas_width
+            return {'img': img, 'original_width': original_width, 'original_height': original_height}
 
-            self.image_canvas.coords(self.image_id, (x_pos, 0))
+        def on_loaded(result):
+            """后台加载完成，在主线程更新 UI"""
+            self._display_image(result['img'], result['original_width'], result['original_height'])
+            self._preload_neighbors(index)
 
-            # 显示图片
-            self.current_image = ImageTk.PhotoImage(img)
-            self.image_canvas.itemconfig(self.image_id, image=self.current_image)
-
-            # 隐藏提示标签
-            if hasattr(self, 'drag_hint'):
-                self.drag_hint.place_forget()
-
-            self.update_status_with_resolution(original_width, original_height)
-        except Exception as e:
-            self.image_canvas.itemconfig(self.image_id, image=None)
-            self.drag_hint.config(text=f"加载失败：{str(e)}")
-            self.drag_hint.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-
+        # 立即显示 loading 状态
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(index)
         self.update_listbox_colors()
 
+        # 提交到后台线程加载
+        future = self._preload_executor.submit(load_in_background)
+        # 用 after 循环等待后台完成（不阻塞 UI）
+        def poll():
+            if future.done():
+                try:
+                    result = future.result()
+                    on_loaded(result)
+                except Exception as e:
+                    self.image_canvas.itemconfig(self.image_id, image=None)
+                    if hasattr(self, 'drag_hint'):
+                        self.drag_hint.config(text=f"加载失败：{str(e)}")
+                        self.drag_hint.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+            else:
+                self.parent.after(30, poll)
+        self.parent.after(30, poll)
+
+    def _display_image(self, img, original_width, original_height):
+        """在主线程中显示已加载好的图片"""
+        self.original_image = img
+        self.zoom_level = 1.0
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
+
+        canvas_width = max(self.image_canvas.winfo_width(), 400)
+        if self.image_align == tk.W:
+            x_pos = 0
+        else:
+            x_pos = canvas_width
+
+        self.image_canvas.coords(self.image_id, (x_pos, 0))
+
+        self.current_image = ImageTk.PhotoImage(img)
+        self.image_canvas.itemconfig(self.image_id, image=self.current_image)
+
+        if hasattr(self, 'drag_hint'):
+            self.drag_hint.place_forget()
+
+        self.update_status_with_resolution(original_width, original_height)
+        self.listbox.selection_clear(0, tk.END)
+        self.listbox.selection_set(self.current_index)
+        self.update_listbox_colors()
+
         if self.main_window and hasattr(self.main_window, 'enable_export_button'):
             self.main_window.enable_export_button()
+
+    def _preload_neighbors(self, current_index):
+        """异步预加载相邻图片"""
+        if not self.image_files:
+            return
+
+        def load_and_cache(i):
+            folder = self.folder_path.get()
+            image_path = os.path.join(folder, self.image_files[i])
+            img = Image.open(image_path)
+            original_width, original_height = img.size
+
+            canvas_width = max(self.image_canvas.winfo_width(), 400)
+            canvas_height = max(self.image_canvas.winfo_height(), IMAGE_AREA_HEIGHT)
+            target_w = canvas_width - 20
+            target_h = canvas_height - 20
+
+            scale = min(target_w / original_width, target_h / original_height)
+            if scale != 1.0:
+                new_w = max(1, int(original_width * scale))
+                new_h = max(1, int(original_height * scale))
+                img = img.resize((new_w, new_h), Image.LANCZOS)
+
+            # 限制缓存大小（只保留最近 4 张）
+            if len(self._image_cache) >= 4:
+                oldest = next(iter(self._image_cache))
+                del self._image_cache[oldest]
+
+            self._image_cache[i] = {
+                'img': img,
+                'original_width': original_width,
+                'original_height': original_height,
+            }
+
+        # 预加载前一张和后一张
+        if current_index > 0:
+            self._preload_executor.submit(load_and_cache, current_index - 1)
+        if current_index < len(self.image_files) - 1:
+            self._preload_executor.submit(load_and_cache, current_index + 1)
 
     def on_mouse_wheel(self, event):
         """处理鼠标滚轮缩放"""
@@ -446,6 +523,11 @@ class ImagePanel:
         if new_zoom < self.min_zoom or new_zoom > self.max_zoom:
             return
 
+        # 鼠标在 Canvas 中的位置
+        mouse_x = event.x
+        mouse_y = event.y
+
+        old_zoom = self.zoom_level
         self.zoom_level = new_zoom
 
         # 应用缩放
@@ -456,14 +538,34 @@ class ImagePanel:
         self.current_image = ImageTk.PhotoImage(img_resized)
         self.image_canvas.itemconfig(self.image_id, image=self.current_image)
 
-        # 更新图片位置（保持对齐 - 右侧面板始终使用固定宽度计算）
+        # 获取图片在 Canvas 上的锚点基准位置
         canvas_width = max(self.image_canvas.winfo_width(), 400)
-        if self.image_align == tk.W:
-            x_pos = 0
-        else:
-            x_pos = canvas_width
+        canvas_height = max(self.image_canvas.winfo_height(), IMAGE_AREA_HEIGHT)
 
-        self.image_canvas.coords(self.image_id, (x_pos, 0))
+        # 锚点基准坐标（不应用偏移时的位置）
+        if self.image_align == tk.W:
+            base_x = 0
+        else:
+            base_x = canvas_width
+        base_y = 0
+
+        # 缩放前鼠标相对于图片上对应点的偏移
+        old_width = self.original_image.width * old_zoom
+        old_img_x_at_mouse = mouse_x - (base_x + self.drag_offset_x)
+        # 缩放后该点应处于图片上的新位置
+        new_img_x_at_mouse = old_img_x_at_mouse * (new_zoom / old_zoom)
+        new_x = mouse_x - new_img_x_at_mouse
+
+        old_height = self.original_image.height * old_zoom
+        old_img_y_at_mouse = mouse_y - (base_y + self.drag_offset_y)
+        new_img_y_at_mouse = old_img_y_at_mouse * (new_zoom / old_zoom)
+        new_y = mouse_y - new_img_y_at_mouse
+
+        self.image_canvas.coords(self.image_id, (new_x, new_y))
+
+        # 更新拖拽偏移量以保持一致性
+        self.drag_offset_x = new_x - base_x
+        self.drag_offset_y = new_y - base_y
 
         # 更新状态显示缩放级别
         zoom_percent = int(self.zoom_level * 100)
