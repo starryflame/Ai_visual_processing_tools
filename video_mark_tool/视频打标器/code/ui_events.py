@@ -25,11 +25,7 @@ def delete_tag(self):
     
     # 从列表框中删除
     self.tag_listbox.delete(index)
-    
-    # 更新导出按钮状态
-    if len(self.tags) == 0:
-        self.export_btn.config(state=tk.DISABLED)
-        
+
     # 更新标记可视化
     self.draw_tag_markers()
 
@@ -105,14 +101,6 @@ def show_tag_context_menu(self, event):
         self.tag_context_menu.post(event.x_root, event.y_root)
 
 
-def show_preset_context_menu(self, event, widget, preset_type, index):
-    """显示预设标签的右键菜单"""
-    self.selected_preset_widget = widget
-    self.selected_preset_type = preset_type
-    self.selected_preset_index = index
-    self.preset_context_menu.post(event.x_root, event.y_root)
-
-
 def on_closing(self):
     if self.cap:
         self.cap.release()
@@ -181,7 +169,6 @@ def update_font(self):
     self.ai_prompt_entry.config(font=("Microsoft YaHei", max(8, self.font_size - 2)))
     self.add_preset_btn.config(font=self.font)
     self.preset_entry.config(font=self.font)
-    self.preset_context_menu.config(font=self.font)
     
     for widget in self.root.winfo_children():
         self.update_widget_font(widget)
@@ -274,7 +261,6 @@ __all__ = [
     'delete_tag',
     'edit_tag',
     'show_tag_context_menu',
-    'show_preset_context_menu',
     'on_closing',
     'on_progress_change',
     'on_root_click',

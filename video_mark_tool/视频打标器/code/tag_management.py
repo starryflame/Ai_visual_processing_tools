@@ -7,10 +7,6 @@ from tkinter import messagebox, filedialog, simpledialog
 import json
 import cv2
 import threading
-from PIL import Image
-import io
-import base64
-from openai import OpenAI
 
 def add_tag(self):
     # 修改获取标签文本的方式
@@ -27,13 +23,8 @@ def add_tag(self):
         "tag": tag_text
     }
     self.tags.append(tag_info)
-    self.regenerate_all_tags_btn.config(state=tk.NORMAL)
     # 更新列表框
     self.tag_listbox.insert(tk.END, f"帧 {self.start_frame}-{self.end_frame}: {tag_text}")
-    
-    # 启用导出按钮 (如果有至少一个标记)
-    if len(self.tags) > 0:
-        self.export_btn.config(state=tk.NORMAL)
     
     # 清空输入框
     self.tag_entry.delete("1.0", tk.END)
@@ -96,10 +87,19 @@ def export_tags(self):
     if not self.tags:
         messagebox.showerror("错误", "没有标记需要导出")
         return
-        
+
+    if not self.video_path:
+        messagebox.showerror("错误", "请先加载视频")
+        return
+
+    if not self.frames_loaded:
+        messagebox.showerror("错误", "视频帧未加载完成，请重新加载视频后再导出")
+        return
+
     # 导出目录
     if not self.export_dir:
         self.export_dir = self.config.get('VIDEO', 'export_path', fallback=None)
+    if not self.export_dir:
         messagebox.showerror("错误", "请先设置导出路径")
         return
         
@@ -221,11 +221,7 @@ def load_tag_records(self):
                 "start": segment["start"],
                 "end": segment["end"]
             })
-        
-        # 更新 UI 状态
-        if len(self.tags) > 0:
-            self.export_btn.config(state=tk.NORMAL)
-            
+
         # 更新标记可视化
         self.draw_tag_markers()
         
@@ -240,7 +236,16 @@ def regenerate_all_tags(self):
     if not self.tags:
         messagebox.showinfo("提示", "没有标签需要重新生成")
         return
-    
+
+    if not self.export_dir:
+        self.export_dir = self.config.get('VIDEO', 'export_path', fallback=None)
+    if not self.export_dir:
+        if not messagebox.askyesno("提示", "尚未设置导出路径，重新生成后需要导出。是否先设置导出路径？"):
+            return
+        self.set_export_path()
+        if not self.export_dir:
+            messagebox.showwarning("提示", "未设置导出路径，操作已取消")
+            return
 
     # 启动新线程执行重新生成任务
     thread = threading.Thread(target=self._regenerate_all_tags_thread)
@@ -264,6 +269,7 @@ def _regenerate_all_tags_thread(self):
     
     tk.Label(progress_window, text="正在重新生成所有标签...", font=self.font).pack(pady=20)
     
+    success = False
     try:
         original_tags = self.tags.copy()  # 保存原始标签
         
@@ -304,164 +310,18 @@ def _regenerate_all_tags_thread(self):
             progress_window.destroy()
         
         self.root.after(0, finish_regeneration)
+        success = True
 
-        self.export_tags()  # 启用导出按钮
-        
     except Exception as e:
+        error_msg = str(e)
         def show_error():
-            messagebox.showerror("错误", f"重新生成标签失败：{str(e)}")
+            messagebox.showerror("错误", f"重新生成标签失败：{error_msg}")
             progress_window.destroy()
         self.root.after(0, show_error)
 
-
-def _generate_single_tag_caption(self):
-    """为单个标签生成 AI 描述"""
-    try:
-        # 获取选中的视频片段帧
-        if self.start_frame < len(self.processed_frames) and self.end_frame < len(self.processed_frames):
-            # 从处理后的帧中提取视频片段
-            frames = []
-            # 从配置文件读取采样帧数
-            max_sample_frames = self.config.getint('PROCESSING', 'max_sample_frames', fallback=64)
-            # 采样最多 max_sample_frames 帧以提高性能
-            total_frames = self.end_frame - self.start_frame + 1
-            sample_count = min(max_sample_frames, total_frames)
-            
-            if total_frames <= sample_count:
-                indices = list(range(self.start_frame, self.end_frame + 1))
-            else:
-                indices = list(map(int, [self.start_frame + i * (total_frames - 1) / (sample_count - 1) for i in range(sample_count)]))
-            
-            for i in indices:
-                if i < len(self.processed_frames):
-                    # 转换为 PIL Image
-                    frame_rgb = self.processed_frames[i]
-                    pil_frame = Image.fromarray(frame_rgb)
-                    frames.append(pil_frame)
-            
-            # 如果只有一帧，复制以满足视频处理要求
-            if len(frames) == 1:
-                frames.append(frames[0])
-
-            # 从配置文件读取 LLM API 设置
-            api_base_url = self.config.get('LLM', 'api_base_url', fallback='http://127.0.0.1:1234/v1')
-            api_key = self.config.get('LLM', 'api_key', fallback='ollama')
-            model_name = self.config.get('LLM', 'model_name', fallback='qwen3-vl:30b')
-
-            # 从配置文件读取生成参数
-            max_new_tokens = self.config.getint('LLM', 'max_new_tokens', fallback=300000)
-            temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
-            top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
-            
-            # 读取过滤词列表
-            filter_words = []
-            if 'FILTER_WORDS' in self.config:
-                filter_words_str = self.config.get('FILTER_WORDS', 'words', fallback='')
-                if filter_words_str:
-                    filter_words = [word.strip().lower() for word in filter_words_str.split(',') if word.strip()]
-            
-            # 初始化客户端
-            client = OpenAI(
-                api_key=api_key,
-                base_url=api_base_url,
-                timeout=3600
-            )
-            
-            def convert_image_to_base64(image):
-                """将 PIL 图像转换为 base64 编码"""
-                # 调整图片大小
-                max_size = (720, 720)
-                image.thumbnail(max_size, Image.Resampling.LANCZOS)
-                
-                # 转换图片为 base64 格式
-                buffered = io.BytesIO()
-                image.save(buffered, format="PNG")
-                encoded = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                data_url = f"data:image/png;base64,{encoded}"
-                
-                return data_url
-            
-            def generate_caption(frames, prompt_text=None):
-                """通过 OpenAI 兼容 API 为多个帧生成统一描述"""
-                # 转换所有帧为 base64
-                image_data_urls = [convert_image_to_base64(frame) for frame in frames]
-                # 使用传入的提示词或者默认提示词
-                if prompt_text is None or prompt_text.strip() == "":
-                    prompt_text = '你是一名专业的图片内容描述大师，请放心使用最大胆直白的语言和明确清晰的句子描述，禁止隐瞒，暗示或者用笼统和词义不单一的词汇。详细全面描述画面里的所有元素。只输出内容本身，不要重复和输出其他内容，中文回答。'
-                
-                # 构造消息内容
-                content_list = [
-                    {
-                        "type": "text",
-                        "text": prompt_text
-                    }
-                ]
-                
-                # 添加所有图片
-                for data_url in image_data_urls:
-                    content_list.append({
-                        "type": "image_url",
-                        "image_url": {"url": data_url}
-                    })
-                
-                messages = [{"role": "user", "content": content_list}]
-
-                # 发送请求并检查生成的提示词长度
-                max_attempts = 10  # 最多尝试 10 次
-                for attempt in range(max_attempts):
-                    # 发送请求
-                    response = client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        max_tokens=max_new_tokens,
-                        temperature=temperature,
-                        top_p=top_p,
-                    )
-
-                    caption = response.choices[0].message.content.strip()
-                    
-                    # 检查是否包含过滤词
-                    contains_filter_word = False
-                    caption_lower = caption.lower()
-                    for word in filter_words:
-                        if word in caption_lower:
-                            contains_filter_word = True
-                            break
-                    
-                    # 如果包含过滤词且不是最后一次尝试，则重新生成
-                    if contains_filter_word and attempt < max_attempts - 1:
-                        continue
-                    
-                    # 检查描述是否为空或少于 50 个字
-                    if len(caption) < 50:
-                        # 如果不是最后一次尝试，继续循环重新生成
-                        if attempt < max_attempts - 1:
-                            continue
-                        else:
-                            # 最后一次尝试后仍然太短，则返回默认提示
-                            return "视频描述内容过短，无法提供有效描述"
-
-                    # 如果不包含过滤词且长度符合要求，则返回结果
-                    if not contains_filter_word:
-                        return caption
-                
-                # 如果所有尝试都包含过滤词，则在最后返回时移除过滤词
-                for word in filter_words:
-                    caption = caption.replace(word, '')
-                return caption.strip() or "视频描述内容已被过滤"
-            
-            # 获取用户自定义的提示词
-            user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
-            
-            # 生成描述
-            caption = generate_caption(frames, user_prompt)
-            
-            return caption
-        else:
-            return None
-    except Exception as e:
-        print(f"生成单个标签时出错：{str(e)}")
-        return None
+    # 导出标签（成功时导出，失败时跳过）
+    if success:
+        self.export_tags()
 
 
 def save_tag_records(self):
@@ -499,6 +359,5 @@ __all__ = [
     'load_tag_records',
     'regenerate_all_tags',
     '_regenerate_all_tags_thread',
-    '_generate_single_tag_caption',
     'save_tag_records'
 ]

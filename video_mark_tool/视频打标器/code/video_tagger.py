@@ -1,15 +1,7 @@
-import cv2
-import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
-import threading
-import torch
-#from transformers import AutoModelForVision2Seq, AutoProcessor, AutoTokenizer
-import numpy as np
 import configparser
-import base64
-import time
 
 
 
@@ -60,11 +52,6 @@ class VideoTagger:
         # 修改默认字体为更现代的字体
         self.font = ("Microsoft YaHei", self.font_size)
         
-        # 新增模型相关变量
-        self.model_loaded = False
-        self.qwen_model = None
-        self.processor = None
-        self.tokenizer = None
         self.caption_presets = []  # 存储模型生成的标签预设
         self.manual_presets = []   # 存储手动添加的标签预设
         
@@ -121,15 +108,7 @@ class VideoTagger:
         self.preset_canvas.configure(yscrollcommand=scrollbar.set)
     
         self.preset_canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-    
-        # 预设标签右键菜单
-        self.preset_context_menu = tk.Menu(root, tearoff=0, font=self.font)
-        self.preset_context_menu.add_command(label="编辑预设", command=self.edit_preset_tag)
-        self.preset_context_menu.add_command(label="删除预设", command=self.delete_preset_tag)
-        self.preset_context_menu.add_command(label="应用到所有标记", command=self.apply_preset_to_all_tags)
-    
-        # --- 中间：视频展示区域 ---
+        scrollbar.pack(side="right", fill="y")# --- 中间：视频展示区域 ---
         self.video_panel = tk.Frame(main_paned, bg="black")
         main_paned.add(self.video_panel, weight=3)
         self.video_canvas = tk.Canvas(self.video_panel, bg="black")
@@ -199,7 +178,7 @@ class VideoTagger:
         self.frame_label = tk.Label(progress_frame, text="帧: 0/0", font=self.font)
         self.frame_label.pack()
     
-        self.progress_canvas = tk.Canvas(progress_frame, height=30)
+        self.progress_canvas = tk.Canvas(progress_frame, height=50)
         self.progress_canvas.pack(fill=tk.X, pady=2)
     
         self.progress = tk.Scale(progress_frame, from_=0, to=100, orient=tk.HORIZONTAL,
@@ -238,11 +217,11 @@ class VideoTagger:
         self.add_preset_btn = tk.Button(button_frame, text="添加预设", command=self.add_preset_tag, font=self.font,height=2, width=30)
         self.add_preset_btn.pack(side=tk.LEFT, padx=2)
         
-        self.delete_preset_btn = tk.Button(button_frame, text="删除所有预设", command=self.delete_caption_preset,state=tk.DISABLED, font=self.font,height=2, width=30)
+        self.delete_preset_btn = tk.Button(button_frame, text="删除所有预设", command=self.delete_caption_preset,state=tk.NORMAL, font=self.font,height=2, width=30)
         self.delete_preset_btn.pack(side=tk.LEFT, padx=2)
 
         # 添加重新生成所有标签的按钮
-        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签且导出", command=self.regenerate_all_tags, state=tk.DISABLED, font=self.font,height=2, width=30)
+        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签且导出", command=self.regenerate_all_tags, state=tk.NORMAL, font=self.font,height=2, width=30)
         self.regenerate_all_tags_btn.pack(side=tk.LEFT, padx=2)
 
         # ===================【标签列表区】===================
@@ -274,13 +253,13 @@ class VideoTagger:
         self.fps_entry = tk.Entry(export_frame, textvariable=self.export_fps, width=10, font=self.font)
         self.fps_entry.pack(side=tk.LEFT, padx=5)
     
-        self.export_btn = tk.Button(export_frame, text="导出所有标记片段", command=self.export_tags, state=tk.DISABLED, font=self.font)
+        self.export_btn = tk.Button(export_frame, text="导出所有标记片段", command=self.export_tags, state=tk.NORMAL, font=self.font)
         self.export_btn.pack(side=tk.LEFT, padx=5)
     
-        self.save_record_btn = tk.Button(export_frame, text="保存标记记录", command=self.save_tag_records, state=tk.DISABLED, font=self.font)
+        self.save_record_btn = tk.Button(export_frame, text="保存标记记录", command=self.save_tag_records, state=tk.NORMAL, font=self.font)
         self.save_record_btn.pack(side=tk.LEFT, padx=5)
     
-        self.load_record_btn = tk.Button(export_frame, text="加载标记记录", command=self.load_tag_records, state=tk.DISABLED, font=self.font)
+        self.load_record_btn = tk.Button(export_frame, text="加载标记记录", command=self.load_tag_records, state=tk.NORMAL, font=self.font)
         self.load_record_btn.pack(side=tk.LEFT, padx=5)
 
         # 添加保存并替换视频按钮
@@ -296,7 +275,7 @@ class VideoTagger:
 
     # 导入模块
     from ui_events import (
-        clear_frame_marks, delete_tag, edit_tag, show_tag_context_menu, show_preset_context_menu,
+        clear_frame_marks, delete_tag, edit_tag, show_tag_context_menu,
         on_closing, on_progress_change, on_root_click, decrease_font, increase_font,
         update_font, update_widget_font, on_window_resize, next_frame, prev_frame,
         toggle_play, toggle_play_with_key, set_start_frame, set_end_frame,
@@ -311,18 +290,17 @@ class VideoTagger:
     
     from tag_management import (
         add_tag, exclude_segment, save_tag_records, load_tag_records, export_tags,
-        set_export_path, regenerate_all_tags, _regenerate_all_tags_thread, _generate_single_tag_caption
+        set_export_path, regenerate_all_tags, _regenerate_all_tags_thread
     )
     
     from ai_features import (
         generate_ai_caption, _generate_ai_caption_local, _generate_ai_caption_local_thread,
-        auto_segment_and_recognize, _auto_segment_and_recognize_local
+        auto_segment_and_recognize, _auto_segment_and_recognize_local, _generate_single_tag_caption
     )
     
     from presets import (
-        create_preset_item, use_caption_preset, delete_caption_preset, add_preset_tag,
-        create_manual_preset_item, use_preset_tag, apply_preset_to_all_tags,
-        edit_preset_tag, delete_preset_tag, show_full_image
+        create_preset_item, delete_caption_preset, add_preset_tag,
+        create_manual_preset_item, show_manual_preset_window, use_preset_tag, show_full_image
     )
     
     from utils import is_child_of, draw_tag_markers, highlight_tag_for_current_frame

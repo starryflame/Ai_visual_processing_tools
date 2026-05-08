@@ -65,15 +65,15 @@ def draw_tag_markers(self):
         self.progress_canvas.create_line(end_x, 5, end_x, 25, fill="purple", width=2)
         # 调整文本位置避免被遮挡
         text_x = end_x
-        if end_x < 30:  # 如果太靠近左边
+        if end_x < 30:
             text_x = end_x + 25
             anchor = "w"
-        elif end_x > canvas_width - 30:  # 如果太靠近右边
+        elif end_x > canvas_width - 30:
             text_x = end_x - 25
             anchor = "e"
         else:
-            anchor = "n"
-        self.progress_canvas.create_text(text_x, 25, text=f"结束:{self.end_frame}", anchor=anchor, fill="purple", font=("Arial", 8))
+            anchor = "s"
+        self.progress_canvas.create_text(text_x, 20, text=f"结束:{self.end_frame}", anchor=anchor, fill="purple", font=("Arial", 8))
         
     # 绘制时间轴上的时间标记
     if self.fps > 0:

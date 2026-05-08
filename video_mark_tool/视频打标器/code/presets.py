@@ -17,44 +17,147 @@ def add_preset_tag(self):
     
     # 使用统一的方法创建预设项显示
     self.create_manual_preset_item(len(self.manual_presets) - 1, preset_text)
-    # 启用删除按钮
-    self.delete_preset_btn.config(state=tk.NORMAL)
     # 清空输入框
     self.preset_entry.delete(0, tk.END)
 
 
 def create_manual_preset_item(self, index, preset_text):
-    """创建手动预设项显示"""
-    # 创建预设项框架
+    """创建手动预设项显示 — 带图标、文本和操作按钮"""
     preset_item = tk.Frame(self.preset_scrollable_frame, bg="#f0f0f0", relief="raised", bd=1)
     preset_item.pack(fill=tk.X, padx=5, pady=5)
-    
+
+    # 图标框架（手动预设没有缩略图，用文字图标代替）
+    icon_frame = tk.Frame(preset_item, bg="#f0f0f0", width=40)
+    icon_frame.pack(side=tk.LEFT, padx=5, pady=5)
+    icon_frame.pack_propagate(False)
+
+    icon_label = tk.Label(icon_frame, text="【手动】", bg="#f0f0f0", font=("Microsoft YaHei", 8))
+    icon_label.pack()
+
     # 标签内容框架
     content_frame = tk.Frame(preset_item, bg="#f0f0f0")
     content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-    
+
     # 标签内容文本
-    content_text = tk.Text(content_frame, wrap=tk.WORD, height=4, width=20, font=("Arial", 8))
+    content_text = tk.Text(content_frame, wrap=tk.WORD, height=4, width=40, font=("Arial", 8))
     content_text.insert(tk.END, preset_text)
     content_text.config(state=tk.DISABLED)
     content_text.pack(fill=tk.BOTH, expand=True)
-    
-    # 绑定点击事件，用于使用预设
+
+    # 点击打开预设详情窗口
     def on_click(event=None):
-        self.use_preset_tag(preset_text)
-    
+        self.show_manual_preset_window(preset_text, index)
+
     preset_item.bind("<Button-1>", on_click)
+    icon_label.bind("<Button-1>", on_click)
     content_text.bind("<Button-1>", on_click)
-    
-    # 为所有子组件绑定点击事件
+
     for child in preset_item.winfo_children():
         child.bind("<Button-1>", on_click)
         for subchild in child.winfo_children():
             subchild.bind("<Button-1>", on_click)
-    
-    # 绑定右键菜单事件
-    preset_item.bind("<Button-3>", lambda e: self.show_preset_context_menu(e, preset_item, "manual", index))
-    content_text.bind("<Button-3>", lambda e: self.show_preset_context_menu(e, preset_item, "manual", index))
+
+
+def show_manual_preset_window(self, preset_text, index):
+    """打开手动预设详情窗口（可编辑、使用、删除）"""
+    win = tk.Toplevel(self.root)
+    win.title("预设详情")
+    win.geometry("500x400")
+    win.transient(self.root)
+    win.grab_set()
+    win.update_idletasks()
+    x = (win.winfo_screenwidth() // 2) - (500 // 2)
+    y = (win.winfo_screenheight() // 2) - (400 // 2)
+    win.geometry(f"500x400+{x}+{y}")
+
+    tk.Label(win, text="预设标签:", font=self.font).pack(anchor=tk.W, padx=15, pady=(15, 5))
+
+    text_frame = tk.Frame(win)
+    text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+
+    caption_text = tk.Text(text_frame, wrap=tk.WORD, font=self.font, height=15)
+    caption_text.insert(tk.END, preset_text)
+    caption_text.config(state=tk.NORMAL)
+
+    scrollbar = tk.Scrollbar(text_frame, command=caption_text.yview)
+    caption_text.config(yscrollcommand=scrollbar.set)
+    caption_text.grid(row=0, column=0, sticky="nsew")
+    scrollbar.grid(row=0, column=1, sticky="ns")
+    text_frame.grid_rowconfigure(0, weight=1)
+    text_frame.grid_columnconfigure(0, weight=1)
+
+    button_frame = tk.Frame(win)
+    button_frame.pack(fill=tk.X, padx=15, pady=15)
+
+    # 使用预设 — 直接生成标记片段
+    def use_preset():
+        new_text = caption_text.get("1.0", tk.END).strip()
+        if not new_text:
+            messagebox.showerror("错误", "标签内容为空", parent=win)
+            return
+        start = self.start_frame
+        end = self.end_frame
+        if start >= end:
+            messagebox.showerror("错误", "请先设置开始帧和结束帧", parent=win)
+            return
+        self.tags.append({"start": start, "end": end, "tag": new_text})
+        self.tag_listbox.insert(tk.END, f"帧 {start}-{end}: {new_text}")
+        self.start_frame = 0
+        self.end_frame = 0
+        self.current_frame = end
+        self.draw_tag_markers()
+        self.show_frame()
+        win.destroy()
+
+    # 填入标签框
+    def fill_tag_entry():
+        new_text = caption_text.get("1.0", tk.END).strip()
+        current = self.tag_entry.get("1.0", tk.END).strip()
+        if current:
+            self.tag_entry.delete("1.0", tk.END)
+            self.tag_entry.insert("1.0", current + new_text)
+        else:
+            self.tag_entry.delete("1.0", tk.END)
+            self.tag_entry.insert("1.0", new_text)
+        win.destroy()
+
+    tk.Button(button_frame, text="使用预设", command=use_preset, font=self.font).pack(side=tk.LEFT, padx=5)
+    tk.Button(button_frame, text="填入标签框", command=fill_tag_entry, font=self.font).pack(side=tk.LEFT, padx=5)
+
+
+    # 保存修改
+    def save_changes():
+        new_text = caption_text.get("1.0", tk.END).strip()
+        if not new_text:
+            messagebox.showerror("错误", "标签不能为空", parent=win)
+            return
+        self.manual_presets[index] = new_text
+        # 重建显示
+        for w in self.preset_scrollable_frame.winfo_children():
+            w.destroy()
+        for i, p in enumerate(self.manual_presets):
+            self.create_manual_preset_item(i, p)
+        for i, p in enumerate(self.caption_presets):
+            self.create_preset_item(i, p["caption"], p["image"])
+        messagebox.showinfo("成功", "已保存修改", parent=win)
+
+    tk.Button(button_frame, text="保存修改", command=save_changes, font=self.font).pack(side=tk.LEFT, padx=5)
+
+    # 删除预设
+    def delete_preset():
+        if messagebox.askyesno("确认", "确定要删除这个预设吗？", parent=win):
+            del self.manual_presets[index]
+            for w in self.preset_scrollable_frame.winfo_children():
+                w.destroy()
+            for i, p in enumerate(self.manual_presets):
+                self.create_manual_preset_item(i, p)
+            for i, p in enumerate(self.caption_presets):
+                self.create_preset_item(i, p["caption"], p["image"])
+            win.destroy()
+
+    tk.Button(button_frame, text="删除预设", command=delete_preset, font=self.font).pack(side=tk.LEFT, padx=5)
+
+    tk.Button(button_frame, text="关闭", command=win.destroy, font=self.font).pack(side=tk.LEFT, padx=5)
 
 
 def create_preset_item(self, index, caption, frame_image):
@@ -101,11 +204,6 @@ def create_preset_item(self, index, caption, frame_image):
         child.bind("<Button-1>", on_click)
         for subchild in child.winfo_children():
             subchild.bind("<Button-1>", on_click)
-    
-    # 绑定右键菜单事件
-    preset_item.bind("<Button-3>", lambda e: self.show_preset_context_menu(e, preset_item, "ai", index))
-    thumbnail_label.bind("<Button-3>", lambda e: self.show_preset_context_menu(e, preset_item, "ai", index))
-    content_text.bind("<Button-3>", lambda e: self.show_preset_context_menu(e, preset_item, "ai", index))
 
 
 def use_preset_tag(self, preset_text):
@@ -120,120 +218,16 @@ def use_preset_tag(self, preset_text):
     self.tag_entry.insert("1.0", new_text)
 
 
-def use_caption_preset(self):
-    """使用选中的标签预设填充标签输入框"""
-
-
-def edit_preset_tag(self):
-    """编辑预设标签"""
-    if hasattr(self, 'selected_preset_widget') and hasattr(self, 'selected_preset_type'):
-        # 获取当前预设文本
-        if self.selected_preset_type == "manual":
-            current_text = self.manual_presets[self.selected_preset_index]
-        else:  # AI 生成的预设
-            current_text = self.caption_presets[self.selected_preset_index]["caption"]
-            
-        # 创建编辑窗口
-        edit_window = tk.Toplevel(self.root)
-        edit_window.title("编辑预设标签")
-        edit_window.geometry("300x150")
-        edit_window.transient(self.root)
-        edit_window.grab_set()
-        
-        # 居中显示
-        edit_window.update_idletasks()
-        x = (edit_window.winfo_screenwidth() // 2) - (300 // 2)
-        y = (edit_window.winfo_screenheight() // 2) - (150 // 2)
-        edit_window.geometry(f"300x150+{x}+{y}")
-        
-        tk.Label(edit_window, text="预设标签:", font=self.font).pack(pady=(20, 5))
-        edit_entry = tk.Entry(edit_window, font=self.font, width=30)
-        edit_entry.pack(pady=5, padx=20)
-        edit_entry.insert(0, current_text)
-        edit_entry.focus()
-        
-        def save_changes():
-            new_text = edit_entry.get().strip()
-            if new_text:
-                if self.selected_preset_type == "manual":
-                    # 更新手动预设
-                    self.manual_presets[self.selected_preset_index] = new_text
-                    # 更新显示文本
-                    content_frame = self.selected_preset_widget.winfo_children()[0]  # 标签内容框架
-                    content_text = content_frame.winfo_children()[0]  # 文本框
-                    content_text.config(state=tk.NORMAL)
-                    content_text.delete(1.0, tk.END)
-                    content_text.insert(tk.END, new_text)
-                    content_text.config(state=tk.DISABLED)
-                else:
-                    # 更新 AI 预设
-                    self.caption_presets[self.selected_preset_index]["caption"] = new_text
-                    # 更新显示文本
-                    content_frame = self.selected_preset_widget.winfo_children()[1]  # 标签内容框架
-                    content_text = content_frame.winfo_children()[0]  # 文本框
-                    content_text.config(state=tk.NORMAL)
-                    content_text.delete(1.0, tk.END)
-                    content_text.insert(tk.END, new_text)
-                    content_text.config(state=tk.DISABLED)
-                edit_window.destroy()
-            else:
-                messagebox.showerror("错误", "预设标签不能为空", parent=edit_window)
-        
-        button_frame = tk.Frame(edit_window)
-        button_frame.pack(pady=20)
-        
-        tk.Button(button_frame, text="保存", command=save_changes, font=self.font).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="取消", command=edit_window.destroy, font=self.font).pack(side=tk.LEFT, padx=5)
-
-
-def delete_preset_tag(self):
-    """删除预设标签"""
-    if hasattr(self, 'selected_preset_widget') and hasattr(self, 'selected_preset_type'):
-        if messagebox.askyesno("确认删除", "确定要删除这个预设标签吗？", parent=self.root):
-            if self.selected_preset_type == "manual":
-                # 从手动预设列表中删除
-                del self.manual_presets[self.selected_preset_index]
-                # 重新创建所有手动预设项显示
-                for widget in self.preset_scrollable_frame.winfo_children():
-                    widget.destroy()
-                
-                # 重新创建所有预设项显示
-                for i, preset in enumerate(self.manual_presets):
-                    self.create_manual_preset_item(i, preset)
-                
-                # 重新创建 AI 预设项显示
-                for i, preset in enumerate(self.caption_presets):
-                    self.create_preset_item(i, preset["caption"], preset["image"])
-            else:
-                # 从 AI 预设列表中删除
-                del self.caption_presets[self.selected_preset_index]
-                # 重新创建所有预设项显示
-                for widget in self.preset_scrollable_frame.winfo_children():
-                    widget.destroy()
-                
-                # 重新创建所有手动预设项显示
-                for i, preset in enumerate(self.manual_presets):
-                    self.create_manual_preset_item(i, preset)
-                
-                # 重新创建 AI 预设项显示
-                for i, preset in enumerate(self.caption_presets):
-                    self.create_preset_item(i, preset["caption"], preset["image"])
-            
-            # 清除引用避免错误
-            del self.selected_preset_widget
-            del self.selected_preset_type
-            del self.selected_preset_index
-
-
 def delete_caption_preset(self):
     """清空所有标签预设"""
+    if not self.caption_presets and not self.manual_presets:
+        messagebox.showwarning("提示", "当前没有标签预设需要删除")
+        return
     if messagebox.askyesno("确认", "确定要删除所有标签预设吗？"):
-        # 清空显示区域
         for widget in self.preset_scrollable_frame.winfo_children():
             widget.destroy()
-        
-        # 清空数据
         self.caption_presets.clear()
+        self.manual_presets.clear()
 
 
 def show_full_image(self, frame_image, caption, index):
@@ -339,14 +333,40 @@ def show_full_image(self, frame_image, caption, index):
     button_frame = tk.Frame(image_window)
     button_frame.pack(fill=tk.X, padx=10, pady=10)
     
-    # 使用预设按钮
+    # 使用预设按钮 — 直接生成标记片段
     def use_preset():
-        self.tag_entry.delete("1.0", tk.END)
-        self.tag_entry.insert("1.0", caption)
+        start = self.start_frame
+        end = self.end_frame
+        if start >= end:
+            messagebox.showerror("错误", "请先设置开始帧和结束帧", parent=image_window)
+            return
+        if not caption.strip():
+            messagebox.showerror("错误", "标签内容为空", parent=image_window)
+            return
+        self.tags.append({"start": start, "end": end, "tag": caption})
+        self.tag_listbox.insert(tk.END, f"帧 {start}-{end}: {caption}")
+        self.start_frame = 0
+        self.end_frame = 0
+        self.current_frame = end
+        self.draw_tag_markers()
+        self.show_frame()
         image_window.destroy()
         
     tk.Button(button_frame, text="使用预设", command=use_preset, font=self.font).pack(side=tk.LEFT, padx=5)
-    
+
+    # 填入标签框 — 把内容追加到标签输入框
+    def fill_tag_entry():
+        current = self.tag_entry.get("1.0", tk.END).strip()
+        if current:
+            self.tag_entry.delete("1.0", tk.END)
+            self.tag_entry.insert("1.0", current + caption)
+        else:
+            self.tag_entry.delete("1.0", tk.END)
+            self.tag_entry.insert("1.0", caption)
+        image_window.destroy()
+
+    tk.Button(button_frame, text="填入标签框", command=fill_tag_entry, font=self.font).pack(side=tk.LEFT, padx=5)
+
     # 删除预设按钮
     def delete_preset():
         if messagebox.askyesno("确认", "确定要删除这个标签预设吗？", parent=image_window):
@@ -403,53 +423,12 @@ def show_full_image(self, frame_image, caption, index):
     image_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 
-def apply_preset_to_all_tags(self):
-    """将预设标签应用到所有已标记的视频片段标签开头"""
-    if not hasattr(self, 'selected_preset_type'):
-        return
-        
-    # 获取预设标签文本
-    if self.selected_preset_type == "manual":
-        preset_text = self.manual_presets[self.selected_preset_index]
-    else:  # AI 生成的预设
-        preset_text = self.caption_presets[self.selected_preset_index]["caption"]
-        
-    if not preset_text:
-        messagebox.showerror("错误", "预设标签为空")
-        return
-        
-    # 确认操作
-    if not messagebox.askyesno("确认", f"确定要将预设标签 '{preset_text}' 添加到所有已标记片段的标签开头吗？", parent=self.root):
-        return
-        
-    # 应用预设标签到所有标记
-    updated_count = 0
-    for i, tag in enumerate(self.tags):
-        original_tag = tag["tag"]
-        # 如果标签开头还没有这个预设标签，则添加
-        if not original_tag.startswith(preset_text):
-            new_tag = preset_text + "\n" + original_tag
-            self.tags[i]["tag"] = new_tag
-            # 更新列表框显示
-            self.tag_listbox.delete(i)
-            self.tag_listbox.insert(i, f"帧 {tag['start']}-{tag['end']}: {new_tag}")
-            updated_count += 1
-            
-    messagebox.showinfo("完成", f"已将预设标签应用到 {updated_count} 个标记片段", parent=self.root)
-    
-    # 更新标记可视化
-    self.draw_tag_markers()
-
-
 __all__ = [
     'add_preset_tag',
     'create_manual_preset_item',
+    'show_manual_preset_window',
     'create_preset_item',
     'use_preset_tag',
-    'use_caption_preset',
-    'edit_preset_tag',
-    'delete_preset_tag',
     'delete_caption_preset',
-    'show_full_image',
-    'apply_preset_to_all_tags'
+    'show_full_image'
 ]

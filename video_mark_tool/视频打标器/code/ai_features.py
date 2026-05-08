@@ -248,13 +248,22 @@ def auto_segment_and_recognize(self):
     y = (method_window.winfo_screenheight() // 2) - (150 // 2)
     method_window.geometry(f"300x150+{x}+{y}")
 
+    # 安全更新进度标签（窗口销毁后不再更新）
+    def safe_update_label(text):
+        if progress_label.winfo_exists():
+            progress_label.config(text=text)
+
     # 添加进度信息显示标签
     progress_label = tk.Label(method_window, text="准备开始处理...", wraplength=280)
     progress_label.pack(pady=20)
 
-    # 添加取消按钮
-    cancel_button = tk.Button(method_window, text="取消", command=lambda: method_window.destroy())
+    cancel_button = tk.Button(method_window, text="取消", command=lambda: do_cancel())
     cancel_button.pack(pady=10)
+
+    def do_cancel():
+        cancel_button.config(text="取消中...", state=tk.DISABLED)
+        progress_label.config(text="正在取消，等待当前视频处理完成...")
+        self._cancel_batch = True
 
     def batch_process_videos():
         """批量处理视频文件列表中的所有视频"""
@@ -268,15 +277,38 @@ def auto_segment_and_recognize(self):
         processed_count = 0
         total_videos = len(self.video_list)
 
+        # 从当前加载的视频位置开始处理（支持中断后接续）
+        current_video = getattr(self, 'video_path', '') or ''
+        start_idx = 0
+        if current_video and current_video in self.video_list:
+            start_idx = self.video_list.index(current_video)
+
         # 初始化 LLM API 客户端
         llm_client = LLMClient(self.config)
 
-        for idx, video_path in enumerate(self.video_list):
+        # 初始化取消标志
+        self._cancel_batch = False
+        cancelled = False
+
+        # 从当前视频位置开始循环（支持跨末尾续接）
+        video_paths = self.video_list[start_idx:] + self.video_list[:start_idx]
+        for offset, video_path in enumerate(video_paths):
+            idx = start_idx + offset
+            if idx >= total_videos:
+                idx -= total_videos
+            # 检查是否已取消
+            if getattr(self, '_cancel_batch', False):
+                cancelled = True
+                result_msg = f"已取消批量处理\n共处理 {processed_count}/{total_videos} 个视频"
+                print(result_msg)
+                self.root.after(0, lambda m=result_msg: messagebox.showinfo("已取消", m))
+                self.root.after(0, method_window.destroy)
+                break
             try:
                 # 更新进度信息
                 progress_info = f"正在处理第 {idx + 1}/{total_videos} 个视频：{video_path}"
                 # 在 GUI 窗口中更新进度信息
-                self.root.after(0, lambda info=progress_info: progress_label.config(text=info))
+                self.root.after(0, lambda info=progress_info: safe_update_label(info))
                 print(progress_info)
                 
                 # 释放之前的视频捕获对象
@@ -292,13 +324,20 @@ def auto_segment_and_recognize(self):
 
                 # 加载当前视频
                 self.video_path = video_path
-                # 预处理所有帧
-                self.preprocess_frames()
-                
-                self.cap = cv2.VideoCapture(self.video_path)
-                self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+                # 预处理所有帧（静默模式，不弹出加载窗口）
+                self.preprocess_frames(silent=True)
+
+                # 刷新主界面显示
                 self.current_frame = 0
+                self.root.after(0, lambda: self.progress.config(to=self.total_frames-1))
+                self.root.after(0, lambda: self.export_fps.set(f"{self.fps:.2f}"))
+                self.root.after(0, self.show_frame)
+                self.root.after(0, self.draw_tag_markers)
+
+                # 启动视频循环播放（在后台线程中设置标志，主线程的 play_video 会自动循环）
+                self.playing = True
+                self.root.after(int(1000 / max(self.fps, 1)), self.play_video)
+
                 # 设置起始和结束帧为整个视频 (模拟单个标签覆盖全片的场景)
                 self.start_frame = 0
                 self.end_frame = self.total_frames - 1
@@ -331,7 +370,10 @@ def auto_segment_and_recognize(self):
                                        self.tag_listbox.insert(tk.END, f"帧 {s}-{e}: {c}"))
 
                     self.export_tags()  # 导出当前视频的标签
-                    
+
+                    # 停止播放，准备处理下一个视频
+                    self.playing = False
+
                 except Exception as ai_err:
                     print(f"AI 生成失败 for {video_path}: {str(ai_err)}")
                     # 继续处理下一个视频
@@ -345,19 +387,20 @@ def auto_segment_and_recognize(self):
             except Exception as e:
                 print(f"处理视频 {video_path} 时出错：{str(e)}")
                 continue
-        
+
         # 处理完成后显示统计信息
-        elapsed_time = time.time() - start_time
-        result_msg = f"批量处理完成!\n共处理 {processed_count}/{total_videos} 个视频\n总耗时：{elapsed_time:.2f} 秒"
-        print(result_msg)
-        
-        # 在主线程中显示完成消息
-        self.root.after(0, lambda: messagebox.showinfo("批量处理完成", result_msg))
-        # 更新进度标签为完成状态
-        self.root.after(0, lambda: progress_label.config(text=result_msg.replace('\n', ' ')))
-        
-        # 关闭方法选择窗口
-        self.root.after(0, lambda: method_window.destroy())
+        if not cancelled:
+            elapsed_time = time.time() - start_time
+            result_msg = f"批量处理完成!\n共处理 {processed_count}/{total_videos} 个视频\n总耗时：{elapsed_time:.2f} 秒"
+            print(result_msg)
+
+            # 在主线程中显示完成消息
+            self.root.after(0, lambda: messagebox.showinfo("批量处理完成", result_msg))
+            # 更新进度标签为完成状态
+            self.root.after(0, lambda: safe_update_label(result_msg.replace('\n', ' ')))
+
+            # 关闭方法选择窗口
+            self.root.after(0, lambda: method_window.destroy())
 
     # 在新线程中执行批量处理，避免阻塞 UI
     threading.Thread(target=batch_process_videos, daemon=True).start()
@@ -598,11 +641,7 @@ def _auto_segment_and_recognize_local(self):
                 progress_percent.config(text=f"{int((completed_count / len(segments)) * 100)}%")
                 time_info_label.config(text=f"平均时间：{avg_time_per_segment:.2f}s | 剩余时间：{estimated_remaining_time:.2f}s")
                 progress_window.update()
-            
-            if len(self.tags) > 0:
-                self.export_btn.config(state=tk.NORMAL)
-                self.save_record_btn.config(state=tk.NORMAL)
-            
+
             self.draw_tag_markers()
             
             progress_window.destroy()
