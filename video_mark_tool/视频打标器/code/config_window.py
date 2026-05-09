@@ -152,13 +152,29 @@ class ConfigWindow:
         return widget.get().strip()
 
     def _save(self):
+        # 构建 {section: {key: value}} 的更新映射
+        updates = {}
         for (section, key), widget in self.entries.items():
-            value = self._get_value(widget)
-            self.config.set(section, key, value)
+            updates.setdefault(section, {})[key] = self._get_value(widget)
 
         try:
+            lines = open(self.config_path, 'r', encoding='utf-8').readlines()
+            current_section = None
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                # 检测 section 头
+                if stripped.startswith('[') and stripped.endswith(']'):
+                    current_section = stripped[1:-1]
+                # 替换 key = value 行
+                elif '=' in stripped and current_section and current_section in updates:
+                    key = stripped.split('=', 1)[0].strip()
+                    if key in updates[current_section]:
+                        lines[i] = f'{key} = {updates[current_section][key]}\n'
+                        del updates[current_section][key]
+
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                self.config.write(f)
+                f.writelines(lines)
+
             messagebox.showinfo("成功", "配置已保存")
             if self.on_save:
                 self.on_save()
