@@ -25,6 +25,9 @@ class VideoTagger:
         y = (screen_height - window_height) // 2
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         
+        # 配置路径
+        self.config_path = r'video_mark_tool\视频打标器\code\config.ini'
+
         # 视频相关变量
         self.video_path = ""
         self.cap = None
@@ -74,6 +77,10 @@ class VideoTagger:
         control_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
         self.load_btn = tk.Button(control_frame, text="加载视频", command=self.load_video, font=self.font)
         self.load_btn.pack(side=tk.LEFT, padx=5)
+
+        # 配置按钮
+        self.config_btn = tk.Button(control_frame, text="配置", command=self.open_config_window, font=self.font)
+        self.config_btn.pack(side=tk.LEFT, padx=5)
 
         # 添加导出路径设置按钮
         self.set_export_path_btn = tk.Button(control_frame, text="设置导出路径", command=self.set_export_path, font=self.font)
@@ -273,7 +280,31 @@ class VideoTagger:
         self.root.bind('<Key-d>', self.set_end_frame_key)
         self.root.bind('<Button-1>', self.on_root_click)
 
-    # 导入模块
+    # ===================【配置窗口】===================
+    def open_config_window(self):
+        from config_window import ConfigWindow
+        ConfigWindow(self.root, self.config, self.config_path, on_save=self._on_config_saved)
+
+    def _on_config_saved(self):
+        """配置保存后的回调，实时更新运行中的配置和 UI"""
+        # 重新读取配置文件
+        self.config.read(self.config_path, encoding='utf-8')
+
+        # 更新导出帧率
+        default_fps = self.config.get('VIDEO', 'default_export_fps', fallback="原始帧率")
+        self.export_fps.set(default_fps)
+
+        # 更新 AI 提示词
+        default_prompt = self.config.get('PROMPTS', 'video_prompt', fallback="详细描述视频画面。")
+        self.ai_prompt_entry.delete("1.0", "end")
+        self.ai_prompt_entry.insert("1.0", default_prompt)
+
+        # 更新导出路径
+        export_path = self.config.get('VIDEO', 'export_path', fallback='')
+        if export_path:
+            self.export_dir = export_path
+
+    # ===================【模块导入】===================
     from ui_events import (
         clear_frame_marks, delete_tag, edit_tag, show_tag_context_menu,
         on_closing, on_progress_change, on_root_click, decrease_font, increase_font,
