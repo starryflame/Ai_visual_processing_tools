@@ -119,6 +119,10 @@ def load_selected_video(self):
     # 获取完整路径（去除显示的路径信息）
     video_path = self.video_list[selected_index[0]]
 
+    # 如果当前已加载该视频，则不重复加载
+    if getattr(self, 'video_path', '') == video_path:
+        return
+
     # 执行与原始 load_video 相同的操作
     self.video_path = video_path
 

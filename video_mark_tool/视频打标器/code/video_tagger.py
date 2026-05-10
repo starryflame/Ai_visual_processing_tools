@@ -228,7 +228,7 @@ class VideoTagger:
         self.delete_preset_btn.pack(side=tk.LEFT, padx=2)
 
         # 添加重新生成所有标签的按钮
-        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签且导出", command=self.regenerate_all_tags, state=tk.NORMAL, font=self.font,height=2, width=30)
+        self.regenerate_all_tags_btn = tk.Button(button_frame, text="重新生成所有标签", command=self.regenerate_all_tags, state=tk.NORMAL, font=self.font,height=2, width=30)
         self.regenerate_all_tags_btn.pack(side=tk.LEFT, padx=2)
 
         # ===================【标签列表区】===================
@@ -244,7 +244,7 @@ class VideoTagger:
     
         # 标签列表右键菜单
         self.tag_context_menu = tk.Menu(self.tag_listbox, tearoff=0, font=self.font)
-        self.tag_context_menu.add_command(label="编辑标签", command=self.edit_tag)
+        self.tag_context_menu.add_command(label="编辑标签", command=self.regenerate_tag_caption)
         self.tag_context_menu.add_command(label="删除标签", command=self.delete_tag)
         self.tag_listbox.bind("<Button-3>", self.show_tag_context_menu)
     
@@ -306,11 +306,11 @@ class VideoTagger:
 
     # ===================【模块导入】===================
     from ui_events import (
-        clear_frame_marks, delete_tag, edit_tag, show_tag_context_menu,
+        clear_frame_marks, delete_tag, show_tag_context_menu,
         on_closing, on_progress_change, on_root_click, decrease_font, increase_font,
         update_font, update_widget_font, on_window_resize, next_frame, prev_frame,
         toggle_play, toggle_play_with_key, set_start_frame, set_end_frame,
-        set_start_frame_key, set_end_frame_key
+        set_start_frame_key, set_end_frame_key, regenerate_tag_caption
     )
     
     from video_processing import (

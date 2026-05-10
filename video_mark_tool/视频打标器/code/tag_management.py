@@ -237,16 +237,6 @@ def regenerate_all_tags(self):
         messagebox.showinfo("提示", "没有标签需要重新生成")
         return
 
-    if not self.export_dir:
-        self.export_dir = self.config.get('VIDEO', 'export_path', fallback=None)
-    if not self.export_dir:
-        if not messagebox.askyesno("提示", "尚未设置导出路径，重新生成后需要导出。是否先设置导出路径？"):
-            return
-        self.set_export_path()
-        if not self.export_dir:
-            messagebox.showwarning("提示", "未设置导出路径，操作已取消")
-            return
-
     # 启动新线程执行重新生成任务
     thread = threading.Thread(target=self._regenerate_all_tags_thread)
     thread.daemon = True
@@ -318,10 +308,6 @@ def _regenerate_all_tags_thread(self):
             messagebox.showerror("错误", f"重新生成标签失败：{error_msg}")
             progress_window.destroy()
         self.root.after(0, show_error)
-
-    # 导出标签（成功时导出，失败时跳过）
-    if success:
-        self.export_tags()
 
 
 def save_tag_records(self):
