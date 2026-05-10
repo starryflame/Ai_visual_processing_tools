@@ -572,6 +572,7 @@ class ImagePairToolGUI:
         rename_mode = tk.IntVar(value=1)  # 0=原名, 1=序号
         shuffle_var = tk.BooleanVar(value=False)
         crop_direction = tk.StringVar(value="top")
+        rotate_var = tk.BooleanVar(value=False)
 
         body = tk.Frame(dialog, bg=bg)
         body.pack(padx=24, pady=16)
@@ -618,6 +619,9 @@ class ImagePairToolGUI:
         radio("按序号重命名（pair_001.png, pair_002.png...）", rename_mode, 1)
         checkbox("随机打乱顺序", shuffle_var)
 
+        label("数据增强", bold=True)
+        checkbox("每个图片对导出4个旋转版本（0°/90°/180°/270°）", rotate_var)
+
         tk.Label(body, text=f"共 {self._pending_export_count} 对同名文件",
                  bg=bg, fg=DARK_HIGHLIGHT if self.dark_mode else "#0078d4",
                  font=("", 10, "bold")).pack(pady=(12, 8), anchor="w")
@@ -636,6 +640,7 @@ class ImagePairToolGUI:
                 result["crop_style"] = None
             result["enable_rename"] = rename_mode.get() == 1
             result["shuffle_order"] = shuffle_var.get() if rename_mode.get() == 1 else False
+            result["rotate"] = rotate_var.get()
             dialog.destroy()
 
         def on_cancel():
@@ -691,6 +696,10 @@ class ImagePairToolGUI:
         crop_style = cfg["crop_style"]
         enable_rename = cfg["enable_rename"]
         shuffle_order = cfg["shuffle_order"]
+        do_rotate = cfg["rotate"]
+
+        ROTATION_ANGLES = [0, 90, 180, 270] if do_rotate else [0]
+        ROT_SUFFIX = {0: "", 90: "_r90", 180: "_r180", 270: "_r270"}
 
         # 创建导出子文件夹
         control_folder = os.path.join(export_folder, "control")
@@ -698,11 +707,14 @@ class ImagePairToolGUI:
         os.makedirs(control_folder, exist_ok=True)
         os.makedirs(target_folder, exist_ok=True)
 
-        # 排序文件列表，如果启用打乱则随机打乱
-        sorted_files = sorted(common_files)
+        # 先展开旋转版本，再打乱
+        task_list = []
+        for f in sorted(common_files):
+            for angle in ROTATION_ANGLES:
+                task_list.append((f, angle))
         if shuffle_order:
-            random.shuffle(sorted_files)
-        total_count = len(sorted_files)
+            random.shuffle(task_list)
+        total_count = len(task_list)
 
         # 如果启用重命名，先扫描已存在的文件，获取已使用的序号和文件
         used_indices = set()
@@ -719,7 +731,7 @@ class ImagePairToolGUI:
                         except ValueError:
                             pass
 
-        # 为每个文件分配序号
+        # 为每个任务分配序号
         file_index_map = {}
         existing_index_map = {}  # 已存在文件的序号映射：旧序号 -> 新序号
         if enable_rename and shuffle_order:
@@ -733,25 +745,25 @@ class ImagePairToolGUI:
             for i, old_idx in enumerate(used_indices_list):
                 existing_index_map[old_idx] = all_indices[i]
 
-            # 再为新文件分配剩余的序号
+            # 再为新任务分配剩余的序号
             remaining_indices = all_indices[len(used_indices_list):]
-            for i, filename in enumerate(sorted_files):
-                file_index_map[filename] = remaining_indices[i]
+            for i, (filename, angle) in enumerate(task_list):
+                file_index_map[(filename, angle)] = remaining_indices[i]
         else:
             # 顺序模式：从 1 开始依次分配，跳过已使用的
             next_index = 1
-            for filename in sorted_files:
+            for filename, angle in task_list:
                 while next_index in used_indices:
                     next_index += 1
-                file_index_map[filename] = next_index
+                file_index_map[(filename, angle)] = next_index
                 next_index += 1
 
-        # 如果启用打乱，先重命名已存在的文件（包括图片和 TXT）
+        # 如果启用打乱，先重命名已存在的文件（包括图片和 TXT，含旋转后缀）
         if enable_rename and shuffle_order and existing_index_map:
             image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
             for folder in [control_folder, target_folder]:
                 # 第一步：将所有文件重命名为临时名称（包括 TXT）
-                temp_map = {}  # 旧序号 -> (临时名称，新序号)
+                temp_map = {}  # 旧序号 -> [(临时名称，新序号, rotation_suffix)]
                 for f in os.listdir(folder):
                     if f.startswith("pair_") and f.lower().endswith(image_extensions):
                         try:
@@ -759,11 +771,20 @@ class ImagePairToolGUI:
                             if old_idx in existing_index_map:
                                 new_idx = existing_index_map[old_idx]
                                 ext = Path(f).suffix
-                                temp_name = f"_temp_{old_idx:03d}{ext}"
+                                # 提取旋转后缀（如 _r90, _r180, _r270 或无）
+                                rot_part = ""
+                                if len(f) > 11 and f[8] == '_':
+                                    rot_part = f[8:Path(f).stem.rfind('_')] if f[8:].startswith('_r') else ""
+                                    # simpler: extract everything between index and ext
+                                    stem = f[:-len(ext)]  # e.g. "pair_001_r90"
+                                    rot_part = stem[8:]   # e.g. "_r90" or ""
+                                temp_name = f"_temp_{old_idx:03d}{rot_part}{ext}"
                                 old_path = os.path.join(folder, f)
                                 temp_path = os.path.join(folder, temp_name)
                                 os.rename(old_path, temp_path)
-                                temp_map[old_idx] = (temp_name, new_idx)
+                                if old_idx not in temp_map:
+                                    temp_map[old_idx] = []
+                                temp_map[old_idx].append((temp_name, new_idx, rot_part))
                         except ValueError:
                             pass
 
@@ -775,28 +796,32 @@ class ImagePairToolGUI:
                             old_idx = int(f[5:8])
                             if old_idx in existing_index_map:
                                 new_idx = existing_index_map[old_idx]
-                                temp_name = f"_temp_{old_idx:03d}.txt"
+                                stem = f[:-4]  # e.g. "pair_001" or "pair_001_r90"
+                                rot_part = stem[8:] if len(stem) > 8 else ""
+                                temp_name = f"_temp_{old_idx:03d}{rot_part}.txt"
                                 old_path = os.path.join(folder, f)
                                 temp_path = os.path.join(folder, temp_name)
                                 os.rename(old_path, temp_path)
-                                txt_temp_map[old_idx] = (temp_name, new_idx)
+                                if old_idx not in txt_temp_map:
+                                    txt_temp_map[old_idx] = []
+                                txt_temp_map[old_idx].append((temp_name, new_idx, rot_part))
                         except ValueError:
                             pass
 
                 # 第二步：将临时文件重命名为最终名称（包括 TXT）
-                for old_idx, (temp_name, new_idx) in temp_map.items():
-                    ext = Path(temp_name).suffix
-                    temp_path = os.path.join(folder, temp_name)
-                    new_name = f"pair_{new_idx:03d}{ext}"
-                    new_path = os.path.join(folder, new_name)
-                    os.rename(temp_path, new_path)
+                for old_idx, items in temp_map.items():
+                    for temp_name, new_idx, rot_part in items:
+                        ext = Path(temp_name).suffix
+                        temp_path = os.path.join(folder, temp_name)
+                        new_path = os.path.join(folder, f"pair_{new_idx:03d}{rot_part}{ext}")
+                        os.rename(temp_path, new_path)
 
                 # 重命名 TXT 文件
-                for old_idx, (temp_name, new_idx) in txt_temp_map.items():
-                    temp_path = os.path.join(folder, temp_name)
-                    new_name = f"pair_{new_idx:03d}.txt"
-                    new_path = os.path.join(folder, new_name)
-                    os.rename(temp_path, new_path)
+                for old_idx, items in txt_temp_map.items():
+                    for temp_name, new_idx, rot_part in items:
+                        temp_path = os.path.join(folder, temp_name)
+                        new_path = os.path.join(folder, f"pair_{new_idx:03d}{rot_part}.txt")
+                        os.rename(temp_path, new_path)
 
             self.status_label.config(text=f"已重命名已存在的文件，正在导出新文件...")
             self.root.update()
@@ -809,86 +834,88 @@ class ImagePairToolGUI:
         success_count = 0
         error_count = 0
         errors = []
-        paired_files = []
+        paired_files = set()
 
-        def process_pair(filename):
+        def process_task(task):
+            filename, angle = task
             left_path = os.path.join(left_folder, filename)
             right_path = os.path.join(right_folder, filename)
 
             try:
-                img_left = Image.open(left_path)
-                img_right = Image.open(right_path)
+                img_left_raw = Image.open(left_path)
+                img_right_raw = Image.open(right_path)
 
-                w1, h1 = img_left.size
-                w2, h2 = img_right.size
+                w1, h1 = img_left_raw.size
+                w2, h2 = img_right_raw.size
 
                 target_w = min(w1, w2)
                 target_h = min(h1, h2)
 
+                # 旋转
+                img_left = img_left_raw.rotate(angle, expand=True)
+                img_right = img_right_raw.rotate(angle, expand=True)
+
+                # 处理尺寸
                 if fill_ratio:
                     target_square_size = max(target_w, target_h)
                     if crop_style:
-                        # 裁剪模式：先裁剪为正方形，再调整尺寸
                         img_left_cropped = crop_to_square(img_left, crop_style)
                         img_right_cropped = crop_to_square(img_right, crop_style)
                         img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
                         img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
                     else:
-                        # 填充模式：白色背景填充
                         img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
                         img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
                 else:
                     img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
                     img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
 
+                # 生成导出文件名
+                suffix = ROT_SUFFIX[angle]
                 if enable_rename:
-                    file_index = file_index_map[filename]
-                    export_name = f"pair_{file_index:03d}.png"
+                    file_index = file_index_map[(filename, angle)]
+                    export_name = f"pair_{file_index:03d}{suffix}.png"
                 else:
-                    # 统一使用 .png 后缀
-                    export_name = Path(filename).stem + '.png'
+                    export_name = f"{Path(filename).stem}{suffix}.png"
 
-                control_dest = os.path.join(control_folder, export_name)
-                img_left_processed.save(control_dest)
+                img_left_processed.save(os.path.join(control_folder, export_name))
+                img_right_processed.save(os.path.join(target_folder, export_name))
 
-                target_dest = os.path.join(target_folder, export_name)
-                img_right_processed.save(target_dest)
-
-                # 导出同名 TXT 标注文件（保持配对）
+                # 导出同名 TXT 标注文件
                 txt_name = Path(filename).stem + '.txt'
                 left_txt = os.path.join(left_folder, txt_name)
                 right_txt = os.path.join(right_folder, txt_name)
 
                 if os.path.exists(left_txt):
                     if enable_rename:
-                        txt_export_name = f"pair_{file_index:03d}.txt"
-                        shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
+                        txt_export_name = f"pair_{file_index:03d}{suffix}.txt"
                     else:
-                        shutil.copy2(left_txt, os.path.join(control_folder, txt_name))
+                        txt_export_name = f"{Path(filename).stem}{suffix}.txt"
+                    shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
 
                 if os.path.exists(right_txt):
                     if enable_rename:
-                        txt_export_name = f"pair_{file_index:03d}.txt"
-                        shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
+                        txt_export_name = f"pair_{file_index:03d}{suffix}.txt"
                     else:
-                        shutil.copy2(right_txt, os.path.join(target_folder, txt_name))
+                        txt_export_name = f"{Path(filename).stem}{suffix}.txt"
+                    shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
 
-                return (export_name, True, None)
+                return (filename, True, None)
 
             except Exception as e:
                 return (filename, False, str(e))
 
         with ThreadPoolExecutor() as executor:
-            future_to_file = {executor.submit(process_pair, fname): fname for fname in sorted_files}
+            future_to_task = {executor.submit(process_task, task): task for task in task_list}
 
             completed = 0
-            for future in as_completed(future_to_file):
+            for future in as_completed(future_to_task):
                 filename, success, error_msg = future.result()
                 completed += 1
 
                 if success:
                     success_count += 1
-                    paired_files.append(filename)
+                    paired_files.add(filename)
                 else:
                     error_count += 1
                     errors.append(f"{filename}: {error_msg}")
@@ -899,6 +926,7 @@ class ImagePairToolGUI:
                 self.root.update_idletasks()
 
         # 显示结果
+        rotate_info = "（4旋转版本）" if do_rotate else ""
         if error_count == 0:
             if fill_ratio:
                 if crop_style:
@@ -907,13 +935,13 @@ class ImagePairToolGUI:
                     fill_info = "（已填充为 1:1 白色背景）"
             else:
                 fill_info = ""
-            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}")
+            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}{rotate_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}")
         else:
             error_details = "\n".join(errors[:5])
             if error_count > 5:
                 error_details += f"\n... 还有 {error_count - 5} 个错误"
             messagebox.showwarning("部分完成",
-                                   f"成功导出 {success_count} 对图片，失败 {error_count} 对。\n\n错误详情:\n{error_details}")
+                                   f"成功导出 {success_count} 对图片，失败 {error_count} 对。\n{rotate_info}\n\n错误详情:\n{error_details}")
 
         self.status_label.config(text=f"✓ 自动配对完成 | 成功:{success_count} | 失败:{error_count}")
 
@@ -943,26 +971,19 @@ class ImagePairToolGUI:
             messagebox.showerror("错误", "右侧面板没有选中的图片")
             return
 
-        # 根据勾选框决定是否询问处理选项
+        # 根据勾选框决定是否弹出配置对话框
         if self.ask_export_options.get():
-            fill_ratio = messagebox.askyesno(
-                "图片比例填充选项",
-                "是否将图片统一调整为 1:1 正方形，并使用白色背景填充？\n\n是：所有图片将以白色背景填充为 1:1 正方形\n否：仅调整尺寸为两者中的较小值"
-            )
-
-            # 如果启用填充，询问是否使用裁剪模式
-            crop_style = None
-            if fill_ratio:
-                crop_mode = messagebox.askyesno(
-                    "裁剪模式选项",
-                    "是否启用裁剪模式？\n\n是：直接裁剪为 1:1（竖图裁上面，横图裁中间）\n否：使用白色背景填充"
-                )
-                if crop_mode:
-                    crop_style = 'top'
+            self._pending_export_count = 1
+            cfg = self._show_export_config_dialog()
+            if not cfg:
+                return
+            fill_ratio = cfg["fill_ratio"]
+            crop_style = cfg["crop_style"]
+            do_rotate = cfg.get("rotate", False)
         else:
-            # 不询问，直接原样导出
             fill_ratio = False
             crop_style = None
+            do_rotate = False
 
         control_folder = os.path.join(export_folder, "control")
         target_folder = os.path.join(export_folder, "target")
@@ -973,19 +994,6 @@ class ImagePairToolGUI:
         right_name = Path(right_path).name
         base_name = Path(left_name).stem
 
-        control_folder = os.path.join(export_folder, "control")
-        target_folder = os.path.join(export_folder, "target")
-        os.makedirs(control_folder, exist_ok=True)
-        os.makedirs(target_folder, exist_ok=True)
-
-        # 如果目标文件夹已有同名文件对，添加 _1、_2 等后缀避免覆盖
-        export_name = base_name + '.png'
-        counter = 1
-        while (os.path.exists(os.path.join(control_folder, export_name)) or
-               os.path.exists(os.path.join(target_folder, export_name))):
-            export_name = f"{base_name}_{counter}.png"
-            counter += 1
-
         left_folder = Path(left_path).parent
         right_folder = Path(right_path).parent
 
@@ -993,45 +1001,66 @@ class ImagePairToolGUI:
         left_txt = Path(left_folder) / (base_name + '.txt')
         right_txt = Path(right_folder) / (base_name + '.txt')
 
+        # 分配不重复的文件名
+        def alloc_name(suffix):
+            name = f"{base_name}{suffix}.png"
+            counter = 1
+            while (os.path.exists(os.path.join(control_folder, name)) or
+                   os.path.exists(os.path.join(target_folder, name))):
+                name = f"{base_name}_{counter}{suffix}.png"
+                counter += 1
+            return name
+
+        ROTATIONS = [0, 90, 180, 270] if do_rotate else [0]
+        ROT_SUFFIX = {0: "", 90: "_r90", 180: "_r180", 270: "_r270"}
+        exported = []
+
         try:
-            img_left = Image.open(left_path)
-            img_right = Image.open(right_path)
+            img_left_raw = Image.open(left_path).copy()
+            img_right_raw = Image.open(right_path).copy()
 
-            w1, h1 = img_left.size
-            w2, h2 = img_right.size
+            w1, h1 = img_left_raw.size
+            w2, h2 = img_right_raw.size
 
-            if fill_ratio:
-                target_square_size = max(w1, w2, h1, h2)
-                if crop_style:
-                    # 裁剪模式
-                    img_left_cropped = crop_to_square(img_left, crop_style)
-                    img_right_cropped = crop_to_square(img_right, crop_style)
-                    img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
-                    img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+            for angle in ROTATIONS:
+                img_left = img_left_raw.rotate(angle, expand=True)
+                img_right = img_right_raw.rotate(angle, expand=True)
+
+                lw, lh = img_left.size
+                rw, rh = img_right.size
+
+                if fill_ratio:
+                    target_square_size = max(lw, rw, lh, rh)
+                    if crop_style:
+                        img_left_cropped = crop_to_square(img_left, crop_style)
+                        img_right_cropped = crop_to_square(img_right, crop_style)
+                        img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+                        img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
+                    else:
+                        img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
+                        img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
+                    final_size = f"{target_square_size}x{target_square_size}"
                 else:
-                    # 填充模式
-                    img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
-                    img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
-                final_size = f"{target_square_size}x{target_square_size}"
-            else:
-                target_w = min(w1, w2)
-                target_h = min(h1, h2)
-                img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
-                img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
-                final_size = f"{target_w}x{target_h}"
+                    target_w = min(lw, rw)
+                    target_h = min(lh, rh)
+                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+                    final_size = f"{target_w}x{target_h}"
 
-            control_dest = os.path.join(control_folder, export_name)
-            img_left_processed.save(control_dest)
+                suffix = ROT_SUFFIX[angle]
+                export_name = alloc_name(suffix)
 
-            target_dest = os.path.join(target_folder, export_name)
-            img_right_processed.save(target_dest)
+                img_left_processed.save(os.path.join(control_folder, export_name))
+                img_right_processed.save(os.path.join(target_folder, export_name))
+                exported.append(export_name)
 
-            # 导出同名 TXT 标注文件（保持配对）
-            txt_export_name = Path(export_name).stem + '.txt'
-            if left_txt.exists():
-                shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
-            if right_txt.exists():
-                shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
+            # 导出 TXT 标注文件（每份旋转副本都复制一份）
+            for export_name in exported:
+                txt_export_name = Path(export_name).stem + '.txt'
+                if left_txt.exists():
+                    shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
+                if right_txt.exists():
+                    shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
 
             if fill_ratio:
                 if crop_style:
@@ -1040,7 +1069,9 @@ class ImagePairToolGUI:
                     fill_text = "（已填充为 1:1 白色背景）"
             else:
                 fill_text = ""
-            self.status_label.config(text=f"✓ 已导出{fill_text}：{export_name} ({final_size}) | 切换图片后可再次导出")
+
+            rotate_info = "（4旋转版本）" if do_rotate else ""
+            self.status_label.config(text=f"✓ 已导出{fill_text}{rotate_info}：共 {len(exported)} 对 ({final_size}) | 切换图片后可再次导出")
             self.disable_export_button()
 
             self.left_panel.mark_as_paired(left_name)

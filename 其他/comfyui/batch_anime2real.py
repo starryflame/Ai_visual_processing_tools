@@ -384,17 +384,16 @@ class BatchProcessorGUI:
             self.log_expanded = True
 
     def resize_image(self, img, max_width, max_height):
-        """缩放图片以适应显示区域"""
+        """缩放图片以填充显示区域（小图放大，大图缩小）"""
         if max_width <= 0 or max_height <= 0:
             return img
 
-        # 计算缩放比例（保持宽高比，留一些边距）
         target_width = max_width - 20
         target_height = max_height - 20
 
         ratio = min(target_width / img.width, target_height / img.height)
 
-        if ratio < 1:
+        if ratio != 1:
             new_width = int(img.width * ratio)
             new_height = int(img.height * ratio)
             img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)

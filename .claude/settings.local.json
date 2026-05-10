@@ -38,7 +38,9 @@
       "WebFetch(domain:www.ququ123.top)",
       "Bash(python3 -c ' *)",
       "Bash(python -c \"import py_compile; py_compile.compile\\(r'J:\\\\Ai_visual_processing_tools\\\\其他\\\\comfyui\\\\batch_anime2real.py', doraise=True\\); print\\('OK'\\)\")",
-      "Bash(python -c \"import py_compile; py_compile.compile\\('文件夹通用处理_GUI.py', doraise=True\\)\")"
+      "Bash(python -c \"import py_compile; py_compile.compile\\('文件夹通用处理_GUI.py', doraise=True\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('panel.py', doraise=True\\)\")"
     ]
   }
 }
