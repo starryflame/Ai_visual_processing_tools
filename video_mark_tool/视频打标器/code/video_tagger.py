@@ -57,12 +57,25 @@ class VideoTagger:
         
         self.caption_presets = []  # 存储模型生成的标签预设
         self.manual_presets = []   # 存储手动添加的标签预设
+
+        # 加载 AI 提示词文本文件
+        self._load_prompt_file()
         
         # 拖拽调整大小相关变量
         self.drag_data = {"x": 0, "widget": None}
         
         self.setup_ui()
-        
+
+    def _load_prompt_file(self):
+        """从同目录下的 video_prompt.txt 加载 AI 提示词，若不存在则使用默认值"""
+        import os
+        prompt_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "video_prompt.txt")
+        try:
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                self._default_prompt = f.read().strip()
+        except FileNotFoundError:
+            self._default_prompt = self.config.get('PROMPTS', 'video_prompt', fallback="详细描述视频画面。")
+
     def setup_ui(self):
         """初始化主界面 UI 布局"""
         root = self.root
@@ -161,7 +174,7 @@ class VideoTagger:
         tk.Label(ai_prompt_frame, text="AI提示词:", font=self.font, bg="lightgray").pack(anchor=tk.W)
         self.ai_prompt_entry = tk.Text(ai_prompt_frame, height=8, font=("Arial", 8))
         self.ai_prompt_entry.pack(fill=tk.X, pady=2)
-        default_prompt = self.config.get('PROMPTS', 'video_prompt', fallback="详细描述视频画面。")
+        default_prompt = self._default_prompt
         self.ai_prompt_entry.insert("1.0", default_prompt)
         self.ai_prompt_entry.config(state=tk.NORMAL, takefocus=True)
     
@@ -295,7 +308,8 @@ class VideoTagger:
         self.export_fps.set(default_fps)
 
         # 更新 AI 提示词
-        default_prompt = self.config.get('PROMPTS', 'video_prompt', fallback="详细描述视频画面。")
+        self._load_prompt_file()  # 重新从文件加载
+        default_prompt = self._default_prompt
         self.ai_prompt_entry.delete("1.0", "end")
         self.ai_prompt_entry.insert("1.0", default_prompt)
 
@@ -316,7 +330,7 @@ class VideoTagger:
     from video_processing import (
         load_video, load_video_manager, add_single_video, add_video_folder,
         refresh_video_list, load_selected_video, preprocess_frames, show_frame,
-        play_video, resize_to_720p, save_and_replace_video
+        play_video, resize_to_720p, save_and_replace_video, _preprocess_frames_core
     )
     
     from tag_management import (
