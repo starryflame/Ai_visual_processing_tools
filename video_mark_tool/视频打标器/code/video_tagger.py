@@ -326,7 +326,7 @@ class VideoTagger:
     
     from ai_features import (
         generate_ai_caption, _generate_ai_caption_local, _generate_ai_caption_local_thread,
-        auto_segment_and_recognize, _auto_segment_and_recognize_local, _generate_single_tag_caption
+        auto_segment_and_recognize, _generate_single_tag_caption
     )
     
     from presets import (

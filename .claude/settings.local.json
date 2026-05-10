@@ -40,7 +40,8 @@
       "Bash(python -c \"import py_compile; py_compile.compile\\(r'J:\\\\Ai_visual_processing_tools\\\\其他\\\\comfyui\\\\batch_anime2real.py', doraise=True\\); print\\('OK'\\)\")",
       "Bash(python -c \"import py_compile; py_compile.compile\\('文件夹通用处理_GUI.py', doraise=True\\)\")",
       "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\)\")",
-      "Bash(python -c \"import py_compile; py_compile.compile\\('panel.py', doraise=True\\)\")"
+      "Bash(python -c \"import py_compile; py_compile.compile\\('panel.py', doraise=True\\)\")",
+      "Bash(python -c \"import configparser; c = configparser.ConfigParser\\(\\); c.read\\(r'j:/Ai_visual_processing_tools/video_mark_tool/视频打标器/code/config.ini', encoding='utf-8'\\); v = c.get\\('PROMPTS', 'video_prompt'\\); print\\('Length:', len\\(v\\)\\); print\\('Newlines:', v.count\\(chr\\(10\\)\\)\\)\")"
     ]
   }
 }

@@ -2,7 +2,7 @@
 # 包含 AI 标签生成、自动分段识别等功能
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 from PIL import Image
 import numpy as np
 import io
@@ -33,8 +33,8 @@ class LLMClient:
 
     def _init_client(self):
         """初始化 OpenAI 客户端（兼容任何 OpenAI API 格式的服务）"""
-        api_base_url = self.config.get('LLM', 'api_base_url', fallback='http://127.0.0.1:1234/v1')
-        api_key = self.config.get('LLM', 'api_key', fallback='ollama')
+        api_base_url = self.config.get('MODEL', 'api_base_url', fallback='http://127.0.0.1:1234/v1')
+        api_key = self.config.get('MODEL', 'api_key', fallback='ollama')
 
         self.client = OpenAI(
             api_key=api_key,
@@ -48,8 +48,8 @@ class LLMClient:
         Returns:
             tuple: (model_name, max_new_tokens, temperature, top_p)
         """
-        model_name = self.config.get('LLM', 'model_name', fallback='qwen3-vl:30b')
-        max_new_tokens = self.config.getint('LLM', 'max_new_tokens', fallback=16384)
+        model_name = self.config.get('MODEL', 'model_name', fallback='qwen3-vl:30b')
+        max_new_tokens = self.config.getint('MODEL', 'max_new_tokens', fallback=16384)
         temperature = self.config.getfloat('MODEL', 'temperature', fallback=0.3)
         top_p = self.config.getfloat('MODEL', 'top_p', fallback=0.9)
 
@@ -111,8 +111,8 @@ class LLMClient:
         Returns:
             str: base64 编码的 data URL
         """
-        max_size = (720, 720)
-        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+        max_size = self.config.getint('PROCESSING', 'image_max_size', fallback=720)
+        image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
 
         buffered = io.BytesIO()
         image.save(buffered, format="PNG")
@@ -526,141 +526,11 @@ def _generate_single_tag_caption(self):
         return None
 
 
-def _auto_segment_and_recognize_local(self):
-    """通过 OpenAI 兼容 API 自动按 5 秒分段并使用 AI 识别生成标签"""
-    
-    if self.total_frames <= 0 or self.fps <= 0:
-        messagebox.showerror("错误", "无效的视频信息")
-        return
-        
-    # 从配置文件读取分段时长
-    segment_duration = self.config.getint('PROCESSING', 'segment_duration', fallback=5)
-    frames_per_segment = int(segment_duration * self.fps)
-    
-    # 创建进度窗口
-    progress_window = tk.Toplevel(self.root)
-    progress_window.title("自动分段识别中")
-    progress_window.geometry("400x200")  # 增加窗口高度以容纳更多信息
-    progress_window.transient(self.root)
-    #progress_window.grab_set()
-    
-    # 居中显示
-    progress_window.update_idletasks()
-    x = (progress_window.winfo_screenwidth() // 2) - (400 // 2)
-    y = (progress_window.winfo_screenheight() // 2) - (200 // 2)
-    progress_window.geometry(f"400x200+{x}+{y}")
-    
-    tk.Label(progress_window, text="正在自动分段并识别，请稍候...", font=self.font).pack(pady=10)
-    
-    # 创建进度条
-    progress_bar = ttk.Progressbar(progress_window, mode='determinate')
-    progress_bar.pack(pady=10, padx=20, fill=tk.X)
-    
-    # 添加进度信息标签
-    progress_info_label = tk.Label(progress_window, text="0/0 已完成", font=self.font)
-    progress_info_label.pack()
-    
-    progress_percent = tk.Label(progress_window, text="0%", font=self.font)
-    progress_percent.pack()
-    
-    # 添加时间信息标签
-    time_info_label = tk.Label(progress_window, text="平均时间：0s | 剩余时间：0s", font=self.font)
-    time_info_label.pack()
-    
-    # 计算需要处理的片段数量
-    segments = []
-    current_frame = 0
-    while current_frame < self.total_frames:
-        segment_end = min(current_frame + frames_per_segment - 1, self.total_frames - 1)
-        
-        # 检查这个片段是否在排除列表中
-        excluded = False
-        for excluded_segment in self.excluded_segments:
-            if not (segment_end < excluded_segment["start"] or current_frame > excluded_segment["end"]):
-                excluded = True
-                break
-        
-        if not excluded:
-            segments.append({
-                "start": current_frame,
-                "end": segment_end
-            })
-            
-        current_frame += frames_per_segment
-    
-    progress_bar['maximum'] = len(segments)
-    progress_info_label.config(text=f"0/{len(segments)} 已完成")
-    
-    # 在新线程中处理 AI 识别
-    def process_segments():
-        try:
-            import numpy as np
-
-            # 初始化 LLM API 客户端
-            llm_client = LLMClient(self.config)
-
-            start_time = time.time()
-            completed_count = 0
-
-            for i, segment in enumerate(segments):
-                segment_start_time = time.time()
-
-                # 使用封装的方法提取帧
-                frames = llm_client.extract_frames(self.processed_frames, segment["start"], segment["end"])
-                
-                # 获取用户自定义的提示词
-                user_prompt = self.ai_prompt_entry.get("1.0", tk.END).strip()
-                
-                # 生成描述（使用不同的参数）
-                caption = llm_client.generate_caption(
-                    frames, 
-                    user_prompt,
-                    max_attempts=20,
-                    min_length=100
-                )
-                
-                tag_info = {
-                    "start": segment["start"],
-                    "end": segment["end"],
-                    "tag": caption
-                }
-                self.tags.append(tag_info)
-                self.tag_listbox.insert(tk.END, f"帧 {segment['start']}-{segment['end']}: {caption}")
-                
-                self.root.update()
-                
-                completed_count = i + 1
-                segment_end_time = time.time()
-                elapsed_time = segment_end_time - start_time
-                avg_time_per_segment = elapsed_time / completed_count
-                remaining_segments = len(segments) - completed_count
-                estimated_remaining_time = avg_time_per_segment * remaining_segments
-                
-                progress_bar['value'] = completed_count
-                progress_info_label.config(text=f"{completed_count}/{len(segments)} 已完成")
-                progress_percent.config(text=f"{int((completed_count / len(segments)) * 100)}%")
-                time_info_label.config(text=f"平均时间：{avg_time_per_segment:.2f}s | 剩余时间：{estimated_remaining_time:.2f}s")
-                progress_window.update()
-
-            self.draw_tag_markers()
-            
-            progress_window.destroy()
-            self.root.after(100, lambda: messagebox.showinfo("完成", f"已完成自动分段识别，共生成{len(segments)}个标签"))
-            
-        except Exception as e:
-            progress_window.destroy()
-            error_msg = str(e)
-            self.root.after(100, lambda: messagebox.showerror("错误", f"自动分段识别失败：{error_msg}"))
-    
-    threading.Thread(target=process_segments, daemon=True).start()
-
-
 __all__ = [
     'auto_segment_and_recognize',
     'generate_ai_caption',
     '_generate_ai_caption_local',
     '_generate_ai_caption_local_thread',
     '_generate_single_tag_caption',
-    '_auto_segment_and_recognize_local',
     'LLMClient'
 ]

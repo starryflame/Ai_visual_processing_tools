@@ -365,24 +365,21 @@ def _preprocess_frames_core(self, frame_interval):
 
 def resize_to_720p(self, frame):
     """
-    将帧调整为 720p 分辨率以提高性能
+    将帧按最长边缩放以提高性能
     """
-    # 从配置文件读取目标高度
-    target_height = self.config.getint('PROCESSING', 'target_frame_height', fallback=720)
+    target_edge = self.config.getint('PROCESSING', 'target_max_edge', fallback=720)
 
     h, w = frame.shape[:2]
+    max_edge = max(h, w)
 
-    # 如果高度已经小于等于 target_height，则不调整
-    if h <= target_height:
+    if max_edge <= target_edge:
         return frame
 
-    # 计算新尺寸保持宽高比
-    new_height = target_height
-    new_width = int(w * (new_height / h))
+    scale = target_edge / max_edge
+    new_width = int(w * scale)
+    new_height = int(h * scale)
 
-    # 调整帧大小
-    resized_frame = cv2.resize(frame, (new_width, new_height))
-    return resized_frame
+    return cv2.resize(frame, (new_width, new_height))
 
 
 def save_and_replace_video(app):

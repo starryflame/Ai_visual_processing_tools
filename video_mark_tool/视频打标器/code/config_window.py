@@ -10,40 +10,33 @@ class ConfigWindow:
         'MODEL': '模型生成参数',
         'VIDEO': '视频设置',
         'UI': '界面设置',
-        'PROCESSING': '处理参数',
-        'LLM': 'API 服务配置',
+        'PROCESSING': '视频处理参数',
         'PROMPTS': '提示词',
-        'FILTER': '过滤关键词',
         'FILTER_WORDS': '过滤词（重新生成触发）',
     }
 
     FIELD_LABELS = {
+        'model_name': '模型名称',
         'max_new_tokens': '最大生成 token 数',
-        'retry_max_new_tokens': '重试时最大 token 数',
         'temperature': '温度参数',
         'top_p': 'top-p 参数',
         'default_export_fps': '默认导出帧率',
         'export_path': '导出路径',
         'window_width': '窗口宽度',
         'window_height': '窗口高度',
-        'target_frame_height': '目标帧高度',
-        'max_size': '最大尺寸',
+        'target_max_edge': '目标最长边',
         'max_sample_frames': '最大采样帧数',
         'target_frame_rate': '目标帧率',
         'segment_duration': '自动分段时长(秒)',
-        'max_filename_length': '导出文件名最大长度',
+        'image_max_size': 'AI 图像最大边长',
         'api_base_url': 'API 地址',
         'api_key': 'API Key',
-        'model_name1': '模型名称1',
-        'model_name': '模型名称',
-        'max_tokens': '最大生成 token 数',
         'video_prompt': '视频提示词',
-        'keywords': '过滤关键词',
         'words': '重新生成触发词',
     }
 
     # 多行文本字段
-    MULTI_LINE_FIELDS = {'video_prompt', 'keywords', 'words'}
+    MULTI_LINE_FIELDS = {'video_prompt', 'words'}
 
     def __init__(self, parent, config, config_path, on_save=None):
         self.parent = parent
@@ -75,7 +68,7 @@ class ConfigWindow:
         scrollbar.pack(side="right", fill="y")
 
         # 按顺序展示各 section
-        section_order = ['MODEL', 'VIDEO', 'UI', 'PROCESSING', 'LLM', 'PROMPTS', 'FILTER', 'FILTER_WORDS']
+        section_order = ['MODEL', 'VIDEO', 'UI', 'PROCESSING', 'PROMPTS', 'FILTER_WORDS']
 
         row = 0
         for section in section_order:
