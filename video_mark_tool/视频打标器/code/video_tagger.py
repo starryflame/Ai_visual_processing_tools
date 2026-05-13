@@ -329,6 +329,7 @@ class VideoTagger:
     
     from video_processing import (
         load_video, load_video_manager, add_single_video, add_video_folder,
+        clear_video_list,
         refresh_video_list, load_selected_video, preprocess_frames, show_frame,
         play_video, resize_to_720p, save_and_replace_video, _preprocess_frames_core
     )

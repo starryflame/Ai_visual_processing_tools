@@ -238,15 +238,15 @@ def auto_segment_and_recognize(self):
     # 显示选择调用方式的窗口
     method_window = tk.Toplevel(self.root)
     method_window.title("自动读取视频文件列表并使用 AI 识别生成标签")
-    method_window.geometry("300x150")
+    method_window.geometry("450x225")
     method_window.transient(self.root)
     method_window.grab_set()
-    
+
     # 居中显示
     method_window.update_idletasks()
-    x = (method_window.winfo_screenwidth() // 2) - (300 // 2)
-    y = (method_window.winfo_screenheight() // 2) - (150 // 2)
-    method_window.geometry(f"300x150+{x}+{y}")
+    x = (method_window.winfo_screenwidth() // 2) - (450 // 2)
+    y = (method_window.winfo_screenheight() // 2) - (225 // 2)
+    method_window.geometry(f"450x225+{x}+{y}")
 
     # 安全更新进度标签（窗口销毁后不再更新）
     def safe_update_label(text):
@@ -254,15 +254,18 @@ def auto_segment_and_recognize(self):
             progress_label.config(text=text)
 
     # 添加进度信息显示标签
-    progress_label = tk.Label(method_window, text="准备开始处理...", wraplength=280)
-    progress_label.pack(pady=20)
+    progress_label = tk.Label(method_window, text="准备开始处理...", wraplength=420, font=("", 10))
+    progress_label.pack(pady=15)
 
-    cancel_button = tk.Button(method_window, text="取消", command=lambda: do_cancel())
-    cancel_button.pack(pady=10)
+    button_frame = tk.Frame(method_window)
+    button_frame.pack(pady=10)
+
+    stop_button = tk.Button(button_frame, text="停止后续操作", command=lambda: do_cancel())
+    stop_button.pack(side=tk.LEFT, padx=10)
 
     def do_cancel():
-        cancel_button.config(text="取消中...", state=tk.DISABLED)
-        progress_label.config(text="正在取消，等待当前视频处理完成...")
+        stop_button.config(text="正在停止...", state=tk.DISABLED)
+        progress_label.config(text="正在停止，等待当前视频处理完成...")
         self._cancel_batch = True
 
     def batch_process_videos():
@@ -322,9 +325,13 @@ def auto_segment_and_recognize(self):
                 self.excluded_segments = []  # 清空排除片段
                 self.current_frame_idx = 0
 
-                # 加载当前视频
+                # 加载当前视频（与双击加载逻辑一致：先打开视频读取属性，再预处理采样）
                 self.video_path = video_path
-                # 预处理所有帧（静默模式，不弹出加载窗口）
+                self.cap = cv2.VideoCapture(self.video_path)
+                self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+
+                # 预处理所有帧（静默模式，按 target_frame_rate 配置采样）
                 self.preprocess_frames(silent=True)
 
                 # 刷新主界面显示
@@ -369,7 +376,7 @@ def auto_segment_and_recognize(self):
                                        self.tag_listbox.delete(0, tk.END) or 
                                        self.tag_listbox.insert(tk.END, f"帧 {s}-{e}: {c}"))
 
-                    self.export_tags()  # 导出当前视频的标签
+                    self.export_tags(batch_mode=True)  # 导出当前视频的标签（批量模式，无弹窗）
 
                     # 停止播放，准备处理下一个视频
                     self.playing = False

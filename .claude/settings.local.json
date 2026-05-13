@@ -46,7 +46,24 @@
       "Bash(del merge_labels.py)",
       "Bash(python -c \"from video_mark_tool.视频打标器.code.video_tagger import VideoTagger; print\\('Import OK'\\)\")",
       "Bash(python -c \"import video_tagger; print\\('Import OK'\\)\")",
-      "Bash(python -c \"import config_window; print\\('OK'\\)\")"
+      "Bash(python -c \"import config_window; print\\('OK'\\)\")",
+      "Bash(python -c \"from gui import ImagePairToolGUI; print\\('Import successful'\\)\")",
+      "Bash(python -c \"import comparison_view; import gui; print\\('Import OK'\\)\")",
+      "Bash(python -c \"from gui import ImagePairToolGUI; print\\('导入成功'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('pic_video_label_manager.py', doraise=True\\); py_compile.compile\\('ui_components.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('media_handler.py', doraise=True\\); py_compile.compile\\('pic_video_label_manager.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('media_handler.py', doraise=True\\); py_compile.compile\\('pic_video_label_manager.py', doraise=True\\); py_compile.compile\\('ui_components.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('media_handler.py', doraise=True\\); py_compile.compile\\('pic_video_label_manager.py', doraise=True\\); py_compile.compile\\('ui_components.py', doraise=True\\); print\\('All files OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('pic_video_label_manager.py', doraise=True\\); py_compile.compile\\('media_handler.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\(r'j:\\\\Ai_visual_processing_tools\\\\其他\\\\图像视频标签预览\\\\pic_video_label_manager.py', doraise=True\\); py_compile.compile\\(r'j:\\\\Ai_visual_processing_tools\\\\其他\\\\图像视频标签预览\\\\media_handler.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('pic_video_label_manager.py', doraise=True\\); print\\('Syntax OK'\\)\")",
+      "Bash(git -C \"j:/Ai_visual_processing_tools\" log --oneline -30)",
+      "Bash(git -C \"j:/Ai_visual_processing_tools\" remote -v)",
+      "Bash(cloc j:/Ai_visual_processing_tools/pictures_mark_tool/main.py j:/Ai_visual_processing_tools/pictures_mark_tool/tagger_ui.py j:/Ai_visual_processing_tools/pictures_mark_tool/image_processor.py j:/Ai_visual_processing_tools/pictures_mark_tool/styles.py j:/Ai_visual_processing_tools/pictures_mark_tool/code/ j:/Ai_visual_processing_tools/pictures_mark_tool/tool/)",
+      "Bash(python -c \"import webbrowser; webbrowser.open\\('file:///j:/Ai_visual_processing_tools/答辩展示.html'\\)\")",
+      "Bash(start file:///j:/Ai_visual_processing_tools/答辩展示.html)",
+      "Bash(echo \"Please open manually: j:\\\\\\\\Ai_visual_processing_tools\\\\\\\\答辩展示.html\")",
+      "mcp__plugin_playwright_playwright__browser_navigate"
     ]
   }
 }

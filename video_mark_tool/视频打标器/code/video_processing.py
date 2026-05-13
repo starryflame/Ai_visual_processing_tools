@@ -35,6 +35,9 @@ def load_video_manager(self):
     add_folder_btn = tk.Button(top_frame, text="添加视频文件夹", command=self.add_video_folder)
     add_folder_btn.pack(side=tk.LEFT, padx=5)
 
+    clear_list_btn = tk.Button(top_frame, text="清空当前列表", command=self.clear_video_list)
+    clear_list_btn.pack(side=tk.LEFT, padx=5)
+
     # 加载选中的视频
     load_selected_btn = tk.Button(top_frame, text="加载选中视频", command=self.load_selected_video)
     load_selected_btn.pack(side=tk.RIGHT, padx=5)
@@ -89,6 +92,12 @@ def add_video_folder(self):
                     self.video_list.append(full_path)
 
     self.refresh_video_list()
+
+
+def clear_video_list(self):
+    """清空视频列表"""
+    self.video_list.clear()
+    self.video_listbox.delete(0, tk.END)
 
 
 def refresh_video_list(self):
@@ -503,6 +512,7 @@ __all__ = [
     'load_video_manager',
     'add_single_video',
     'add_video_folder',
+    'clear_video_list',
     'refresh_video_list',
     'load_selected_video',
     'show_frame',

@@ -83,24 +83,33 @@ def set_export_path(self):
         messagebox.showinfo("导出路径设置", f"已设置导出路径为：{self.export_dir}")
 
 
-def export_tags(self):
+def export_tags(self, batch_mode=False):
+    """导出标签为视频片段和文本文件
+
+    Args:
+        batch_mode: True 时不弹出确认/完成对话框，适用于批量操作
+    """
     if not self.tags:
-        messagebox.showerror("错误", "没有标记需要导出")
+        if not batch_mode:
+            messagebox.showerror("错误", "没有标记需要导出")
         return
 
     if not self.video_path:
-        messagebox.showerror("错误", "请先加载视频")
+        if not batch_mode:
+            messagebox.showerror("错误", "请先加载视频")
         return
 
     if not self.frames_loaded:
-        messagebox.showerror("错误", "视频帧未加载完成，请重新加载视频后再导出")
+        if not batch_mode:
+            messagebox.showerror("错误", "视频帧未加载完成，请重新加载视频后再导出")
         return
 
     # 导出目录
     if not self.export_dir:
         self.export_dir = self.config.get('VIDEO', 'export_path', fallback=None)
     if not self.export_dir:
-        messagebox.showerror("错误", "请先设置导出路径")
+        if not batch_mode:
+            messagebox.showerror("错误", "请先设置导出路径")
         return
         
     # 直接使用选中的文件夹
@@ -113,7 +122,8 @@ def export_tags(self):
         else:
             export_fps = float(self.fps_entry.get())
     except ValueError:
-        messagebox.showerror("错误", "请输入有效的帧率数值")
+        if not batch_mode:
+            messagebox.showerror("错误", "请输入有效的帧率数值")
         return
         
     # 创建主文件夹
@@ -171,7 +181,8 @@ def export_tags(self):
             with open(txt_path, 'w', encoding='utf-8') as f:
                 f.write(tag_text)
     
-    #messagebox.showinfo("完成", f"已导出 {len(self.tags)} 个标记片段到：{main_folder}")
+    if not batch_mode:
+        messagebox.showinfo("完成", f"已导出 {len(self.tags)} 个标记片段到：{main_folder}")
 
 
 def load_tag_records(self):
