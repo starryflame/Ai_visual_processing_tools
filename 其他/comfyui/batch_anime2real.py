@@ -50,7 +50,7 @@ class ComfyUIBatchProcessor:
         response = requests.get(url, params=params)
         return response.content
     
-    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name):
+    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name, resize_longest_edge=1440):
         """处理单张图片"""
         # 修改 LoadImage 节点的输入图片
         workflow["78"]["inputs"]["image"] = input_image_path
@@ -62,6 +62,10 @@ class ComfyUIBatchProcessor:
         # 修改 LoRA 路径（节点 337）
         if "337" in workflow:
             workflow["337"]["inputs"]["lora_name"] = lora_name
+
+        # 修改缩放最长边长度（节点 301）
+        if "301" in workflow:
+            workflow["301"]["inputs"]["scale_to_length"] = resize_longest_edge
 
         # 随机化采样种子，确保每次生成结果不同
         if "3" in workflow and "seed" in workflow["3"]["inputs"]:
@@ -121,6 +125,7 @@ class BatchProcessorGUI:
         # 用于存储完整路径的映射
         self.lora_full_paths = {}
         self.start_index = tk.IntVar(value=0)
+        self.resize_longest_edge = tk.IntVar(value=1440)
         self.process_mode = tk.StringVar(value="全自动模式")  # 全自动模式/半自动模式
         self.processor = ComfyUIBatchProcessor()
 
@@ -231,6 +236,14 @@ class BatchProcessorGUI:
         tk.Button(lora_frame, text="刷新", command=self.load_lora_models, width=6).pack(side=tk.LEFT, padx=2)
         # 加载模型列表
         self.load_lora_models()
+
+        # 缩放最长边输入
+        resize_frame = tk.Frame(parent, pady=5)
+        resize_frame.pack(fill=tk.X)
+        tk.Label(resize_frame, text="缩放最长边:", width=12).pack(side=tk.LEFT)
+        self.resize_spinbox = tk.Spinbox(resize_frame, textvariable=self.resize_longest_edge, from_=256, to=8192, width=10)
+        self.resize_spinbox.pack(side=tk.LEFT, padx=5)
+        tk.Label(resize_frame, text="(像素，默认1440)", fg="#666").pack(side=tk.LEFT)
 
         # 起始索引输入
         index_frame = tk.Frame(parent, pady=5)
@@ -900,6 +913,7 @@ class BatchProcessorGUI:
             # 每次循环前获取最新的提示词和 LoRA 路径（支持在半自动模式下修改）
             prompt = self.prompt_text.get().strip()
             lora_name = self.lora_path.get().strip()
+            resize_value = self.resize_longest_edge.get()
 
             image_file = image_files[i]
             # 更新当前索引
@@ -914,7 +928,7 @@ class BatchProcessorGUI:
             workflow = self.processor.load_workflow()
             success, result = self.processor.process_image(
                 workflow, input_path, output_folder, original_folder,
-                output_image_folder, prompt, lora_name
+                output_image_folder, prompt, lora_name, resize_value
             )
 
             if success:

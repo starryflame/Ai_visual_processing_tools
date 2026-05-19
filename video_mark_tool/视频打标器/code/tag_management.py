@@ -165,9 +165,13 @@ def export_tags(self, batch_mode=False):
                 txt_path = os.path.join(main_folder, f"{filename}.txt")
                 counter += 1
             
-            # 视频写入器参数
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(video_path, fourcc, export_fps, (width, height))
+            # 视频写入器参数：优先 H.264，不可用时回退 mp4v
+            for codec_name in ('avc1', 'mp4v'):
+                fourcc = cv2.VideoWriter_fourcc(*codec_name)
+                out = cv2.VideoWriter(video_path, fourcc, export_fps, (width, height))
+                if out.isOpened():
+                    break
+                out.release()
             
             # 写入视频帧
             for frame_num in range(start_frame, min(end_frame + 1, len(self.processed_frames))):

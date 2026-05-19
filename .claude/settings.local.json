@@ -63,7 +63,16 @@
       "Bash(python -c \"import webbrowser; webbrowser.open\\('file:///j:/Ai_visual_processing_tools/答辩展示.html'\\)\")",
       "Bash(start file:///j:/Ai_visual_processing_tools/答辩展示.html)",
       "Bash(echo \"Please open manually: j:\\\\\\\\Ai_visual_processing_tools\\\\\\\\答辩展示.html\")",
-      "mcp__plugin_playwright_playwright__browser_navigate"
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "Bash(xargs wc -l)",
+      "Bash(python -c \"from utils import compare_image_similarity, auto_crop_to_match, compute_image_hash; print\\('utils import OK'\\)\")",
+      "Bash(python -c \"import sys; sys.argv = ['main']; from gui import ImagePairToolGUI; print\\('gui import OK'\\)\")",
+      "Bash(python -c \"import numpy; print\\(numpy.__version__\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('utils.py', doraise=True\\); py_compile.compile\\('gui.py', doraise=True\\); print\\('Syntax OK'\\)\")",
+      "Bash(python -c \"import utils; print\\('utils imports OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('config.py', doraise=True\\); py_compile.compile\\('similarity.py', doraise=True\\); py_compile.compile\\('gui.py', doraise=True\\); py_compile.compile\\('main.py', doraise=True\\); print\\('All files compile OK'\\)\")",
+      "Bash(python -c \"from PIL import Image; import tkinter; print\\('PIL and tkinter OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\); print\\('OK'\\)\")"
     ]
   }
 }
