@@ -1,0 +1,843 @@
+<!DOCTYPE html><html><head>
+      <title>README</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      
+      <link rel="stylesheet" href="file:///c:\Users\19864\.vscode\extensions\shd101wyy.markdown-preview-enhanced-0.8.26\crossnote\dependencies\katex\katex.min.css">
+      
+      
+      
+      
+      
+      
+      
+      <style>
+      code[class*=language-],pre[class*=language-]{color:#333;background:0 0;font-family:Consolas,"Liberation Mono",Menlo,Courier,monospace;text-align:left;white-space:pre;word-spacing:normal;word-break:normal;word-wrap:normal;line-height:1.4;-moz-tab-size:8;-o-tab-size:8;tab-size:8;-webkit-hyphens:none;-moz-hyphens:none;-ms-hyphens:none;hyphens:none}pre[class*=language-]{padding:.8em;overflow:auto;border-radius:3px;background:#f5f5f5}:not(pre)>code[class*=language-]{padding:.1em;border-radius:.3em;white-space:normal;background:#f5f5f5}.token.blockquote,.token.comment{color:#969896}.token.cdata{color:#183691}.token.doctype,.token.macro.property,.token.punctuation,.token.variable{color:#333}.token.builtin,.token.important,.token.keyword,.token.operator,.token.rule{color:#a71d5d}.token.attr-value,.token.regex,.token.string,.token.url{color:#183691}.token.atrule,.token.boolean,.token.code,.token.command,.token.constant,.token.entity,.token.number,.token.property,.token.symbol{color:#0086b3}.token.prolog,.token.selector,.token.tag{color:#63a35c}.token.attr-name,.token.class,.token.class-name,.token.function,.token.id,.token.namespace,.token.pseudo-class,.token.pseudo-element,.token.url-reference .token.variable{color:#795da3}.token.entity{cursor:help}.token.title,.token.title .token.punctuation{font-weight:700;color:#1d3e81}.token.list{color:#ed6a43}.token.inserted{background-color:#eaffea;color:#55a532}.token.deleted{background-color:#ffecec;color:#bd2c00}.token.bold{font-weight:700}.token.italic{font-style:italic}.language-json .token.property{color:#183691}.language-markup .token.tag .token.punctuation{color:#333}.language-css .token.function,code.language-css{color:#0086b3}.language-yaml .token.atrule{color:#63a35c}code.language-yaml{color:#183691}.language-ruby .token.function{color:#333}.language-markdown .token.url{color:#795da3}.language-makefile .token.symbol{color:#795da3}.language-makefile .token.variable{color:#183691}.language-makefile .token.builtin{color:#0086b3}.language-bash .token.keyword{color:#0086b3}pre[data-line]{position:relative;padding:1em 0 1em 3em}pre[data-line] .line-highlight-wrapper{position:absolute;top:0;left:0;background-color:transparent;display:block;width:100%}pre[data-line] .line-highlight{position:absolute;left:0;right:0;padding:inherit 0;margin-top:1em;background:hsla(24,20%,50%,.08);background:linear-gradient(to right,hsla(24,20%,50%,.1) 70%,hsla(24,20%,50%,0));pointer-events:none;line-height:inherit;white-space:pre}pre[data-line] .line-highlight:before,pre[data-line] .line-highlight[data-end]:after{content:attr(data-start);position:absolute;top:.4em;left:.6em;min-width:1em;padding:0 .5em;background-color:hsla(24,20%,50%,.4);color:#f4f1ef;font:bold 65%/1.5 sans-serif;text-align:center;vertical-align:.3em;border-radius:999px;text-shadow:none;box-shadow:0 1px #fff}pre[data-line] .line-highlight[data-end]:after{content:attr(data-end);top:auto;bottom:.4em}html body{font-family:'Helvetica Neue',Helvetica,'Segoe UI',Arial,freesans,sans-serif;font-size:16px;line-height:1.6;color:#333;background-color:#fff;overflow:initial;box-sizing:border-box;word-wrap:break-word}html body>:first-child{margin-top:0}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{line-height:1.2;margin-top:1em;margin-bottom:16px;color:#000}html body h1{font-size:2.25em;font-weight:300;padding-bottom:.3em}html body h2{font-size:1.75em;font-weight:400;padding-bottom:.3em}html body h3{font-size:1.5em;font-weight:500}html body h4{font-size:1.25em;font-weight:600}html body h5{font-size:1.1em;font-weight:600}html body h6{font-size:1em;font-weight:600}html body h1,html body h2,html body h3,html body h4,html body h5{font-weight:600}html body h5{font-size:1em}html body h6{color:#5c5c5c}html body strong{color:#000}html body del{color:#5c5c5c}html body a:not([href]){color:inherit;text-decoration:none}html body a{color:#08c;text-decoration:none}html body a:hover{color:#00a3f5;text-decoration:none}html body img{max-width:100%}html body>p{margin-top:0;margin-bottom:16px;word-wrap:break-word}html body>ol,html body>ul{margin-bottom:16px}html body ol,html body ul{padding-left:2em}html body ol.no-list,html body ul.no-list{padding:0;list-style-type:none}html body ol ol,html body ol ul,html body ul ol,html body ul ul{margin-top:0;margin-bottom:0}html body li{margin-bottom:0}html body li.task-list-item{list-style:none}html body li>p{margin-top:0;margin-bottom:0}html body .task-list-item-checkbox{margin:0 .2em .25em -1.8em;vertical-align:middle}html body .task-list-item-checkbox:hover{cursor:pointer}html body blockquote{margin:16px 0;font-size:inherit;padding:0 15px;color:#5c5c5c;background-color:#f0f0f0;border-left:4px solid #d6d6d6}html body blockquote>:first-child{margin-top:0}html body blockquote>:last-child{margin-bottom:0}html body hr{height:4px;margin:32px 0;background-color:#d6d6d6;border:0 none}html body table{margin:10px 0 15px 0;border-collapse:collapse;border-spacing:0;display:block;width:100%;overflow:auto;word-break:normal;word-break:keep-all}html body table th{font-weight:700;color:#000}html body table td,html body table th{border:1px solid #d6d6d6;padding:6px 13px}html body dl{padding:0}html body dl dt{padding:0;margin-top:16px;font-size:1em;font-style:italic;font-weight:700}html body dl dd{padding:0 16px;margin-bottom:16px}html body code{font-family:Menlo,Monaco,Consolas,'Courier New',monospace;font-size:.85em;color:#000;background-color:#f0f0f0;border-radius:3px;padding:.2em 0}html body code::after,html body code::before{letter-spacing:-.2em;content:'\00a0'}html body pre>code{padding:0;margin:0;word-break:normal;white-space:pre;background:0 0;border:0}html body .highlight{margin-bottom:16px}html body .highlight pre,html body pre{padding:1em;overflow:auto;line-height:1.45;border:#d6d6d6;border-radius:3px}html body .highlight pre{margin-bottom:0;word-break:normal}html body pre code,html body pre tt{display:inline;max-width:initial;padding:0;margin:0;overflow:initial;line-height:inherit;word-wrap:normal;background-color:transparent;border:0}html body pre code:after,html body pre code:before,html body pre tt:after,html body pre tt:before{content:normal}html body blockquote,html body dl,html body ol,html body p,html body pre,html body ul{margin-top:0;margin-bottom:16px}html body kbd{color:#000;border:1px solid #d6d6d6;border-bottom:2px solid #c7c7c7;padding:2px 4px;background-color:#f0f0f0;border-radius:3px}@media print{html body{background-color:#fff}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{color:#000;page-break-after:avoid}html body blockquote{color:#5c5c5c}html body pre{page-break-inside:avoid}html body table{display:table}html body img{display:block;max-width:100%;max-height:100%}html body code,html body pre{word-wrap:break-word;white-space:pre}}.markdown-preview{width:100%;height:100%;box-sizing:border-box}.markdown-preview ul{list-style:disc}.markdown-preview ul ul{list-style:circle}.markdown-preview ul ul ul{list-style:square}.markdown-preview ol{list-style:decimal}.markdown-preview ol ol,.markdown-preview ul ol{list-style-type:lower-roman}.markdown-preview ol ol ol,.markdown-preview ol ul ol,.markdown-preview ul ol ol,.markdown-preview ul ul ol{list-style-type:lower-alpha}.markdown-preview .newpage,.markdown-preview .pagebreak{page-break-before:always}.markdown-preview pre.line-numbers{position:relative;padding-left:3.8em;counter-reset:linenumber}.markdown-preview pre.line-numbers>code{position:relative}.markdown-preview pre.line-numbers .line-numbers-rows{position:absolute;pointer-events:none;top:1em;font-size:100%;left:0;width:3em;letter-spacing:-1px;border-right:1px solid #999;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.markdown-preview pre.line-numbers .line-numbers-rows>span{pointer-events:none;display:block;counter-increment:linenumber}.markdown-preview pre.line-numbers .line-numbers-rows>span:before{content:counter(linenumber);color:#999;display:block;padding-right:.8em;text-align:right}.markdown-preview .mathjax-exps .MathJax_Display{text-align:center!important}.markdown-preview:not([data-for=preview]) .code-chunk .code-chunk-btn-group{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .status{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .output-div{margin-bottom:16px}.markdown-preview .md-toc{padding:0}.markdown-preview .md-toc .md-toc-details{margin:0;padding:0;border:none}.markdown-preview .md-toc summary.md-toc-link-wrapper{cursor:pointer;list-style-position:outside}.markdown-preview .md-toc summary.md-toc-link-wrapper::marker{font-size:.85em}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link div,.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}.markdown-preview .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='0']{margin-left:12px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='1']{margin-left:28px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='2']{margin-left:44px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='3']{margin-left:60px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='4']{margin-left:76px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='5']{margin-left:80px}.markdown-preview a.tag,.markdown-preview a.tag:active,.markdown-preview a.tag:link,.markdown-preview a.tag:visited,.markdown-preview span.tag:not(.token){display:inline-block;background-color:var(--vscode-badge-background,rgba(127,127,127,.18));color:var(--vscode-badge-foreground,currentColor);border-radius:2em;font-size:.85em;font-weight:500;padding:.05em .55em;line-height:1.5;white-space:nowrap;text-decoration:none;text-shadow:none;box-shadow:none;transition:background-color .12s ease,opacity .12s ease}.markdown-preview a.tag{cursor:pointer}.markdown-preview a.tag:focus,.markdown-preview a.tag:hover{background-color:var(--vscode-badge-background,rgba(127,127,127,.32));color:var(--vscode-badge-foreground,currentColor);opacity:.85;text-decoration:none;outline:0}.markdown-preview .wikilink-embed-content{border-left:3px solid var(--vscode-textBlockQuote-border,rgba(128,128,128,.3));background:var(--vscode-textBlockQuote-background,rgba(128,128,128,.05));margin:.5em 0;padding:.5em .75em;border-radius:0 3px 3px 0}.markdown-preview .wikilink-embed-content.wikilink-embed-error{border-left-color:var(--vscode-errorForeground,#cf222e);color:var(--vscode-errorForeground,#cf222e);font-style:italic;opacity:.8}.markdown-preview .wikilink-embed-content h1:first-child,.markdown-preview .wikilink-embed-content h2:first-child,.markdown-preview .wikilink-embed-content h3:first-child,.markdown-preview .wikilink-embed-content h4:first-child,.markdown-preview .wikilink-embed-content h5:first-child,.markdown-preview .wikilink-embed-content h6:first-child{margin-top:.25em}.markdown-preview .wikilink-embed-content .wikilink-embed-content{margin:.25em 0;padding:.25em .5em}.markdown-preview .block-id{display:none}.scrollbar-style::-webkit-scrollbar{width:8px}.scrollbar-style::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}.scrollbar-style::-webkit-scrollbar-thumb{border-radius:5px;background-color:rgba(150,150,150,.66);border:4px solid rgba(150,150,150,.66);background-clip:content-box}html body[for=html-export]:not([data-presentation-mode]){position:relative;width:100%;height:100%;top:0;left:0;margin:0;padding:0;overflow:auto}html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{position:relative;top:0;min-height:100vh}@media screen and (min-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em calc(50% - 457px + 2em)}}@media screen and (max-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{font-size:14px!important;padding:1em}}@media print{html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{display:none}}html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{position:fixed;bottom:8px;left:8px;font-size:28px;cursor:pointer;color:inherit;z-index:99;width:32px;text-align:center;opacity:.4}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] #sidebar-toc-btn{opacity:1}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc{position:fixed;top:0;left:0;width:300px;height:100%;padding:32px 0 48px 0;font-size:14px;box-shadow:0 0 4px rgba(150,150,150,.33);box-sizing:border-box;overflow:auto;background-color:inherit}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar{width:8px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-thumb{border-radius:5px;background-color:rgba(150,150,150,.66);border:4px solid rgba(150,150,150,.66);background-clip:content-box}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc a{text-decoration:none}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc{padding:0 16px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-details{margin:0;padding:0;border:none}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link div,html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='0']{padding-left:0}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='1']{padding-left:16px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='2']{padding-left:32px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='3']{padding-left:48px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='4']{padding-left:64px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='5']{padding-left:80px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{left:300px;width:calc(100% - 300px);padding:2em calc(50% - 457px - 300px / 2);margin:0;box-sizing:border-box}@media screen and (max-width:1274px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{width:100%}}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .markdown-preview{left:50%;transform:translateX(-50%)}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .md-sidebar-toc{display:none}
+/* Please visit the URL below for more information: */
+/*   https://shd101wyy.github.io/markdown-preview-enhanced/#/customize-css */
+
+      </style>
+      <script type="text/javascript">
+  document.addEventListener("DOMContentLoaded", function () {
+    // your code here
+  });
+</script>
+    </head>
+    <body for="html-export">
+      <div class="crossnote markdown-preview  ">
+      
+<h1 id="ai-视觉处理工具集">AI 视觉处理工具集 </h1>
+<p>AI 视觉处理一站式工具集合，涵盖图片/视频标注、AI 标签生成、ComfyUI 工作流自动化、媒体批量处理、TTS 语音合成等功能。</p>
+<p><a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python"></a><br>
+<a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Platform-Windows-lightgrey.svg" alt="Platform"></a></p>
+<hr>
+<h2 id="目录">目录 </h2>
+<ul>
+<li><a href="#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B">快速开始</a></li>
+<li><a href="#%E7%BB%9F%E4%B8%80%E5%90%AF%E5%8A%A8%E5%99%A8">统一启动器</a></li>
+<li><a href="#%E6%A0%B8%E5%BF%83%E6%A8%A1%E5%9D%97%E8%AF%A6%E8%A7%A3">核心模块详解</a>
+<ul>
+<li><a href="#%E5%9B%BE%E7%89%87%E6%89%93%E6%A0%87%E5%99%A8-pictures_mark_tool">图片打标器</a></li>
+<li><a href="#%E8%A7%86%E9%A2%91%E6%89%93%E6%A0%87%E5%99%A8-video_mark_tool">视频打标器</a></li>
+<li><a href="#%E5%9B%BE%E5%83%8F%E8%A7%86%E9%A2%91%E6%A0%87%E7%AD%BE%E9%A2%84%E8%A7%88%E5%99%A8-%E5%85%B6%E4%BB%96%E5%9B%BE%E5%83%8F%E8%A7%86%E9%A2%91%E6%A0%87%E7%AD%BE%E9%A2%84%E8%A7%88">图像视频标签预览器</a></li>
+<li><a href="#%E5%9B%BE%E7%89%87%E8%A7%86%E9%A2%91%E8%BF%87%E6%BB%A4%E5%B7%A5%E5%85%B7-%E5%85%B6%E4%BB%96%E6%96%87%E4%BB%B6%E5%A4%84%E7%90%86">图片视频过滤工具</a></li>
+<li><a href="#%E9%85%8D%E5%AF%B9%E5%B7%A5%E5%85%B7-%E5%85%B6%E4%BB%96%E6%96%87%E4%BB%B6%E5%A4%84%E7%90%86%E9%85%8D%E5%AF%B9%E5%B7%A5%E5%85%B7">配对工具</a></li>
+<li><a href="#%E6%96%87%E4%BB%B6%E5%A4%B9%E9%80%9A%E7%94%A8%E5%A4%84%E7%90%86-%E5%85%B6%E4%BB%96%E6%96%87%E4%BB%B6%E5%A4%84%E7%90%86">文件夹通用处理</a></li>
+<li><a href="#%E5%9B%BE%E7%89%87%E8%A3%81%E5%89%AA%E5%B7%A5%E5%85%B7-%E5%85%B6%E4%BB%96%E5%9B%BE%E7%89%87%E7%BC%A9%E6%94%BE">图片裁剪工具</a></li>
+<li><a href="#%E5%9B%BE%E7%89%87%E7%BC%A9%E6%94%BE%E5%B7%A5%E5%85%B7-%E5%85%B6%E4%BB%96%E5%9B%BE%E7%89%87%E7%BC%A9%E6%94%BE">图片缩放工具</a></li>
+</ul>
+</li>
+<li><a href="#comfyui-%E5%B7%A5%E5%85%B7%E9%9B%86-%E5%85%B6%E4%BB%96comfyui">ComfyUI 工具集</a></li>
+<li><a href="#%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2%E5%B7%A5%E5%85%B7-%E5%85%B6%E4%BB%96%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2">格式转换工具</a></li>
+<li><a href="#tts-%E8%AF%AD%E9%9F%B3%E5%90%88%E6%88%90-%E5%85%B6%E4%BB%96tts">TTS 语音合成</a></li>
+<li><a href="#%E5%85%B6%E4%BB%96%E5%91%BD%E4%BB%A4%E8%A1%8C%E5%B7%A5%E5%85%B7">其他命令行工具</a></li>
+<li><a href="#%E9%85%8D%E7%BD%AE%E8%AF%B4%E6%98%8E">配置说明</a></li>
+<li><a href="#%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84">项目结构</a></li>
+<li><a href="#%E6%8A%80%E6%9C%AF%E6%A0%88">技术栈</a></li>
+</ul>
+<hr>
+<h2 id="快速开始">快速开始 </h2>
+<h3 id="环境要求">环境要求 </h3>
+<ul>
+<li><strong>操作系统</strong>: Windows 10/11</li>
+<li><strong>Python</strong>: 3.11+</li>
+<li><strong>包管理器</strong>: uv (推荐) 或 pip</li>
+</ul>
+<h3 id="安装依赖">安装依赖 </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code><span class="token comment"># 使用 uv（推荐）</span>
+uv <span class="token function">sync</span>
+
+<span class="token comment"># 或使用 pip</span>
+pip <span class="token function">install</span> flask websocket-client requests
+<span class="token comment"># 完整依赖见 pyproject.toml</span>
+</code></pre><h3 id="一键启动">一键启动 </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code><span class="token comment"># Windows — 双击批处理文件</span>
+启动工具集.bat                 <span class="token comment"># 统一工具集启动器</span>
+
+<span class="token comment"># 或命令行启动</span>
+python toolkit_launcher.py     <span class="token comment"># 统一工具集界面</span>
+</code></pre><h3 id="ai-功能依赖可选">AI 功能依赖（可选） </h3>
+<p>AI 标签生成功能需要 OpenAI 兼容 API 服务（如 Ollama、LM Studio、vLLM 等本地部署），配置 API 地址后即可使用。</p>
+<hr>
+<h2 id="统一启动器">统一启动器 </h2>
+<p><code>toolkit_launcher.py</code> — Tkinter 统一工具集界面，将所有带 GUI 的工具按分类组织为卡片式布局。</p>
+<h3 id="工具分类5-大类共-15-工具">工具分类（5 大类，共 15+ 工具） </h3>
+<table>
+<thead>
+<tr>
+<th>分类</th>
+<th>工具</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>图片打标</td>
+<td>图片打标器、词频统计工具</td>
+</tr>
+<tr>
+<td>视频打标</td>
+<td>视频打标器</td>
+</tr>
+<tr>
+<td>文件处理</td>
+<td>标签管理器、文件夹通用处理、配对工具、数据集标签提取</td>
+</tr>
+<tr>
+<td>格式转换</td>
+<td>图片转视频、通用格式转换器、音乐文件重命名</td>
+</tr>
+<tr>
+<td>ComfyUI</td>
+<td>动漫转写实、真人转动漫、插帧、提示词提取、视频超分放大</td>
+</tr>
+</tbody>
+</table>
+<p><strong>界面特性</strong>: 深色主题、卡片式布局（图标+名称+描述+启动按钮）、悬停高亮效果、可滚动浏览。每个工具通过 <code>subprocess.Popen</code> 在独立进程中启动，支持配置独立的 Python 解释器和虚拟环境。</p>
+<hr>
+<h2 id="核心模块详解">核心模块详解 </h2>
+<h3 id="图片打标器-pictures_mark_tool">图片打标器 (pictures_mark_tool) </h3>
+<p>基于 <strong>PyQt5</strong> 的专业图片标注工具，支持文件夹拖拽导入、AI 自动标签生成、标签频率统计。</p>
+<p><strong>主入口</strong>: <code>pictures_mark_tool/main.py</code></p>
+<h4 id="架构概览">架构概览 </h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tagger_ui.py</code></td>
+<td>主窗口 TaggerUI(QMainWindow)，3 个 Tab（主界面/词频统计/模型配置），3 面板 Splitter 布局，明暗主题切换</td>
+</tr>
+<tr>
+<td><code>image_processor.py</code></td>
+<td>ImageProcessor(QObject)，缩略图缓存（带"未打标"QPainter 叠加层），ThreadPoolExecutor(max_workers=24)，watchdog 文件监控，自动 JPG→PNG 转换</td>
+</tr>
+<tr>
+<td><code>styles.py</code></td>
+<td>QPushButton 样式（普通/悬停/按下/重要/导航），LIGHT_THEME / DARK_THEME QSS 字符串</td>
+</tr>
+<tr>
+<td><code>code/ai_caption_generator.py</code></td>
+<td>AI 标签生成（OpenAI 兼容 API → Ollama），最多 10 次重试，过滤词检查，生成长度验证（&lt;10 字重试，&gt;max_length 重试+截断），base64 图片编码（max 1024×1024）</td>
+</tr>
+<tr>
+<td><code>code/ollama_caption_generator.py</code></td>
+<td>独立版 AI 标签生成器，最多 5 次重试</td>
+</tr>
+<tr>
+<td><code>code/settings_ui.py</code></td>
+<td>SettingsUI(QWidget)，4 组配置（API/Model/Advanced/Saved），48 个预设模型名，5 个预设服务，自动检测服务端模型列表，连接测试</td>
+</tr>
+<tr>
+<td><code>code/statistics.py</code></td>
+<td>标签频率统计（QTreeWidget 三列），已打标/未打标文件计数</td>
+</tr>
+<tr>
+<td><code>code/file_operations.py</code></td>
+<td>导入文件夹（QFileDialog）、追加导入（重名自动处理）、导出重命名（前缀+起始编号+打乱选项）、删除选中图片（永久删除+"不再提示"复选框）</td>
+</tr>
+<tr>
+<td><code>code/tag_management.py</code></td>
+<td>逗号/分号分隔标签拆分，批量添加/移动/删除/修改标签</td>
+</tr>
+<tr>
+<td><code>code/preset_tags.py</code></td>
+<td>预设标签网格布局（2 列），QTimer 自动关闭弹窗（1 秒）</td>
+</tr>
+<tr>
+<td><code>code/shuffle_files.py</code></td>
+<td>三阶段重命名（原名→临时→最终），支持回滚，QProgressDialog 进度</td>
+</tr>
+<tr>
+<td><code>code/batch_operations.py</code></td>
+<td>全选/清空选择批量操作</td>
+</tr>
+</tbody>
+</table>
+<h4 id="配置文件-pictures_mark_toolcodeconfigini">配置文件 (<code>pictures_mark_tool/code/config.ini</code>) </h4>
+<pre data-role="codeBlock" data-info="ini" class="language-ini ini"><code><span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">OLLAMA</span><span class="token punctuation">]</span></span>           # Ollama 本地服务
+<span class="token key attr-name">api_base_url</span> <span class="token punctuation">=</span> <span class="token value attr-value">http://127.0.0.1:1234/v1</span>
+<span class="token key attr-name">model_name</span> <span class="token punctuation">=</span> <span class="token value attr-value">qwen/qwen3.5-27b</span>
+<span class="token key attr-name">max_tokens</span> <span class="token punctuation">=</span> <span class="token value attr-value">60000</span>
+
+<span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">VLLM</span><span class="token punctuation">]</span></span>             # vLLM 服务
+<span class="token key attr-name">api_base_url</span> <span class="token punctuation">=</span> <span class="token value attr-value">http://127.0.0.1:8000/v1</span>
+<span class="token key attr-name">model_name</span> <span class="token punctuation">=</span> <span class="token value attr-value">/models/Qwen3-VL-8B-Instruct</span>
+
+<span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">PROMPTS</span><span class="token punctuation">]</span></span>          # AI 提示词模板
+<span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">FILTER_WORDS</span><span class="token punctuation">]</span></span>     # 触发重新生成的过滤词
+<span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">MAX_CAPTION_LENGTH</span><span class="token punctuation">]</span></span>  # 最大标签长度限制
+</code></pre><h4 id="辅助工具">辅助工具 </h4>
+<ul>
+<li><strong>词频统计</strong> (<code>pictures_mark_tool/tool/词频统计/词频统计.py</code>) — Tkinter 界面，PanedWindow 布局，词频 Counter 统计，搜索/替换/删除标签，AI 标签重新生成（关键词过滤+短标签过滤），base64 Ollama 集成</li>
+<li><strong>视频转图片</strong> (<code>pictures_mark_tool/tool/视频转图片.py</code>) — CLI 工具，OpenCV 逐帧提取，支持文件夹批量+单文件模式，可配置每秒提取帧数，中文路径编码处理，tqdm 进度条</li>
+</ul>
+<hr>
+<h3 id="视频打标器-video_mark_tool">视频打标器 (video_mark_tool) </h3>
+<p>基于 <strong>Tkinter</strong> 的帧级视频标注工具，支持精确到帧的标签标注、AI 描述生成和视频片段导出。</p>
+<p><strong>主入口</strong>: <code>video_mark_tool/视频打标器/code/video_tagger.py</code></p>
+<h4 id="架构概览-1">架构概览 </h4>
+<p>采用 <strong>"函数导入为类方法"</strong> 模式 — 主类 <code>VideoTagger</code> 通过 <code>from module import func</code> 将各模块函数导入为实例方法，实现代码分离。</p>
+<table>
+<thead>
+<tr>
+<th>模块文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>video_tagger.py</code></td>
+<td>主类 VideoTagger，ttk.PanedWindow 三面板布局（标签预设/视频/控制），config.ini 配置窗口尺寸，video_prompt.txt 外部提示词文件</td>
+</tr>
+<tr>
+<td><code>video_processing.py</code></td>
+<td>视频管理窗口（Toplevel + Listbox），视频添加/加载/列表管理，show_frame（画布自适应 PIL 缩放），play_video（after() 循环），preprocess_frames（线程+进度窗口 / silent 批量模式），resize_to_720p（可配置最长边），save_and_replace_video（临时文件替换模式）</td>
+</tr>
+<tr>
+<td><code>tag_management.py</code></td>
+<td>标签 CRUD、排除片段、export_tags（mp4 + txt 双输出，支持 batch_mode 静默导出）、保存/加载标记记录（JSON 含视频元数据）、regenerate_all_tags（线程化重新生成）</td>
+</tr>
+<tr>
+<td><code>ai_features.py</code></td>
+<td><strong>LLMClient 类</strong> — 封装 OpenAI 兼容客户端，extract_frames（np.linspace 均匀采样，最多 max_sample_frames 帧），generate_caption（多图输入，<code>&lt;think&gt;</code> 标签正则移除 <code>r"&lt;think&gt;.*?&lt;/think&gt;"</code>，过滤词检查，min_length 验证，最多 10 次重试）。auto_segment_and_recognize（视频列表批量处理+取消支持），generate_ai_caption（单片段→预设标签）</td>
+</tr>
+<tr>
+<td><code>ui_events.py</code></td>
+<td>清除/删除/右键菜单事件，字体缩放（±1），进度条拖动（clamp 到 start_frame），窗口大小变化→重绘标记，键盘快捷键（Space/A/D），焦点检测避免输入框冲突</td>
+</tr>
+<tr>
+<td><code>presets.py</code></td>
+<td>两种预设类型：手动（纯文本）和 AI 生成（带缩略图），create_preset_item / create_manual_preset_item，show_full_image（Toplevel 循环播放），show_manual_preset_window（编辑/使用/填充/删除/保存）</td>
+</tr>
+<tr>
+<td><code>utils.py</code></td>
+<td>draw_tag_markers（进度条 Canvas 彩色片段标记、红色排除区域、起止标记、时间标签），highlight_tag_for_current_frame，is_child_of 控件遍历</td>
+</tr>
+<tr>
+<td><code>config_window.py</code></td>
+<td>ConfigWindow 可滚动配置编辑器，6 个配置分组 + video_prompt.txt 外部编辑器（15 行 Text 控件），行级 INI 编辑（保留注释），鼠标滚轮滚动绑定</td>
+</tr>
+</tbody>
+</table>
+<h4 id="操作流程">操作流程 </h4>
+<ol>
+<li><strong>加载视频</strong> → 打开视频管理器，支持添加单个文件/文件夹，列表双击加载</li>
+<li><strong>帧预处理</strong> → 按目标帧率采样（默认降至 16fps），最长边缩放至 720px</li>
+<li><strong>标记片段</strong> → 空格键播放/暂停，A/D 键设置起止帧，输入标签文本后添加标记</li>
+<li><strong>AI 标签</strong> → 选中片段→AI 生成标签预设，可选择应用到当前片段</li>
+<li><strong>导出</strong> → 导出 mp4 片段+对应 txt 标签文件，或保存/加载 JSON 标记记录</li>
+</ol>
+<h4 id="配置文件-video_mark_tool视频打标器codeconfigini">配置文件 (<code>video_mark_tool/视频打标器/code/config.ini</code>) </h4>
+<pre data-role="codeBlock" data-info="ini" class="language-ini ini"><code><span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">MODEL</span><span class="token punctuation">]</span></span>
+<span class="token key attr-name">api_base_url</span> <span class="token punctuation">=</span> <span class="token value attr-value">http://192.168.13.6:1234/v1</span>
+<span class="token key attr-name">model_name</span> <span class="token punctuation">=</span> <span class="token value attr-value">qwen/qwen3.5-27b</span>
+<span class="token key attr-name">max_new_tokens</span> <span class="token punctuation">=</span> <span class="token value attr-value">30000</span>
+<span class="token key attr-name">temperature</span> <span class="token punctuation">=</span> <span class="token value attr-value">0.3</span>
+
+<span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">PROCESSING</span><span class="token punctuation">]</span></span>
+<span class="token key attr-name">target_max_edge</span> <span class="token punctuation">=</span> <span class="token value attr-value">720    # 预处理帧最长边</span>
+<span class="token key attr-name">max_sample_frames</span> <span class="token punctuation">=</span> <span class="token value attr-value">30   # AI 采样最大帧数</span>
+<span class="token key attr-name">target_frame_rate</span> <span class="token punctuation">=</span> <span class="token value attr-value">16   # 目标帧率</span>
+<span class="token key attr-name">segment_duration</span> <span class="token punctuation">=</span> <span class="token value attr-value">5     # 自动分段时长(秒)</span>
+<span class="token key attr-name">image_max_size</span> <span class="token punctuation">=</span> <span class="token value attr-value">720     # 发送给 AI 的图像最大边长</span>
+
+<span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">FILTER_WORDS</span><span class="token punctuation">]</span></span>           # 含以下词汇时触发重新生成
+<span class="token key attr-name">words</span> <span class="token punctuation">=</span> <span class="token value attr-value">不符合，公序良俗，低俗，违规，blurry,low resolution,watermark,...</span>
+</code></pre><p><strong>AI 提示词</strong>存储在独立文件 <code>video_prompt.txt</code>（与 video_tagger.py 同目录），可通过配置窗口编辑。</p>
+<h4 id="附加工具">附加工具 </h4>
+<ul>
+<li><strong>通用拆分视频</strong> (<code>video_mark_tool/拆分视频工具/通用拆分视频.py</code>) — CLI 工具，ffmpeg <code>-c copy</code> 快速无损分割</li>
+<li><strong>批量修改帧率</strong> (<code>video_mark_tool/批量修改帧率.py</code>) — CLI 工具，ffmpeg <code>-vf fps=target_fps</code> 批量修改</li>
+</ul>
+<hr>
+<h3 id="图像视频标签预览器-其他图像视频标签预览">图像视频标签预览器 (其他/图像视频标签预览) </h3>
+<p>基于 <strong>PyQt5 Mixin 模式</strong>的媒体标签预览工具，支持图片和视频的预览及标签文件管理。</p>
+<p><strong>主入口</strong>: <code>其他/图像视频标签预览/pic_video_label_manager.py</code></p>
+<h4 id="架构mixin-多继承">架构（Mixin 多继承） </h4>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>VideoLabelManager(QMainWindow, UIComponentsMixin, MediaHandlerMixin,
+                  VideoControllerMixin, LabelManagerMixin)
+</code></pre><table>
+<thead>
+<tr>
+<th>Mixin</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UIComponentsMixin</code></td>
+<td>界面布局（默认两列/竖屏三列），根据媒体宽高比自动切换布局（aspect_ratio &lt; 0.8 触发竖屏），拖拽提示标签</td>
+</tr>
+<tr>
+<td><code>MediaHandlerMixin</code></td>
+<td>递归加载媒体文件（支持图片+视频），删除当前文件+关联标签（双击确认机制），上下导航自动保存</td>
+</tr>
+<tr>
+<td><code>VideoControllerMixin</code></td>
+<td>视频播放（QTimer 帧更新，BGR→RGB 转换），进度条拖拽跳转，暂停/播放切换，<strong>动画 WebP 完整支持</strong>（帧提取、平均帧率计算、循环播放）</td>
+</tr>
+<tr>
+<td><code>LabelManagerMixin</code></td>
+<td>标签文件查找（.txt/.xml/.json/.csv），自动创建/保存标签，修改状态指示（● 未保存 / ✓ 已保存）</td>
+</tr>
+<tr>
+<td><code>utils.py</code></td>
+<td>get_image_info / get_video_info（分辨率+帧率+总帧数），find_label_file / delete_label_file</td>
+</tr>
+</tbody>
+</table>
+<p><strong>特色功能</strong>: 动画 WebP 完整播放支持（帧提取→QImage 转换→QTimer 循环），媒体宽高比自适应布局切换。</p>
+<hr>
+<h3 id="图片视频过滤工具-其他文件处理">图片视频过滤工具 (其他/文件处理) </h3>
+<p><strong><code>图片视频标签过滤ui.py</code></strong> — PyQt5 深色主题三面板过滤器，源文件夹/目标文件夹双列表对比，支持图片+视频预览。</p>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>源文件夹管理</td>
+<td>缩略图列表（图片+视频封面），ThumbnailGenerator(QThread) 异步缩略图生成</td>
+</tr>
+<tr>
+<td>目标文件夹管理</td>
+<td>复制/删除操作，自动关联同名 txt 文件</td>
+</tr>
+<tr>
+<td>视频播放</td>
+<td>内嵌播放器（播放/暂停/进度条/时间显示），BGR→RGB QImage 转换</td>
+</tr>
+<tr>
+<td>拖拽支持</td>
+<td>根据鼠标位置自动识别拖拽到左/中/右面板</td>
+</tr>
+<tr>
+<td>删除确认</td>
+<td>双击删除机制（1 秒内双击确认）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="配对工具-其他文件处理配对工具">配对工具 (其他/文件处理/配对工具) </h3>
+<p>基于 <strong>Tkinter + tkinterdnd2</strong> 的双面板图片配对工具，支持拖拽导入、智能配对、多种导出模式。</p>
+<p><strong>主入口</strong>: <code>其他/文件处理/配对工具/main.py</code></p>
+<h4 id="架构">架构 </h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gui.py</code></td>
+<td>ImagePairToolGUI 主窗口，三列布局（左面板/控制区/右面板），auto_pair_all（ThreadPoolExecutor），export_pairs（尺寸/填充/裁剪/重命名/打乱/旋转增强），Backspace 智能删除（2 次按压），Tab 全屏切换</td>
+</tr>
+<tr>
+<td><code>panel.py</code></td>
+<td>ImagePanel 类，Canvas 图片显示+拖拽+滚轮缩放（10%-500%），ThreadPoolExecutor 预加载缓存（前后各 1 张），列表配对高亮（不同后缀名自动匹配 stem）</td>
+</tr>
+<tr>
+<td><code>utils.py</code></td>
+<td>fill_image_with_background（居中填充白色背景），crop_to_square（1:1 裁剪，支持 top/bottom），generate_renamed_filename（pair_001 格式）</td>
+</tr>
+<tr>
+<td><code>config.py</code></td>
+<td>深色模式配色常量，图片扩展名列表，窗口默认尺寸</td>
+</tr>
+</tbody>
+</table>
+<h4 id="导出功能">导出功能 </h4>
+<ul>
+<li><strong>尺寸模式</strong>: 原始尺寸 / 填充到正方形（居中+白色背景）</li>
+<li><strong>裁剪模式</strong>: 1:1 裁剪（竖图上/下对齐，横图居中）</li>
+<li><strong>旋转增强</strong>: 0°/90°/180°/270° 数据增广</li>
+<li><strong>文件命名</strong>: 保留原名 / 重命名为 pair_001 格式</li>
+<li><strong>打乱导出</strong>: 随机顺序输出</li>
+<li><strong>标签保留</strong>: 同步复制同名 TXT 标签文件</li>
+</ul>
+<hr>
+<h3 id="文件夹通用处理-其他文件处理">文件夹通用处理 (其他/文件处理) </h3>
+<p><strong><code>文件夹通用处理_GUI.py</code></strong> — PyQt5 文件夹批处理工具，4 个功能 Tab。</p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>拆分</td>
+<td>按文件数量拆分为多个子文件夹</td>
+</tr>
+<tr>
+<td>展平</td>
+<td>递归将所有子文件夹文件移到根目录</td>
+</tr>
+<tr>
+<td>打乱</td>
+<td>随机重命名（三阶段重命名防冲突）</td>
+</tr>
+<tr>
+<td>提取</td>
+<td>按扩展名提取文件到目标文件夹</td>
+</tr>
+</tbody>
+</table>
+<p>ProcessingWorker(QThread) + 进度信号，保留文件名配对关系（如 image_001.jpg ↔ image_001.txt 始终在同一子文件夹）。</p>
+<hr>
+<h3 id="图片裁剪工具-其他图片缩放">图片裁剪工具 (其他/图片缩放) </h3>
+<p><strong><code>image_cropper.py</code></strong> — PyQt5 图片裁剪工具，按比例裁剪并导出。</p>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预设比例</td>
+<td>1:1, 4:3, 3:4, 16:9, 9:16, 3:2, 2:3, 5:4, 4:5, 21:9, 9:21 + 原始比例</td>
+</tr>
+<tr>
+<td>裁剪位置</td>
+<td>居中/偏上/偏下/偏左/偏右</td>
+</tr>
+<tr>
+<td>预览</td>
+<td>带裁剪框叠加层（九宫格辅助线+暗化区域），PreviewLabel(QPainter) 自定义绘制</td>
+</tr>
+<tr>
+<td>键盘快捷键</td>
+<td>方向键选位置，空格居中，W/Q/E/S 切换图片</td>
+</tr>
+<tr>
+<td>批量导出</td>
+<td>CropWorker(QThread) 多线程处理，JPEG quality 可调（50-100），自动避免文件名冲突</td>
+</tr>
+<tr>
+<td>拖拽导入</td>
+<td>DropFrame 拖拽区域，支持文件夹拖放</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="图片缩放工具-其他图片缩放">图片缩放工具 (其他/图片缩放) </h3>
+<p><strong><code>image_resizer.py</code></strong> — PyQt5 图片压缩工具，将图片批量压缩到目标文件大小以下。</p>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>压缩算法</td>
+<td>JPEG: 二分搜索 quality（10-100），quality≤15 时自动缩小尺寸。PNG: 二分搜索 compress_level（1-9）。WebP: quality 二分搜索 + method=2</td>
+</tr>
+<tr>
+<td>输出选项</td>
+<td>覆盖原图 / 输出到指定目录</td>
+</tr>
+<tr>
+<td>进度反馈</td>
+<td>ImageResizeWorker(QThread)，实时逐文件结果列表（✓ 成功 / ⏭ 跳过 / ✗ 失败）</td>
+</tr>
+<tr>
+<td>拖拽导入</td>
+<td>DropLineEdit 拖拽区域，自动识别文件夹</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="comfyui-工具集-其他comfyui">ComfyUI 工具集 (其他/comfyui) </h2>
+<p>基于 Tkinter 的 ComfyUI 工作流批量处理工具，通过 HTTP API 与 ComfyUI 服务通信。</p>
+<h3 id="批量动漫转写实-batch_anime2realpy">批量动漫转写实 (<code>batch_anime2real.py</code>) </h3>
+<p>~1000 行 Tkinter GUI，双 Canvas 预览（输入右对齐/输出左对齐），支持完整/半自动模式。</p>
+<ul>
+<li><strong>LoRA 管理</strong>: 从 <code>J:\models\loras</code> 自动发现 LoRA 模型</li>
+<li><strong>提示词预设</strong>: JSON 文件保存/加载提示词预设</li>
+<li><strong>半自动模式</strong>: 每张图片处理前弹出确认对话框，支持跳过/接受/参数调整</li>
+<li><strong>处理控制</strong>: 暂停/恢复/停止，F11 全屏，Tab 隐藏控制面板</li>
+<li><strong>输出组织</strong>: 自动分 control/target 子文件夹</li>
+</ul>
+<h3 id="真人转动漫-真人转动漫py">真人转动漫 (<code>真人转动漫.py</code>) </h3>
+<p>与 batch_anime2real 类似架构但针对不同 LoRA 节点（node 297），简化版半自动对话框。</p>
+<h3 id="其他-comfyui-工具">其他 ComfyUI 工具 </h3>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>batch_image_upscale.py</code></td>
+<td>SeedVR2 模型视频超分辨率，可配置 seed/max_resolution/min_resolution/longer_edge，VAE/DiT 模型路径</td>
+</tr>
+<tr>
+<td><code>插帧.py</code></td>
+<td>视频插帧批量处理，递归文件发现</td>
+</tr>
+<tr>
+<td><code>wan22放大.py</code></td>
+<td>Wan2.2 视频放大工作流，CLI/Tkinter 双模式</td>
+</tr>
+<tr>
+<td><code>提示词提取.py</code></td>
+<td>从 PNG metadata（<code>Image.info["prompt"]</code>→node 113）和视频 ffprobe metadata（comment→workflow.nodes）提取提示词</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>注意</strong>: <code>其他/comfyui/web_ui/</code> 目录下的 Streamlit Web UI 文件未在本次文件读取范围内，其功能以实际代码为准。</p>
+</blockquote>
+<hr>
+<h2 id="格式转换工具-其他格式转换">格式转换工具 (其他/格式转换) </h2>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>框架</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>图片转视频.py</code></td>
+<td>Tkinter</td>
+<td>单张图片→单帧 MP4，支持中文路径（np.fromfile + cv2.imdecode）</td>
+</tr>
+<tr>
+<td><code>transform.py</code></td>
+<td>Tkinter</td>
+<td>通用媒体转换器，4 种转换类型（图片/视频/音频/全部），ffmpeg + OpenCV GIF 回退，GIF 帧率/分辨率可调，ThreadPoolExecutor(4) 帧处理</td>
+</tr>
+<tr>
+<td><code>music_kmg.py</code></td>
+<td>CLI</td>
+<td>批量 <code>.kgm.flac</code> → <code>.kgm</code> 文件重命名</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="tts-语音合成-其他tts">TTS 语音合成 (其他/tts) </h2>
+<p>基于 Gradio 本地服务的 TTS 文本转语音方案，提供 OpenAI API 兼容层。</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qwen3tts/gradio的tts.py</code></td>
+<td>Gradio Client 调用本地 TTS 服务（localhost:7862），支持多种音色（少女音/御姐/萝莉/老男人），winsound 播放</td>
+</tr>
+<tr>
+<td><code>qwen3tts/tts_adapter.py</code></td>
+<td>TTSAAdapter 封装类，<code>generate_tts(text, voice, speed, temperature)</code> 统一接口</td>
+</tr>
+<tr>
+<td><code>qwen3tts/tts_server.py</code></td>
+<td><strong>FastAPI 服务</strong>，提供 OpenAI 兼容的 <code>/v1/audio/speech</code> 端点，voice 映射（alloy→少女音等），StreamingResponse 流式输出，支持 mp3/wav/flac/opus</td>
+</tr>
+<tr>
+<td><code>qwen3tts/test_openai_client.py</code></td>
+<td>使用 <code>openai</code> SDK 的 <code>client.audio.speech.create()</code> 调用本地 TTS 服务的示例（需先启动 tts_server.py）</td>
+</tr>
+<tr>
+<td><code>qwen3tts/test.py</code></td>
+<td>Gradio Client 直接调用测试脚本</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="其他命令行工具">其他命令行工具 </h2>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>其他/视频扩充/扩充视频时长.py</code></td>
+<td>OpenCV 读取视频帧，通过帧重复将短视频拉伸到 5 秒（16fps），不足则填充最后一帧</td>
+</tr>
+<tr>
+<td><code>其他/文件处理/数据集标签提取.py</code></td>
+<td>Tkinter filedialog 选择源/目标文件夹，递归提取所有 .txt 文件内容合并为一个文件</td>
+</tr>
+<tr>
+<td><code>其他/文件处理/txt改逗号.py</code></td>
+<td>Tkinter 选择文件夹，批量将 txt 文件中中文逗号→英文逗号，删除所有空格</td>
+</tr>
+<tr>
+<td><code>其他/文件处理/批量改文件名.py</code></td>
+<td>CLI 工具，删除文件名中特定后缀（<code>_real</code>, <code>_fake</code>, <code>_hd</code>, <code>_sd</code>）</td>
+</tr>
+<tr>
+<td><code>其他/文件处理/多段音频拼接/audio_merger_gui.py</code></td>
+<td>Tkinter 音频拼接 GUI，ffprobe 获取时长，ffmpeg concat 合并，支持 mp3/wav/flac/aac/m4a/ogg 输出</td>
+</tr>
+<tr>
+<td><code>其他/文件处理/多段音频拼接/拼接音频.py</code></td>
+<td>简化版（代码为空文件）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="配置说明">配置说明 </h2>
+<h3 id="打标器-ai-配置">打标器 AI 配置 </h3>
+<p>两个打标器各自使用独立的 <code>config.ini</code>，均通过 OpenAI 兼容 API 调用 AI 服务：</p>
+<table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api_base_url</code></td>
+<td>OpenAI 兼容 API 地址（支持 Ollama/LM Studio/vLLM/DeepSeek/SiliconCloud 等）</td>
+</tr>
+<tr>
+<td><code>api_key</code></td>
+<td>API 密钥（本地服务通常为 <code>ollama</code> 或 <code>EMPTY</code>）</td>
+</tr>
+<tr>
+<td><code>model_name</code></td>
+<td>模型名称（如 <code>qwen/qwen3.5-27b</code>, <code>qwen3-vl:30b</code>）</td>
+</tr>
+<tr>
+<td><code>temperature</code> / <code>top_p</code></td>
+<td>生成参数</td>
+</tr>
+<tr>
+<td><code>max_new_tokens</code> / <code>max_tokens</code></td>
+<td>最大生成 token 数</td>
+</tr>
+</tbody>
+</table>
+<h3 id="过滤词机制">过滤词机制 </h3>
+<p>AI 生成的标签如果包含 <code>[FILTER_WORDS]</code> 中配置的词汇（支持中英文），会自动触发重新生成（最多 10 次），最后仍包含则强制移除过滤词。</p>
+<h3 id="视频处理参数">视频处理参数 </h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target_max_edge</code></td>
+<td>720</td>
+<td>预处理帧最长边像素</td>
+</tr>
+<tr>
+<td><code>target_frame_rate</code></td>
+<td>16</td>
+<td>预处理目标帧率</td>
+</tr>
+<tr>
+<td><code>max_sample_frames</code></td>
+<td>30</td>
+<td>AI 分析时最大采样帧数</td>
+</tr>
+<tr>
+<td><code>image_max_size</code></td>
+<td>720</td>
+<td>发送给 AI 的图片最大边长</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="项目结构">项目结构 </h2>
+<pre data-role="codeBlock" data-info="" class="language-text"><code>Ai_visual_processing_tools/
+├── toolkit_launcher.py                       # 统一工具集启动器
+├── 启动工具集.bat                             # Windows 快捷启动
+├── requirements.txt                          # 核心依赖
+├── pyproject.toml                            # uv 项目配置
+│
+├── pictures_mark_tool/                       # 图片打标器（PyQt5）
+│   ├── main.py                               # 程序入口
+│   ├── tagger_ui.py                          # 主界面（3 Tab, 3 面板）
+│   ├── image_processor.py                    # 图片处理+缩略图（ThreadPoolExecutor）
+│   ├── styles.py                             # 主题样式（明/暗 QSS）
+│   ├── code/
+│   │   ├── ai_caption_generator.py           # AI 标签生成（OpenAI→Ollama）
+│   │   ├── ollama_caption_generator.py       # 独立版 AI 生成器
+│   │   ├── settings_ui.py                    # 模型配置界面
+│   │   ├── statistics.py                     # 标签频率统计
+│   │   ├── file_operations.py                # 文件导入/导出/删除
+│   │   ├── tag_management.py                 # 标签 CRUD
+│   │   ├── preset_tags.py                    # 预设标签面板
+│   │   ├── shuffle_files.py                  # 三阶段重命名
+│   │   ├── batch_operations.py               # 全选/清空
+│   │   ├── ui_event_handlers.py              # UI 事件处理
+│   │   └── config.ini                        # 配置文件
+│   ├── tool/
+│   │   ├── 词频统计/词频统计.py                # 标签分析器（Tkinter）
+│   │   └── 视频转图片.py                      # 视频帧提取（CLI）
+│   └── 启动打标器.bat
+│
+├── video_mark_tool/                          # 视频打标器（Tkinter）
+│   ├── 视频打标器/code/
+│   │   ├── video_tagger.py                   # 主程序（PanedWindow 三面板）
+│   │   ├── video_processing.py               # 视频加载/播放/帧处理
+│   │   ├── video_clipper.py                  # 独立视频裁剪器
+│   │   ├── tag_management.py                 # 标签管理+导出
+│   │   ├── ai_features.py                    # LLMClient + AI 标签生成
+│   │   ├── ui_events.py                      # UI 事件+键盘快捷键
+│   │   ├── presets.py                        # 预设标签管理
+│   │   ├── utils.py                          # Canvas 标记绘制
+│   │   ├── config_window.py                  # 配置编辑窗口
+│   │   ├── config.ini                        # 配置文件
+│   │   └── video_prompt.txt                  # AI 提示词
+│   ├── 拆分视频工具/通用拆分视频.py            # ffmpeg 视频分割
+│   └── 批量修改帧率.py                        # ffmpeg 帧率修改
+│
+├── 其他/
+│   ├── comfyui/                              # ComfyUI 批量处理工具
+│   │   ├── batch_anime2real.py               # 批量动漫转写实（~1000行）
+│   │   ├── 真人转动漫.py                      # 真人转动漫（Tkinter）
+│   │   ├── batch_image_upscale.py            # SeedVR2 超分辨率
+│   │   ├── 插帧.py                           # 视频插帧
+│   │   ├── wan22放大.py                      # Wan2.2 放大
+│   │   ├── 提示词提取.py                      # 元数据提示词提取
+│   │   └── web_ui/                           # Streamlit Web 应用
+│   │
+│   ├── 格式转换/                              # 媒体格式转换
+│   │   ├── 图片转视频.py                      # 图片→视频（Tkinter）
+│   │   ├── transform.py                      # 通用转换器（Tkinter）
+│   │   └── music_kmg.py                      # .kgm.flac 重命名
+│   │
+│   ├── 图片缩放/                              # 图片尺寸处理
+│   │   ├── image_cropper.py                  # 比例裁剪工具（PyQt5）
+│   │   └── image_resizer.py                  # 压缩到目标大小（PyQt5）
+│   │
+│   ├── 视频扩充/                              # 视频时长处理
+│   │   └── 扩充视频时长.py                    # 帧重复扩展到5秒
+│   │
+│   ├── 图像视频标签预览/                       # 媒体标签预览器（PyQt5）
+│   │   ├── pic_video_label_manager.py        # 主窗口+入口
+│   │   ├── ui_components.py                  # UI 组件+布局切换
+│   │   ├── media_handler.py                  # 媒体加载/显示/删除
+│   │   ├── video_controller.py               # 视频播放+动画WebP
+│   │   ├── label_manager.py                  # 标签文件管理
+│   │   └── utils.py                          # 辅助函数
+│   │
+│   ├── 文件处理/                              # 通用文件操作
+│   │   ├── 配对工具/                          # 双面板图片配对
+│   │   │   ├── main.py                       # 入口
+│   │   │   ├── gui.py                        # 主界面（~1080行）
+│   │   │   ├── panel.py                      # 单侧图片面板
+│   │   │   ├── utils.py                      # 图片处理函数
+│   │   │   └── config.py                     # 配色常量
+│   │   ├── 文件夹通用处理_GUI.py               # 拆分/展平/打乱/提取
+│   │   ├── 图片视频标签过滤ui.py               # 三面板过滤器
+│   │   ├── 数据集标签提取.py                    # TXT 内容合并
+│   │   ├── 批量改文件名.py                      # 后缀删除
+│   │   ├── txt改逗号.py                        # 标点转换
+│   │   └── 多段音频拼接/                       # 音频合并
+│   │       ├── audio_merger_gui.py            # GUI（Tkinter）
+│   │       └── 拼接音频.py
+│   │
+│   └── tts/qwen3tts/                         # TTS 语音合成
+│       ├── gradio的tts.py                     # Gradio Client 调用
+│       ├── tts_adapter.py                     # TTS 适配器封装
+│       ├── tts_server.py                      # FastAPI OpenAI 兼容服务
+│       ├── test_openai_client.py              # OpenAI SDK 调用示例
+│       └── test.py                            # 直接调用测试
+</code></pre><hr>
+<h2 id="技术栈">技术栈 </h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>技术</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GUI 框架</strong></td>
+<td>PyQt5（图片打标、标签预览、过滤、裁剪、缩放、文件夹处理）、Tkinter（视频打标、配对、ComfyUI 批量、格式转换、音频拼接）、Streamlit（ComfyUI Web UI）、Gradio（TTS）</td>
+</tr>
+<tr>
+<td><strong>AI 集成</strong></td>
+<td>OpenAI Python SDK（兼容 Ollama/LM Studio/vLLM/DeepSeek/SiliconCloud），支持视觉语言模型（qwen3-vl, Qwen3.5-27b 等），base64 图片编码</td>
+</tr>
+<tr>
+<td><strong>视频处理</strong></td>
+<td>OpenCV（帧读写、BGR↔RGB 转换、resize）、ffmpeg（subprocess 调用，concat/copy/fps 修改）</td>
+</tr>
+<tr>
+<td><strong>图像处理</strong></td>
+<td>Pillow（格式转换、缩放、裁剪、动画 WebP 读取）、QImage/QPixmap（Qt 端渲染）</td>
+</tr>
+<tr>
+<td><strong>并发模型</strong></td>
+<td>ThreadPoolExecutor（图片批量 I/O）、threading.Thread + root.after()（不阻塞 UI）、QThread + pyqtSignal（Qt 进度更新）</td>
+</tr>
+<tr>
+<td><strong>配置管理</strong></td>
+<td>configparser INI 文件、JSON 预设/标记记录、外部 txt 提示词文件</td>
+</tr>
+<tr>
+<td><strong>包管理</strong></td>
+<td>uv (pyproject.toml) + pip (requirements.txt)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><em>最后更新: 2026/05/19</em></p>
+
+      </div>
+      
+      
+    
+    
+    
+    
+    
+    
+  
+    </body></html>
