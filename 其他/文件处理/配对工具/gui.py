@@ -216,9 +216,12 @@ class ImagePairToolGUI:
         # Tab: 全屏切换（override 所有控件类的默认 Tab 焦点切换）
         self._setup_tab_binding()
 
-        # 小键盘上下键：上=同步上一张，下=同步下一张
-        self.root.bind_all('<KeyPress-KP_Up>', lambda e: self.sync_prev_image())
-        self.root.bind_all('<KeyPress-KP_Down>', lambda e: self.sync_next_image())
+        # 上下键：当焦点不在图片列表时，上=同步上一张，下=同步下一张
+        # 焦点在图片列表时，正常列表导航（单侧切换也会触发另一侧同步）
+        self.root.bind_all('<KeyPress-Up>', lambda e: self._on_arrow_key('prev'))
+        self.root.bind_all('<KeyPress-Down>', lambda e: self._on_arrow_key('next'))
+        self.root.bind_all('<KeyPress-KP_Up>', lambda e: self._on_arrow_key('prev'))
+        self.root.bind_all('<KeyPress-KP_Down>', lambda e: self._on_arrow_key('next'))
 
         # Backspace: 同步删除（智能确认）
         self.root.bind_all('<KeyPress-BackSpace>', lambda e: self.sync_delete_images_smart())
@@ -226,6 +229,17 @@ class ImagePairToolGUI:
         # 删除确认对话框引用
         self.delete_confirm_dialog = None
         self.pending_delete = None
+
+    def _on_arrow_key(self, direction):
+        """处理上下箭头键：列表聚焦时放行，否则同步切换"""
+        focused = self.root.focus_get()
+        if focused is self.left_panel.listbox or focused is self.right_panel.listbox:
+            return  # 列表聚焦时交给 Listbox 自己的导航处理
+        if direction == 'prev':
+            self.sync_prev_image()
+        else:
+            self.sync_next_image()
+        return "break"
 
     def _setup_tab_binding(self):
         """覆盖 Tab 焦点切换，改为全屏切换"""
@@ -568,11 +582,13 @@ class ImagePairToolGUI:
         fg = DARK_FG if self.dark_mode else "#000000"
         dialog.config(bg=bg)
 
-        size_mode = tk.IntVar(value=2)   # 0=较小值, 1=裁剪, 2=填充
+        size_mode = tk.IntVar(value=2)   # 0=较小值, 1=裁剪, 2=填充, 3=指定分辨率
         rename_mode = tk.IntVar(value=1)  # 0=原名, 1=序号
         shuffle_var = tk.BooleanVar(value=False)
         crop_direction = tk.StringVar(value="top")
         rotate_var = tk.BooleanVar(value=False)
+        custom_w_var = tk.StringVar(value="1024")
+        custom_h_var = tk.StringVar(value="1024")
 
         body = tk.Frame(dialog, bg=bg)
         body.pack(padx=24, pady=16)
@@ -594,6 +610,20 @@ class ImagePairToolGUI:
         radio("调整为两者中较小的宽高值", size_mode, 0)
         radio("转为 1:1 正方形（裁剪：横图居中，竖图方向见下方）", size_mode, 1)
         radio("转为 1:1 正方形（白色背景填充，保留完整内容）", size_mode, 2)
+        radio("统一调整为指定分辨率", size_mode, 3)
+
+        # 自定义分辨率输入区域
+        custom_size_holder = tk.Frame(body, bg=bg)
+        custom_size_holder.pack(fill=tk.X)
+        custom_size_row = tk.Frame(custom_size_holder, bg=bg)
+        tk.Label(custom_size_row, text="目标分辨率：", bg=bg, fg=fg).pack(side=tk.LEFT)
+        tk.Entry(custom_size_row, textvariable=custom_w_var, width=6,
+                 bg=DARK_ENTRY_BG if self.dark_mode else "white",
+                 fg=fg).pack(side=tk.LEFT)
+        tk.Label(custom_size_row, text=" × ", bg=bg, fg=fg).pack(side=tk.LEFT)
+        tk.Entry(custom_size_row, textvariable=custom_h_var, width=6,
+                 bg=DARK_ENTRY_BG if self.dark_mode else "white",
+                 fg=fg).pack(side=tk.LEFT)
 
         # 裁剪方向区域（占位 + 内容，初始隐藏但占布局顺序）
         crop_holder = tk.Frame(body, bg=bg)
@@ -609,8 +639,13 @@ class ImagePairToolGUI:
         def on_mode_change(*_):
             if size_mode.get() == 1:
                 crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
+                custom_size_row.pack_forget()
+            elif size_mode.get() == 3:
+                crop_row.pack_forget()
+                custom_size_row.pack(fill=tk.X, padx=(32, 0), pady=1)
             else:
                 crop_row.pack_forget()
+                custom_size_row.pack_forget()
 
         size_mode.trace_add("write", on_mode_change)
 
@@ -634,10 +669,21 @@ class ImagePairToolGUI:
         def on_ok():
             result["ok"] = True
             result["fill_ratio"] = size_mode.get() >= 1
+            result["size_mode"] = size_mode.get()
             if size_mode.get() == 1:
                 result["crop_style"] = 'bottom' if crop_direction.get().startswith("下方") else 'top'
             else:
                 result["crop_style"] = None
+            if size_mode.get() == 3:
+                try:
+                    cw = int(custom_w_var.get())
+                    ch = int(custom_h_var.get())
+                    if cw <= 0 or ch <= 0:
+                        raise ValueError
+                    result["custom_size"] = (cw, ch)
+                except ValueError:
+                    messagebox.showwarning("输入错误", "请输入有效的正整数分辨率", parent=dialog)
+                    return
             result["enable_rename"] = rename_mode.get() == 1
             result["shuffle_order"] = shuffle_var.get() if rename_mode.get() == 1 else False
             result["rotate"] = rotate_var.get()
@@ -694,6 +740,8 @@ class ImagePairToolGUI:
 
         fill_ratio = cfg["fill_ratio"]
         crop_style = cfg["crop_style"]
+        size_mode = cfg.get("size_mode", 0)
+        custom_size = cfg.get("custom_size", None)
         enable_rename = cfg["enable_rename"]
         shuffle_order = cfg["shuffle_order"]
         do_rotate = cfg["rotate"]
@@ -856,7 +904,11 @@ class ImagePairToolGUI:
                 img_right = img_right_raw.rotate(angle, expand=True)
 
                 # 处理尺寸
-                if fill_ratio:
+                if size_mode == 3:
+                    target_w, target_h = custom_size
+                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+                elif fill_ratio:
                     target_square_size = max(target_w, target_h)
                     if crop_style:
                         img_left_cropped = crop_to_square(img_left, crop_style)
@@ -928,7 +980,9 @@ class ImagePairToolGUI:
         # 显示结果
         rotate_info = "（4旋转版本）" if do_rotate else ""
         if error_count == 0:
-            if fill_ratio:
+            if size_mode == 3:
+                fill_info = f"（已统一调整为 {custom_size[0]}x{custom_size[1]}）"
+            elif fill_ratio:
                 if crop_style:
                     fill_info = "（已裁剪为 1:1）"
                 else:
@@ -979,10 +1033,14 @@ class ImagePairToolGUI:
                 return
             fill_ratio = cfg["fill_ratio"]
             crop_style = cfg["crop_style"]
+            size_mode = cfg.get("size_mode", 0)
+            custom_size = cfg.get("custom_size", None)
             do_rotate = cfg.get("rotate", False)
         else:
             fill_ratio = False
             crop_style = None
+            size_mode = 0
+            custom_size = None
             do_rotate = False
 
         control_folder = os.path.join(export_folder, "control")
@@ -1029,7 +1087,12 @@ class ImagePairToolGUI:
                 lw, lh = img_left.size
                 rw, rh = img_right.size
 
-                if fill_ratio:
+                if size_mode == 3:
+                    target_w, target_h = custom_size
+                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
+                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+                    final_size = f"{target_w}x{target_h}"
+                elif fill_ratio:
                     target_square_size = max(lw, rw, lh, rh)
                     if crop_style:
                         img_left_cropped = crop_to_square(img_left, crop_style)
@@ -1062,7 +1125,9 @@ class ImagePairToolGUI:
                 if right_txt.exists():
                     shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
 
-            if fill_ratio:
+            if size_mode == 3:
+                fill_text = f"（已统一调整为 {custom_size[0]}x{custom_size[1]}）"
+            elif fill_ratio:
                 if crop_style:
                     fill_text = "（已裁剪为 1:1）"
                 else:

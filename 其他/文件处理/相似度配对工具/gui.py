@@ -30,7 +30,7 @@ def _fit_image(img, max_w, max_h):
 class ImagePanel:
     """单侧图片展示面板"""
 
-    def __init__(self, parent, title, dark_mode=True, folder_var=None):
+    def __init__(self, parent, title, dark_mode=True, folder_var=None, pack_side=tk.TOP):
         self.dark_mode = dark_mode
         self.folder_path = folder_var or tk.StringVar()
         self.image_files = []
@@ -40,7 +40,7 @@ class ImagePanel:
 
         frame = tk.LabelFrame(parent, text=title, padx=8, pady=8,
                               bg=DARK_BG, fg=DARK_FG)
-        frame.pack(fill=tk.BOTH, expand=True, padx=4)
+        frame.pack(fill=tk.BOTH, expand=True, padx=4, side=pack_side)
 
         # 文件夹选择行
         folder_row = tk.Frame(frame, bg=DARK_BG)
@@ -207,9 +207,9 @@ class GUI:
         main.pack(fill=tk.BOTH, expand=True, padx=12, pady=4)
 
         self.left_panel = ImagePanel(main, "源图片 A (选一张 → 自动配对)",
-                                     dark_mode=True, folder_var=self.left_folder)
+                                     dark_mode=True, folder_var=self.left_folder, pack_side=tk.LEFT)
         self.right_panel = ImagePanel(main, "最佳匹配结果 B",
-                                      dark_mode=True, folder_var=self.right_folder)
+                                      dark_mode=True, folder_var=self.right_folder, pack_side=tk.LEFT)
 
         # 进度条
         self._progress_var = tk.DoubleVar()

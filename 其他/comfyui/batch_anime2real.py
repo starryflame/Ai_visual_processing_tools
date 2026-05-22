@@ -21,9 +21,19 @@ import threading
 class ComfyUIBatchProcessor:
     """ComfyUI 批量处理器"""
     
-    def __init__(self, server_address="127.0.0.1:8188"):
+    def __init__(self, server_address="127.0.0.1:8188", workflow_name="高还原"):
         self.server_address = server_address
-        self.workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json"
+        self.workflow_name = workflow_name
+        self._workflow_paths = {
+            "高还原": r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json",
+            "图片编辑(无LoRA)": r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\图片编辑无lora.json",
+        }
+        self.workflow_path = self._workflow_paths[workflow_name]
+
+    @property
+    def has_lora_node(self):
+        """当前工作流是否包含自定义 LoRA 节点"""
+        return self.workflow_name == "高还原"
         
     def load_workflow(self):
         """加载工作流配置"""
@@ -34,24 +44,24 @@ class ComfyUIBatchProcessor:
         """提交任务到 ComfyUI"""
         url = f"http://{self.server_address}/prompt"
         data = {"prompt": prompt}
-        response = requests.post(url, json=data)
+        response = requests.post(url, json=data, timeout=10)
         return response.json()
-    
+
     def get_history(self, prompt_id):
         """获取任务历史"""
         url = f"http://{self.server_address}/history/{prompt_id}"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         return response.json()
-    
+
     def get_image(self, filename, subfolder, folder_type):
         """获取生成的图片"""
         params = {"filename": filename, "subfolder": subfolder, "type": folder_type}
         url = f"http://{self.server_address}/view"
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=30)
         return response.content
     
-    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name, resize_longest_edge=1440):
-        """处理单张图片"""
+    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name, resize_longest_edge=1440, stop_check=None):
+        """处理单张图片。stop_check 是可选的 callable，返回 True 时应中止处理。"""
         # 修改 LoadImage 节点的输入图片
         workflow["78"]["inputs"]["image"] = input_image_path
 
@@ -73,7 +83,11 @@ class ComfyUIBatchProcessor:
             workflow["3"]["inputs"]["seed"] = random.randint(0, max_seed)
 
         # 提交任务
-        result = self.queue_prompt(workflow)
+        try:
+            result = self.queue_prompt(workflow)
+        except requests.exceptions.RequestException:
+            return False, "ComfyUI 连接失败（提交任务时无法连接到服务器）"
+
         if "prompt_id" not in result:
             return False, "任务提交失败"
 
@@ -83,14 +97,25 @@ class ComfyUIBatchProcessor:
         max_wait = 300  # 最大等待 5 分钟
         start_time = time.time()
         while time.time() - start_time < max_wait:
-            history = self.get_history(prompt_id)
+            if stop_check and stop_check():
+                return False, "用户停止"
+
+            # 使用较短的超时，让停止检查能及时生效
+            try:
+                history = self.get_history(prompt_id)
+            except requests.exceptions.RequestException:
+                time.sleep(2)
+                continue
+
             if prompt_id in history:
-                # 任务完成，保存图片
                 outputs = history[prompt_id]["outputs"]
                 for node_id, node_output in outputs.items():
                     if "images" in node_output:
                         for img in node_output["images"]:
-                            img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
+                            try:
+                                img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
+                            except requests.exceptions.RequestException:
+                                return False, "ComfyUI 连接失败（获取图片时无法连接到服务器）"
                             # 生成输出文件名 - 保持与原图相同的扩展名
                             original_ext = Path(input_image_path).suffix.lower()
                             output_name = f"{Path(input_image_path).stem}{original_ext}"
@@ -127,7 +152,8 @@ class BatchProcessorGUI:
         self.start_index = tk.IntVar(value=0)
         self.resize_longest_edge = tk.IntVar(value=1440)
         self.process_mode = tk.StringVar(value="全自动模式")  # 全自动模式/半自动模式
-        self.processor = ComfyUIBatchProcessor()
+        self.workflow_name = tk.StringVar(value="高还原")
+        self.processor = ComfyUIBatchProcessor(workflow_name="高还原")
 
         # 控制变量
         self.is_running = False
@@ -227,6 +253,16 @@ class BatchProcessorGUI:
         # 设置默认值
         mode_combo.current(0)
 
+        # 工作流选择 - 下拉框
+        workflow_frame = tk.Frame(parent, pady=5)
+        workflow_frame.pack(fill=tk.X)
+        tk.Label(workflow_frame, text="工作流:", width=12).pack(side=tk.LEFT)
+        workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.workflow_name, state="readonly", width=20)
+        workflow_combo['values'] = ["高还原", "图片编辑(无LoRA)"]
+        workflow_combo.pack(side=tk.LEFT, padx=5)
+        workflow_combo.current(0)
+        workflow_combo.bind('<<ComboboxSelected>>', lambda _: self.on_workflow_changed())
+
         # LoRA 路径选择 - 下拉框
         lora_frame = tk.Frame(parent, pady=5)
         lora_frame.pack(fill=tk.X)
@@ -236,6 +272,7 @@ class BatchProcessorGUI:
         tk.Button(lora_frame, text="刷新", command=self.load_lora_models, width=6).pack(side=tk.LEFT, padx=2)
         # 加载模型列表
         self.load_lora_models()
+        self._lora_frame = lora_frame  # 保存引用以便切换工作流时隐藏/显示
 
         # 缩放最长边输入
         resize_frame = tk.Frame(parent, pady=5)
@@ -395,6 +432,15 @@ class BatchProcessorGUI:
             self.log_container.pack(fill=tk.BOTH, expand=True)
             self.log_toggle_button.config(text="▲ 收起")
             self.log_expanded = True
+
+    def on_workflow_changed(self):
+        """工作流切换时显示/隐藏 LoRA 选项，并更新处理器"""
+        wn = self.workflow_name.get()
+        self.processor = ComfyUIBatchProcessor(workflow_name=wn)
+        if wn == "图片编辑(无LoRA)":
+            self._lora_frame.pack_forget()
+        else:
+            self._lora_frame.pack(fill=tk.X)
 
     def resize_image(self, img, max_width, max_height):
         """缩放图片以填充显示区域（小图放大，大图缩小）"""
@@ -624,7 +670,8 @@ class BatchProcessorGUI:
             if messagebox.askyesno("确认", "确定要停止处理吗？"):
                 self.stop_flag = True
                 self.pause_event.set()  # 如果在暂停状态，先恢复以便退出
-                self.log("⏹ 正在停止...")
+                self.stop_button.config(state=tk.DISABLED)
+                self.log("⏹ 正在停止...（等待当前请求超时，最多10秒）")
 
     def wait_semi_decision(self, input_folder, next_index):
         """半自动模式：等待用户确认"""
@@ -912,8 +959,13 @@ class BatchProcessorGUI:
 
             # 每次循环前获取最新的提示词和 LoRA 路径（支持在半自动模式下修改）
             prompt = self.prompt_text.get().strip()
-            lora_name = self.lora_path.get().strip()
             resize_value = self.resize_longest_edge.get()
+
+            # 只有高还原工作流才需要 LoRA
+            if self.processor.has_lora_node:
+                lora_name = self.lora_path.get().strip()
+            else:
+                lora_name = None
 
             image_file = image_files[i]
             # 更新当前索引
@@ -928,7 +980,8 @@ class BatchProcessorGUI:
             workflow = self.processor.load_workflow()
             success, result = self.processor.process_image(
                 workflow, input_path, output_folder, original_folder,
-                output_image_folder, prompt, lora_name, resize_value
+                output_image_folder, prompt, lora_name, resize_value,
+                stop_check=lambda: self.stop_flag
             )
 
             if success:
