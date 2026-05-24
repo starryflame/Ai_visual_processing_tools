@@ -11,7 +11,7 @@ from pathlib import Path
 import shutil
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from PIL import Image
+from PIL import Image, ImageTk, ImageDraw
 
 from config import (
     DARK_BG, DARK_FG, DARK_ENTRY_BG, DARK_BUTTON_BG, DARK_BUTTON_FG,
@@ -48,6 +48,16 @@ class ImagePairToolGUI:
 
         # 全屏模式状态
         self.is_fullscreen = False
+
+        # 对比模式状态
+        self.compare_mode = False
+        self._compare_img_left = None
+        self._compare_img_right = None
+        self._compare_disp_w = 0
+        self._compare_disp_h = 0
+        self._compare_divider = 0
+        self._compare_photo = None
+        self._compare_dragging = False
 
     def setup_dark_mode(self):
         """设置深色模式"""
@@ -118,9 +128,16 @@ class ImagePairToolGUI:
         )
         self.preview_checkbutton.pack(side=tk.RIGHT, padx=10)
 
-        # 主体区域 - 三列布局
+        # 对比模式切换按钮
+        self.compare_btn = tk.Button(toolbar, text="对比模式", command=self.toggle_compare_mode, width=10,
+                                      bg=DARK_BUTTON_BG if self.dark_mode else None,
+                                      fg=DARK_BUTTON_FG if self.dark_mode else None)
+        self.compare_btn.pack(side=tk.RIGHT, padx=5)
+
+        # 主体区域
         main_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.main_frame = main_frame
 
         # ========== 左列：文件列表（上下放置）==========
         self.list_column_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None, width=250)
@@ -193,6 +210,17 @@ class ImagePairToolGUI:
                   fg="white") \
             .grid(row=2, column=0, sticky="nsew", padx=8, pady=(8, 20))
 
+        # ========== 对比模式框架（初始隐藏）==========
+        self.compare_frame = tk.Frame(main_frame, bg=DARK_BG if self.dark_mode else None)
+        self.compare_canvas = tk.Canvas(self.compare_frame,
+                                         bg=DARK_CONTAINER_BG if self.dark_mode else "#f0f0f0",
+                                         highlightthickness=0)
+        self.compare_canvas.pack(fill=tk.BOTH, expand=True)
+        self.compare_canvas.bind('<Motion>', self._on_compare_mouse_move)
+        self.compare_canvas.bind('<ButtonPress-1>', self._on_compare_mouse_down)
+        self.compare_canvas.bind('<ButtonRelease-1>', self._on_compare_mouse_up)
+        self.compare_canvas.bind('<Configure>', self._on_compare_canvas_resize)
+
         # 绑定主体区域大小变化，让同步列高度始终填充
         main_frame.bind('<Configure>', lambda e: self.sync_column_frame.config(height=e.height))
 
@@ -237,6 +265,10 @@ class ImagePairToolGUI:
         self.root.bind_all('<KeyPress-KP_Up>', lambda e: self._on_arrow_key('prev'))
         self.root.bind_all('<KeyPress-KP_Down>', lambda e: self._on_arrow_key('next'))
 
+        # 左右键：对比模式下微调中线位置
+        self.root.bind_all('<KeyPress-Left>', lambda e: self._on_compare_divider_key(-0.03))
+        self.root.bind_all('<KeyPress-Right>', lambda e: self._on_compare_divider_key(0.03))
+
         # Backspace: 同步删除（智能确认）
         self.root.bind_all('<KeyPress-BackSpace>', lambda e: self.sync_delete_images_smart())
 
@@ -254,6 +286,17 @@ class ImagePairToolGUI:
         else:
             self.sync_next_image()
         return "break"
+
+    def _on_compare_divider_key(self, delta):
+        """对比模式下左右键微调中线"""
+        if not self.compare_mode or not self._compare_disp_w:
+            return
+        focused = self.root.focus_get()
+        if isinstance(focused, tk.Entry):
+            return  # 不在输入框中拦截
+        self._compare_divider = max(10, min(self._compare_disp_w - 10,
+                                             int(self._compare_divider + self._compare_disp_w * delta)))
+        self._render_compare_composite()
 
     def _setup_tab_binding(self):
         """覆盖 Tab 焦点切换，改为全屏切换"""
@@ -279,6 +322,8 @@ class ImagePairToolGUI:
 
     def toggle_fullscreen(self, event=None):
         """Tab键切换全屏模式：隐藏所有组件只保留两个图片展示区域"""
+        if self.compare_mode:
+            return "break"  # 对比模式下禁用全屏
         self.is_fullscreen = not self.is_fullscreen
 
         if self.is_fullscreen:
@@ -332,6 +377,133 @@ class ImagePairToolGUI:
 
         return "break"  # 阻止 tkinter 默认的 Tab 焦点切换行为
 
+    def toggle_compare_mode(self):
+        """切换对比模式：将左右图重叠显示，中线随鼠标滑动"""
+        if self.is_fullscreen:
+            self.toggle_fullscreen()
+        self.compare_mode = not self.compare_mode
+
+        if self.compare_mode:
+            self.left_preview_frame.pack_forget()
+            self.right_preview_frame.pack_forget()
+            self.compare_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                     in_=self.main_frame)
+            self.compare_btn.config(bg=DARK_HIGHLIGHT if self.dark_mode else "#0078d4", fg="white")
+            self.status_label.config(text="对比模式 (中线跟随鼠标，← → 微调)")
+            self.root.after(150, self._refresh_compare_view)
+        else:
+            self.compare_frame.pack_forget()
+            self.left_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                         padx=(0, 1), in_=self.main_frame)
+            self.left_preview_frame.pack_propagate(False)
+            self.right_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                                          padx=(1, 5), in_=self.main_frame)
+            self.right_preview_frame.pack_propagate(False)
+            self.compare_btn.config(bg=DARK_BUTTON_BG if self.dark_mode else None,
+                                    fg=DARK_BUTTON_FG if self.dark_mode else None)
+            self.status_label.config(text="已退出对比模式")
+
+    # ── 对比模式渲染 ──
+
+    def _refresh_compare_view(self):
+        """加载左右当前图片，缩放到画布大小并渲染对比视图"""
+        if not self.compare_mode:
+            return
+        left_path = self.left_panel.get_current_image_path()
+        right_path = self.right_panel.get_current_image_path()
+
+        if not left_path or not right_path:
+            self.compare_canvas.delete("all")
+            return
+
+        img_left = Image.open(left_path)
+        img_right = Image.open(right_path)
+
+        cw = max(self.compare_canvas.winfo_width(), 100)
+        ch = max(self.compare_canvas.winfo_height(), 100)
+
+        max_w = max(img_left.width, img_right.width)
+        max_h = max(img_left.height, img_right.height)
+        scale = min(cw / max_w, ch / max_h, 1.0)
+        disp_w = int(max_w * scale)
+        disp_h = int(max_h * scale)
+
+        self._compare_img_left = img_left.resize((disp_w, disp_h), Image.LANCZOS)
+        self._compare_img_right = img_right.resize((disp_w, disp_h), Image.LANCZOS)
+        self._compare_disp_w = disp_w
+        self._compare_disp_h = disp_h
+        self._compare_divider = disp_w // 2
+
+        self._render_compare_composite()
+
+    def _render_compare_composite(self):
+        """使用 PIL 拼接左右图并绘制中线和手柄"""
+        if self._compare_img_left is None or self._compare_img_right is None:
+            return
+
+        x = self._compare_divider
+        w = self._compare_disp_w
+        h = self._compare_disp_h
+
+        composite = Image.new('RGB', (w, h), (30, 30, 40))
+
+        if x > 0:
+            composite.paste(self._compare_img_left.crop((0, 0, min(x, w), h)), (0, 0))
+        if x < w:
+            composite.paste(self._compare_img_right.crop((max(0, x), 0, w, h)), (max(0, x), 0))
+
+        draw = ImageDraw.Draw(composite)
+        draw.line([(x, 0), (x, h)], fill=(233, 69, 96), width=3)
+
+        r = 18
+        cy = h // 2
+        draw.ellipse([(x - r, cy - r), (x + r, cy + r)],
+                     fill=(233, 69, 96), outline=(255, 255, 255), width=3)
+        # 左右箭头
+        draw.polygon([(x - 8, cy - 5), (x - 8, cy + 5), (x - 12, cy)], fill='white')
+        draw.polygon([(x + 8, cy - 5), (x + 8, cy + 5), (x + 12, cy)], fill='white')
+
+        self._compare_photo = ImageTk.PhotoImage(composite)
+
+        cw = self.compare_canvas.winfo_width()
+        ch = self.compare_canvas.winfo_height()
+        self.compare_canvas.delete("all")
+        self.compare_canvas.create_image(cw // 2, ch // 2,
+                                          image=self._compare_photo, anchor=tk.CENTER)
+
+    # ── 对比模式鼠标事件 ──
+
+    def _update_divider_from_event(self, event):
+        if not self._compare_disp_w:
+            return
+        cw = self.compare_canvas.winfo_width()
+        ox = (cw - self._compare_disp_w) // 2
+        x = event.x - ox
+        x = max(10, min(self._compare_disp_w - 10, x))
+        if x != self._compare_divider:
+            self._compare_divider = x
+            self._render_compare_composite()
+
+    def _on_compare_mouse_move(self, event):
+        if self._compare_dragging:
+            self._update_divider_from_event(event)
+
+    def _on_compare_mouse_down(self, event):
+        self._compare_dragging = True
+        self._update_divider_from_event(event)
+
+    def _on_compare_mouse_up(self, event):
+        self._compare_dragging = False
+
+    def _on_compare_canvas_resize(self, event):
+        if self.compare_mode and self._compare_img_left:
+            self._refresh_compare_view()
+
+    def _on_pair_changed(self):
+        """图片切换后刷新对比视图"""
+        if self.compare_mode:
+            self._refresh_compare_view()
+
     def enable_export_button(self):
         """恢复导出按钮为可点击状态"""
         if self.export_disabled:
@@ -366,6 +538,7 @@ class ImagePairToolGUI:
         left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左：无"
         right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右：无"
         self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+        self._on_pair_changed()
 
     def sync_prev_image(self):
         """两侧面板同时切换到上一张图片"""
@@ -384,6 +557,7 @@ class ImagePairToolGUI:
         left_info = f"左:{self.left_panel.current_index + 1}/{len(self.left_panel.image_files)}" if self.left_panel.image_files else "左：无"
         right_info = f"右:{self.right_panel.current_index + 1}/{len(self.right_panel.image_files)}" if self.right_panel.image_files else "右：无"
         self.status_label.config(text=f"✓ 同步切换完成 | {left_info} | {right_info}")
+        self._on_pair_changed()
 
     def sync_delete_images(self):
         """同时删除左右两侧选中的图片（带确认）"""
@@ -543,6 +717,7 @@ class ImagePairToolGUI:
         self.status_label.config(text=f"✓ 同步删除完成 | {left_info} | {right_info}")
 
         self.enable_export_button()
+        self._on_pair_changed()
 
     def copy_left_to_right(self):
         """将当前左图复制并覆盖右图"""
@@ -579,6 +754,7 @@ class ImagePairToolGUI:
             self.status_label.config(text=f"✓ 已用左图 ({left_name}) 覆盖右图 ({right_name})")
 
             self.enable_export_button()
+            self._on_pair_changed()
 
         except Exception as e:
             messagebox.showerror("错误", f"覆盖失败：{str(e)}")
