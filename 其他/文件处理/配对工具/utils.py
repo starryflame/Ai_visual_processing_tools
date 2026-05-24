@@ -85,6 +85,45 @@ def generate_renamed_filename(original_name, index, total_count):
     return new_name
 
 
+def stitch_pair_preview(img_left, img_right, bg_color=(255, 255, 255)):
+    """拼接左右图到接近正方形的预览图。
+    横图→纵向拼接, 竖图→横向拼接, 混排自动选更优方案。
+    """
+    w1, h1 = img_left.size
+    w2, h2 = img_right.size
+
+    both_landscape = w1 >= h1 and w2 >= h2
+    both_portrait = h1 > w1 and h2 > w2
+
+    # 横向拼接 (side by side) 的宽高比
+    w_side = w1 + w2
+    h_side = max(h1, h2)
+    side_ratio = max(w_side, h_side) / min(w_side, h_side) if min(w_side, h_side) > 0 else float('inf')
+
+    # 纵向拼接 (stacked) 的宽高比
+    w_stack = max(w1, w2)
+    h_stack = h1 + h2
+    stack_ratio = max(w_stack, h_stack) / min(w_stack, h_stack) if min(w_stack, h_stack) > 0 else float('inf')
+
+    if both_landscape:
+        mode = 'vertical'
+    elif both_portrait:
+        mode = 'horizontal'
+    else:
+        mode = 'horizontal' if side_ratio <= stack_ratio else 'vertical'
+
+    if mode == 'horizontal':
+        result = Image.new('RGB', (w_side, h_side), bg_color)
+        result.paste(img_left, (0, (h_side - h1) // 2))
+        result.paste(img_right, (w1, (h_side - h2) // 2))
+    else:
+        result = Image.new('RGB', (w_stack, h_stack), bg_color)
+        result.paste(img_left, ((w_stack - w1) // 2, 0))
+        result.paste(img_right, ((w_stack - w2) // 2, h1))
+
+    return result
+
+
 def get_image_files(folder_path):
     """获取文件夹中的所有图片文件"""
     from pathlib import Path

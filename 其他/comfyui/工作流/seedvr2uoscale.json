@@ -18,24 +18,6 @@
       "title": "SeedVR2 (Down)Load VAE Model"
     }
   },
-  "2": {
-    "inputs": {
-      "value": 4096
-    },
-    "class_type": "easy int",
-    "_meta": {
-      "title": "最大分辨率"
-    }
-  },
-  "3": {
-    "inputs": {
-      "value": 4096
-    },
-    "class_type": "easy int",
-    "_meta": {
-      "title": "最小分辨率"
-    }
-  },
   "4": {
     "inputs": {
       "model": "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
@@ -68,11 +50,11 @@
     "inputs": {
       "seed": 863109500,
       "resolution": [
-        "3",
+        "18",
         0
       ],
       "max_resolution": [
-        "2",
+        "19",
         0
       ],
       "batch_size": 1,
@@ -104,7 +86,7 @@
   },
   "9": {
     "inputs": {
-      "image": "illust_132245662_20250810_230624.png"
+      "image": "266625183f81b8a495feb4fe50bec04a2024069799.png@1192w.avif"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -122,6 +104,24 @@
     "class_type": "ResizeImagesByLongerEdge",
     "_meta": {
       "title": "缩放图像（长边）"
+    }
+  },
+  "18": {
+    "inputs": {
+      "value": 4096
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "整数常量"
+    }
+  },
+  "19": {
+    "inputs": {
+      "value": 4096
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "整数常量"
     }
   }
 }

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双图对比预览</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #12121a;
+    color: #c8c8d4;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── 顶部栏 ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 16px;
+    background: #1a1a28;
+    border-bottom: 1px solid #2a2a3c;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .brand { font-weight: 700; font-size: 15px; color: #e94560; margin-right: 8px; white-space: nowrap; }
+  .sep { color: #3a3a50; margin: 0 2px; }
+
+  .folder-group { display: flex; align-items: center; gap: 6px; }
+  .folder-btn {
+    padding: 6px 14px;
+    background: #252540;
+    color: #c8c8d4;
+    border: 1px solid #3a3a50;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s;
+  }
+  .folder-btn:hover { background: #303058; border-color: #525280; }
+  .folder-btn.loaded { border-color: #2d7a3e; color: #4caf84; }
+
+  .folder-name {
+    font-size: 11px;
+    color: #707088;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pair-badge {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e94560;
+    background: #e9456018;
+    padding: 3px 10px;
+    border-radius: 10px;
+  }
+
+  /* ── 主体 ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── 侧栏 ── */
+  .sidebar {
+    width: 260px;
+    background: #16162a;
+    border-right: 1px solid #2a2a3c;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-head {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #808098;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid #2a2a3c;
+    flex-shrink: 0;
+  }
+  .file-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 0;
+  }
+  .file-list::-webkit-scrollbar { width: 4px; }
+  .file-list::-webkit-scrollbar-thumb { background: #2a2a3c; border-radius: 2px; }
+
+  .file-item {
+    padding: 7px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all .12s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-item:hover { background: #1e1e36; }
+  .file-item.active { background: #252545; border-left-color: #e94560; color: #fff; }
+
+  .hint-row {
+    padding: 8px 14px;
+    font-size: 10px;
+    color: #505068;
+    border-top: 1px solid #2a2a3c;
+    flex-shrink: 0;
+    line-height: 1.5;
+  }
+  .hint-row kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: #252540;
+    border: 1px solid #3a3a50;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  /* ── 对比区 ── */
+  .viewer {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0c0c16;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .empty-hint {
+    text-align: center;
+    color: #404058;
+    pointer-events: none;
+    user-select: none;
+  }
+  .empty-hint .icon { font-size: 48px; margin-bottom: 10px; }
+  .empty-hint p { font-size: 13px; }
+
+  /* 对比容器 */
+  .cmp-wrap {
+    position: relative;
+    display: inline-block;
+    cursor: col-resize;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .cmp-wrap.dragging { cursor: col-resize; }
+
+  /* 底层：右图 */
+  .cmp-base {
+    display: block;
+  }
+
+  /* 顶层裁剪：左图 */
+  .cmp-clip {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  .cmp-clip img {
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  /* 中线 */
+  .cmp-line {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: #e94560;
+    pointer-events: none;
+    z-index: 2;
+    box-shadow: 0 0 10px rgba(233,69,96,.45);
+  }
+  .cmp-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
+    height: 36px;
+    background: #e94560;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    pointer-events: none;
+    z-index: 3;
+    box-shadow: 0 0 16px rgba(233,69,96,.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cmp-handle::before,
+  .cmp-handle::after {
+    content: '';
+    position: absolute;
+    border: 5px solid transparent;
+  }
+  .cmp-handle::before  { border-right-color: #fff; left: 6px; }
+  .cmp-handle::after   { border-left-color: #fff;  right: 6px; }
+
+  /* 角标 */
+  .cmp-tag {
+    position: absolute;
+    bottom: 8px;
+    padding: 3px 10px;
+    background: rgba(0,0,0,.65);
+    font-size: 12px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .cmp-tag.left  { left: 8px; }
+  .cmp-tag.right { right: 8px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="brand">双图对比预览</span>
+
+  <span class="sep">|</span>
+  <span style="font-size:12px;color:#707088;">左图 (A)</span>
+  <div class="folder-group">
+    <input type="file" id="inpA" webkitdirectory directory multiple hidden>
+    <button class="folder-btn" id="btnA" onclick="document.getElementById('inpA').click()">选择文件夹</button>
+    <span class="folder-name" id="nameA">未选择</span>
+  </div>
+
+  <span class="sep">|</span>
+  <span style="font-size:12px;color:#707088;">右图 (B)</span>
+  <div class="folder-group">
+    <input type="file" id="inpB" webkitdirectory directory multiple hidden>
+    <button class="folder-btn" id="btnB" onclick="document.getElementById('inpB').click()">选择文件夹</button>
+    <span class="folder-name" id="nameB">未选择</span>
+  </div>
+
+  <span class="pair-badge" id="pairBadge" style="display:none;"></span>
+</div>
+
+<div class="main">
+
+  <!-- 侧栏 -->
+  <div class="sidebar">
+    <div class="sidebar-head" id="sideHead">同名文件列表</div>
+    <div class="file-list" id="fileList"></div>
+    <div class="hint-row">
+      <kbd>&uarr;</kbd><kbd>&darr;</kbd> 切换图片 &nbsp;
+      <kbd>←</kbd><kbd>→</kbd> 微调中线<br>
+      鼠标在图上移动控制对比线
+    </div>
+  </div>
+
+  <!-- 对比区 -->
+  <div class="viewer" id="viewer">
+
+    <!-- 空状态 -->
+    <div class="empty-hint" id="emptyHint">
+      <div class="icon">🖼️</div>
+      <p>选择两个文件夹开始对比</p>
+    </div>
+
+    <!-- 对比容器（初始隐藏） -->
+    <div class="cmp-wrap" id="cmpWrap" style="display:none;">
+      <img class="cmp-base" id="cmpBase" alt="右图 B">
+      <div class="cmp-clip" id="cmpClip">
+        <img id="cmpOver" alt="左图 A">
+      </div>
+      <div class="cmp-line" id="cmpLine"></div>
+      <div class="cmp-handle" id="cmpHandle"></div>
+      <span class="cmp-tag left" id="tagA">A</span>
+      <span class="cmp-tag right" id="tagB">B</span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function() {
+  // ── 状态 ──
+  const state = {
+    filesA: [],     // { name, file }  扁平文件名 → File
+    filesB: [],
+    pairs: [],      // [{ stem, extA, extB, fileA, fileB, urlA, urlB }]
+    currentIdx: -1,
+    dividerPct: 0.5,  // 中线位置 0..1
+    imgNatW: 0, imgNatH: 0,
+    dispW: 0, dispH: 0,
+  };
+
+  // ── DOM 引用 ──
+  const $ = (s) => document.querySelector(s);
+  const inpA  = $('#inpA');
+  const inpB  = $('#inpB');
+  const btnA  = $('#btnA');
+  const btnB  = $('#btnB');
+  const nameA = $('#nameA');
+  const nameB = $('#nameB');
+  const pairBadge = $('#pairBadge');
+  const sideHead = $('#sideHead');
+  const fileList = $('#fileList');
+  const viewer  = $('#viewer');
+  const emptyHint = $('#emptyHint');
+  const cmpWrap = $('#cmpWrap');
+  const cmpBase = $('#cmpBase');
+  const cmpClip = $('#cmpClip');
+  const cmpOver = $('#cmpOver');
+  const cmpLine = $('#cmpLine');
+  const cmpHandle = $('#cmpHandle');
+  const tagA = $('#tagA');
+  const tagB = $('#tagB');
+
+  const IMG_EXTS = new Set(['.jpg','.jpeg','.png','.webp','.bmp','.gif','.tiff','.tif']);
+
+  // ── 文件夹加载 ──
+  function loadFolder(fileList, side) {
+    const map = new Map();
+    for (const f of fileList) {
+      const rel = f.webkitRelativePath || f.name;
+      const name = rel.replace(/^.*[\\/]/, '');  // 去路径只留文件名
+      const ext = name.lastIndexOf('.') >= 0 ? name.slice(name.lastIndexOf('.')).toLowerCase() : '';
+      if (!IMG_EXTS.has(ext)) continue;
+      map.set(name, f);
+    }
+    return map;
+  }
+
+  function handleFolder(files, side) {
+    const map = loadFolder(files, side);
+    const arr = Array.from(map.entries()).map(([name, file]) => ({ name, file }));
+    arr.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (side === 'A') {
+      state.filesA = arr;
+      nameA.textContent = arr.length ? `${arr.length} 张图` : '无图片';
+      btnA.classList.toggle('loaded', arr.length > 0);
+    } else {
+      state.filesB = arr;
+      nameB.textContent = arr.length ? `${arr.length} 张图` : '无图片';
+      btnB.classList.toggle('loaded', arr.length > 0);
+    }
+
+    buildPairs();
+  }
+
+  inpA.addEventListener('change', () => {
+    if (inpA.files.length) handleFolder(inpA.files, 'A');
+  });
+  inpB.addEventListener('change', () => {
+    if (inpB.files.length) handleFolder(inpB.files, 'B');
+  });
+
+  // ── 配对 ──
+  function buildPairs() {
+    // 清理旧 URL
+    state.pairs.forEach(p => {
+      if (p.urlA) URL.revokeObjectURL(p.urlA);
+      if (p.urlB) URL.revokeObjectURL(p.urlB);
+    });
+
+    if (!state.filesA.length || !state.filesB.length) {
+      state.pairs = [];
+      renderList();
+      return;
+    }
+
+    // 按 stem 匹配
+    const mapB = new Map();
+    for (const fb of state.filesB) {
+      const stem = fb.name.replace(/\.[^.]+$/, '');
+      if (!mapB.has(stem)) mapB.set(stem, []);
+      mapB.get(stem).push(fb);
+    }
+
+    const pairs = [];
+    for (const fa of state.filesA) {
+      const stem = fa.name.replace(/\.[^.]+$/, '');
+      const matches = mapB.get(stem);
+      if (matches) {
+        for (const fb of matches) {
+          const extA = fa.name.slice(fa.name.lastIndexOf('.')).toLowerCase();
+          const extB = fb.name.slice(fb.name.lastIndexOf('.')).toLowerCase();
+          pairs.push({
+            stem,
+            nameA: fa.name, nameB: fb.name,
+            extA, extB,
+            fileA: fa.file, fileB: fb.file,
+            urlA: null, urlB: null,
+          });
+        }
+      }
+    }
+    pairs.sort((a, b) => a.stem.localeCompare(b.stem));
+    state.pairs = pairs;
+    state.currentIdx = -1;
+
+    pairBadge.style.display = pairs.length ? '' : 'none';
+    pairBadge.textContent = `${pairs.length} 对同名文件`;
+    sideHead.textContent = `同名文件列表 · ${pairs.length} 对`;
+
+    renderList();
+  }
+
+  // ── 侧栏列表 ──
+  function renderList() {
+    fileList.innerHTML = '';
+    if (!state.pairs.length) {
+      fileList.innerHTML = '<div style="padding:20px;text-align:center;color:#505068;font-size:12px;">暂无配对</div>';
+      hideComparison();
+      return;
+    }
+
+    state.pairs.forEach((p, i) => {
+      const div = document.createElement('div');
+      div.className = 'file-item' + (i === state.currentIdx ? ' active' : '');
+      div.textContent = p.stem;
+      div.title = `A: ${p.nameA}\nB: ${p.nameB}`;
+      div.addEventListener('click', () => selectPair(i));
+      fileList.appendChild(div);
+    });
+
+    if (state.currentIdx < 0 && state.pairs.length > 0) {
+      selectPair(0);
+    }
+  }
+
+  function updateListHighlight() {
+    const items = fileList.querySelectorAll('.file-item');
+    items.forEach((el, i) => el.classList.toggle('active', i === state.currentIdx));
+    // 滚动到可见
+    if (state.currentIdx >= 0 && items[state.currentIdx]) {
+      items[state.currentIdx].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // ── 图片加载 ──
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => resolve({ img, url, w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  // ── 选择配对 ──
+  async function selectPair(idx) {
+    if (idx < 0 || idx >= state.pairs.length) return;
+    state.currentIdx = idx;
+    updateListHighlight();
+
+    const pair = state.pairs[idx];
+
+    // 加载图片
+    try {
+      const [infoA, infoB] = await Promise.all([
+        loadImage(pair.fileA),
+        loadImage(pair.fileB),
+      ]);
+
+      // 释放旧 URL
+      if (pair.urlA) URL.revokeObjectURL(pair.urlA);
+      if (pair.urlB) URL.revokeObjectURL(pair.urlB);
+      pair.urlA = infoA.url;
+      pair.urlB = infoB.url;
+
+      state.imgNatW = Math.max(infoA.w, infoB.w);
+      state.imgNatH = Math.max(infoA.h, infoB.h);
+
+      displayPair(infoA, infoB, pair);
+    } catch (e) {
+      console.error('加载图片失败', e);
+    }
+  }
+
+  function displayPair(infoA, infoB, pair) {
+    // 计算显示尺寸（适配视口）
+    const maxW = viewer.clientWidth * 0.9;
+    const maxH = viewer.clientHeight * 0.88;
+    const scale = Math.min(maxW / state.imgNatW, maxH / state.imgNatH, 1);
+    state.dispW = Math.round(state.imgNatW * scale);
+    state.dispH = Math.round(state.imgNatH * scale);
+
+    // 设置图片
+    cmpBase.src = infoB.url;
+    cmpBase.style.width  = state.dispW + 'px';
+    cmpBase.style.height = state.dispH + 'px';
+
+    cmpOver.src = infoA.url;
+    cmpOver.style.width  = state.dispW + 'px';
+    cmpOver.style.height = state.dispH + 'px';
+
+    // 更新裁剪
+    cmpClip.style.width = state.dispW + 'px';
+    cmpClip.style.height = state.dispH + 'px';
+
+    tagA.textContent = `A: ${pair.nameA}`;
+    tagB.textContent = `B: ${pair.nameB}`;
+
+    emptyHint.style.display = 'none';
+    cmpWrap.style.display = 'inline-block';
+
+    updateClip();
+  }
+
+  function hideComparison() {
+    emptyHint.style.display = '';
+    cmpWrap.style.display = 'none';
+  }
+
+  // ── 中线位置 ──
+  function updateClip() {
+    const pct = Math.max(0, Math.min(1, state.dividerPct));
+    const x = Math.round(state.dispW * pct);
+
+    cmpClip.style.width = x + 'px';
+    cmpLine.style.left = x + 'px';
+    cmpLine.style.height = state.dispH + 'px';
+    cmpHandle.style.left = x + 'px';
+    cmpHandle.style.top = (state.dispH / 2) + 'px';
+  }
+
+  function setDividerFromEvent(e) {
+    const rect = cmpWrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    state.dividerPct = Math.max(0.05, Math.min(0.95, x / rect.width));
+    updateClip();
+  }
+
+  // ── 鼠标事件 ──
+  cmpWrap.addEventListener('mousemove', (e) => {
+    setDividerFromEvent(e);
+  });
+  cmpWrap.addEventListener('mousedown', (e) => {
+    cmpWrap.classList.add('dragging');
+    setDividerFromEvent(e);
+  });
+  window.addEventListener('mouseup', () => {
+    cmpWrap.classList.remove('dragging');
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (cmpWrap.classList.contains('dragging')) {
+      setDividerFromEvent(e);
+    }
+  });
+
+  // 触摸事件
+  cmpWrap.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    setDividerFromEvent(e.touches[0]);
+  }, { passive: false });
+  cmpWrap.addEventListener('touchstart', (e) => {
+    setDividerFromEvent(e.touches[0]);
+  });
+
+  // ── 键盘 ──
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        if (state.currentIdx > 0) selectPair(state.currentIdx - 1);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        if (state.currentIdx < state.pairs.length - 1) selectPair(state.currentIdx + 1);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        state.dividerPct = Math.max(0.05, state.dividerPct - 0.02);
+        updateClip();
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        state.dividerPct = Math.min(0.95, state.dividerPct + 0.02);
+        updateClip();
+        break;
+    }
+  });
+
+  // 窗口大小变化时重新计算
+  window.addEventListener('resize', () => {
+    if (state.currentIdx >= 0 && state.pairs[state.currentIdx]?.urlA) {
+      const maxW = viewer.clientWidth * 0.9;
+      const maxH = viewer.clientHeight * 0.88;
+      const scale = Math.min(maxW / state.imgNatW, maxH / state.imgNatH, 1);
+      state.dispW = Math.round(state.imgNatW * scale);
+      state.dispH = Math.round(state.imgNatH * scale);
+
+      cmpBase.style.width  = state.dispW + 'px';
+      cmpBase.style.height = state.dispH + 'px';
+      cmpOver.style.width  = state.dispW + 'px';
+      cmpOver.style.height = state.dispH + 'px';
+      cmpClip.style.width  = state.dispW + 'px';
+      cmpClip.style.height = state.dispH + 'px';
+      updateClip();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

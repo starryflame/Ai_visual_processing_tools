@@ -163,6 +163,7 @@ class ImagePanel:
                                       selectforeground=DARK_FG)
             self.listbox.pack(fill=tk.BOTH, expand=True)
             self.listbox.bind('<<ListboxSelect>>', self.on_select)
+            self.listbox.bind('<FocusIn>', self._on_listbox_focus_in)
         else:
             self.listbox = None
 
@@ -192,6 +193,7 @@ class ImagePanel:
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.listbox_scrollbar.config(command=self.listbox.yview)
         self.listbox.bind('<<ListboxSelect>>', self.on_select)
+        self.listbox.bind('<FocusIn>', self._on_listbox_focus_in)
 
         return list_frame
 
@@ -370,6 +372,14 @@ class ImagePanel:
 
             self.show_image(self.current_index)
 
+    def _on_listbox_focus_in(self, event):
+        """列表获得焦点时，确保选中项与当前预览的 current_index 一致"""
+        if self.image_files and self.current_index < len(self.image_files):
+            self.listbox.selection_clear(0, tk.END)
+            self.listbox.selection_set(self.current_index)
+            self.listbox.activate(self.current_index)
+            self.listbox.see(self.current_index)
+
     def show_image(self, index):
         """显示指定索引的图片"""
         if not self.image_files or index < 0 or index >= len(self.image_files):
@@ -415,6 +425,8 @@ class ImagePanel:
         # 立即显示 loading 状态
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(index)
+        self.listbox.activate(index)
+        self.listbox.see(index)
         self.update_listbox_colors()
 
         # 提交到后台线程加载
@@ -458,6 +470,8 @@ class ImagePanel:
         self.update_status_with_resolution(original_width, original_height)
         self.listbox.selection_clear(0, tk.END)
         self.listbox.selection_set(self.current_index)
+        self.listbox.activate(self.current_index)
+        self.listbox.see(self.current_index)
         self.update_listbox_colors()
 
         if self.main_window and hasattr(self.main_window, 'enable_export_button'):

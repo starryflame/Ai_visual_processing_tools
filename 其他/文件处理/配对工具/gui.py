@@ -18,7 +18,7 @@ from config import (
     DARK_CONTAINER_BG, DARK_HIGHLIGHT, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
 )
 from panel import ImagePanel
-from utils import fill_image_with_background, crop_to_square, generate_renamed_filename, get_image_files
+from utils import fill_image_with_background, crop_to_square, generate_renamed_filename, get_image_files, stitch_pair_preview
 
 
 class ImagePairToolGUI:
@@ -36,6 +36,7 @@ class ImagePairToolGUI:
         self.export_folder = tk.StringVar()
         self.export_disabled = False
         self.ask_export_options = tk.BooleanVar(value=False)  # 默认不勾选，导出时不询问处理选项
+        self.preview_var = tk.BooleanVar(value=False)  # 导出时生成配对预览拼接图
 
         # 进度条变量
         self.progress_var = tk.DoubleVar()
@@ -103,6 +104,19 @@ class ImagePairToolGUI:
             selectcolor=DARK_HIGHLIGHT  # 勾选时的背景色
         )
         self.ask_options_checkbutton.pack(side=tk.RIGHT, padx=10)
+
+        # 导出配对预览勾选框
+        self.preview_checkbutton = tk.Checkbutton(
+            toolbar,
+            text="生成配对预览图",
+            variable=self.preview_var,
+            bg=DARK_BG if self.dark_mode else None,
+            fg=DARK_FG if self.dark_mode else None,
+            activebackground=DARK_BG if self.dark_mode else None,
+            activeforeground=DARK_FG if self.dark_mode else None,
+            selectcolor=DARK_HIGHLIGHT
+        )
+        self.preview_checkbutton.pack(side=tk.RIGHT, padx=10)
 
         # 主体区域 - 三列布局
         main_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
@@ -745,6 +759,7 @@ class ImagePairToolGUI:
         enable_rename = cfg["enable_rename"]
         shuffle_order = cfg["shuffle_order"]
         do_rotate = cfg["rotate"]
+        do_preview = self.preview_var.get()
 
         ROTATION_ANGLES = [0, 90, 180, 270] if do_rotate else [0]
         ROT_SUFFIX = {0: "", 90: "_r90", 180: "_r180", 270: "_r270"}
@@ -754,6 +769,9 @@ class ImagePairToolGUI:
         target_folder = os.path.join(export_folder, "target")
         os.makedirs(control_folder, exist_ok=True)
         os.makedirs(target_folder, exist_ok=True)
+        preview_folder = os.path.join(export_folder, "配对预览") if do_preview else None
+        if preview_folder:
+            os.makedirs(preview_folder, exist_ok=True)
 
         # 先展开旋转版本，再打乱
         task_list = []
@@ -952,6 +970,11 @@ class ImagePairToolGUI:
                         txt_export_name = f"{Path(filename).stem}{suffix}.txt"
                     shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
 
+                # 生成配对预览拼接图
+                if preview_folder:
+                    stitched = stitch_pair_preview(img_left_processed, img_right_processed)
+                    stitched.save(os.path.join(preview_folder, export_name))
+
                 return (filename, True, None)
 
             except Exception as e:
@@ -989,7 +1012,8 @@ class ImagePairToolGUI:
                     fill_info = "（已填充为 1:1 白色背景）"
             else:
                 fill_info = ""
-            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}{rotate_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}")
+            preview_line = f"\n- {preview_folder}" if preview_folder else ""
+            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}{rotate_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}{preview_line}")
         else:
             error_details = "\n".join(errors[:5])
             if error_count > 5:
@@ -997,7 +1021,8 @@ class ImagePairToolGUI:
             messagebox.showwarning("部分完成",
                                    f"成功导出 {success_count} 对图片，失败 {error_count} 对。\n{rotate_info}\n\n错误详情:\n{error_details}")
 
-        self.status_label.config(text=f"✓ 自动配对完成 | 成功:{success_count} | 失败:{error_count}")
+        preview_note = " | 预览图已生成" if preview_folder else ""
+        self.status_label.config(text=f"✓ 自动配对完成 | 成功:{success_count} | 失败:{error_count}{preview_note}")
 
         for fname in paired_files:
             self.left_panel.mark_as_paired(fname)
@@ -1036,12 +1061,14 @@ class ImagePairToolGUI:
             size_mode = cfg.get("size_mode", 0)
             custom_size = cfg.get("custom_size", None)
             do_rotate = cfg.get("rotate", False)
+            do_preview = self.preview_var.get()
         else:
             fill_ratio = False
             crop_style = None
             size_mode = 0
             custom_size = None
             do_rotate = False
+            do_preview = self.preview_var.get()
 
         control_folder = os.path.join(export_folder, "control")
         target_folder = os.path.join(export_folder, "target")
@@ -1124,6 +1151,19 @@ class ImagePairToolGUI:
                     shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
                 if right_txt.exists():
                     shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
+
+            # 生成配对预览拼接图
+            if do_preview:
+                preview_folder = os.path.join(export_folder, "配对预览")
+                os.makedirs(preview_folder, exist_ok=True)
+                for export_name in exported:
+                    ctrl_path = os.path.join(control_folder, export_name)
+                    tgt_path = os.path.join(target_folder, export_name)
+                    img_left = Image.open(ctrl_path)
+                    img_right = Image.open(tgt_path)
+                    stitched = stitch_pair_preview(img_left, img_right)
+                    stitched.save(os.path.join(preview_folder, export_name))
+                self.status_label.config(text=self.status_label.cget("text") + f" | 预览图已保存至 配对预览/")
 
             if size_mode == 3:
                 fill_text = f"（已统一调整为 {custom_size[0]}x{custom_size[1]}）"

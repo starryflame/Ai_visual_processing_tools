@@ -72,7 +72,16 @@
       "Bash(python -c \"import utils; print\\('utils imports OK'\\)\")",
       "Bash(python -c \"import py_compile; py_compile.compile\\('config.py', doraise=True\\); py_compile.compile\\('similarity.py', doraise=True\\); py_compile.compile\\('gui.py', doraise=True\\); py_compile.compile\\('main.py', doraise=True\\); print\\('All files compile OK'\\)\")",
       "Bash(python -c \"from PIL import Image; import tkinter; print\\('PIL and tkinter OK'\\)\")",
-      "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\); print\\('OK'\\)\")"
+      "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(start \"\" \"j:/Ai_visual_processing_tools/其他/文件处理/配对工具/compare_web.html\")",
+      "WebFetch(domain:batchimagecrop.com)",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_network_requests",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "Bash(python -m http.server 8765)",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_playwright_playwright__browser_click"
     ]
   }
 }

@@ -57,20 +57,14 @@ class ComfyUISeedVR2UpscaleProcessor:
         # 修改缩放参数 (节点 17)
         workflow["17"]["inputs"]["longer_edge"] = longer_edge
 
-        # 修改最小分辨率 (节点 3)
-        workflow["3"]["inputs"]["value"] = min_resolution
+        # 修改最小分辨率 (节点 18)
+        workflow["18"]["inputs"]["value"] = min_resolution
 
-        # 修改最大分辨率 (节点 2)
-        workflow["2"]["inputs"]["value"] = max_resolution
+        # 修改最大分辨率 (节点 19)
+        workflow["19"]["inputs"]["value"] = max_resolution
 
         # 修改 Seed 参数 (节点 8)
         workflow["8"]["inputs"]["seed"] = seed
-
-        # 修改 VAE 模型路径 (节点 1)
-        workflow["1"]["inputs"]["model"] = vae_model
-
-        # 修改 DiT 模型路径 (节点 4)
-        workflow["4"]["inputs"]["model"] = dit_model
 
         # 提交任务
         result = self.queue_prompt(workflow)
@@ -224,22 +218,6 @@ class BatchSeedVR2UpscaleGUI:
         # 分隔线
         separator2 = ttk.Separator(parent, orient='horizontal')
         separator2.pack(fill=tk.X, pady=5)
-
-        # 模型路径区域 - 可折叠
-        self.model_frame = tk.LabelFrame(parent, text="模型路径", padx=10, pady=10)
-        self.model_frame.pack(fill=tk.X, pady=5)
-
-        # VAE 模型路径
-        vae_row = tk.Frame(self.model_frame)
-        vae_row.pack(fill=tk.X, pady=2)
-        tk.Label(vae_row, text="VAE 模型:", width=10).pack(side=tk.LEFT)
-        tk.Entry(vae_row, textvariable=self.vae_model).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-
-        # DiT 模型路径
-        dit_row = tk.Frame(self.model_frame)
-        dit_row.pack(fill=tk.X, pady=2)
-        tk.Label(dit_row, text="DiT 模型:", width=10).pack(side=tk.LEFT)
-        tk.Entry(dit_row, textvariable=self.dit_model).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
 
         # 分隔线
         separator3 = ttk.Separator(parent, orient='horizontal')
