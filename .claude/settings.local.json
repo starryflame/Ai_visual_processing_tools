@@ -81,7 +81,11 @@
       "mcp__plugin_playwright_playwright__browser_evaluate",
       "Bash(python -m http.server 8765)",
       "mcp__plugin_playwright_playwright__browser_console_messages",
-      "mcp__plugin_playwright_playwright__browser_click"
+      "mcp__plugin_playwright_playwright__browser_click",
+      "Bash(.venv/Scripts/python.exe -c \"from toolkit_launcher import TOOLS_CONFIG; count = sum\\(len\\(v\\) for v in TOOLS_CONFIG.values\\(\\)\\); print\\(f'Categories: {len\\(TOOLS_CONFIG\\)}'\\); print\\(f'Total tools: {count}'\\); [print\\(f'  {cat}: {len\\(tools\\)} tools'\\) for cat, tools in TOOLS_CONFIG.items\\(\\)]\")",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(.venv/Scripts/python.exe -c \"import os; files = os.listdir\\(r'j:\\\\Ai_visual_processing_tools\\\\其他\\\\图片缩放'\\); print\\(files\\)\")",
+      "Bash(xxd)"
     ]
   }
 }

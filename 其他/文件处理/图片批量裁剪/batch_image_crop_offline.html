@@ -1141,21 +1141,29 @@ function handleCropDrag(e) {
 
   // Sync uniform
   if (state.cropMode === 'uniform' && draggingCrop.imageId === state.images[0].id && state.images.length > 1) {
-    const cropWpx = newCrop.width * img.width;
-    const cropHpx = newCrop.height * img.height;
-    const cx = newCrop.left + newCrop.width / 2;
-    const cy = newCrop.top + newCrop.height / 2;
-    state.images.forEach((other, idx) => {
-      if (idx === 0) return;
-      let w = cropWpx / other.width;
-      let h = cropHpx / other.height;
-      if (w > 1 || h > 1) { const s = Math.min(1/w, 1/h); w *= s; h *= s; }
-      let l = cx - w/2, t = cy - h/2;
-      if (l < 0) l = 0; if (t < 0) t = 0;
-      if (l + w > 1) l = 1 - w; if (t + h > 1) t = 1 - h;
-      if (mode === 'manual' || mode === 'shape') other.manualCropRect = { left: l, top: t, width: w, height: h };
-      else other[mode + 'CropRect'] = { left: l, top: t, width: w, height: h };
-    });
+    if (mode === 'percentage') {
+      // 百分比模式：直接复制相同的归一化裁剪矩形（百分比值）到所有图片
+      state.images.forEach((other, idx) => {
+        if (idx === 0) return;
+        other.percentageCropRect = { ...newCrop };
+      });
+    } else {
+      const cropWpx = newCrop.width * img.width;
+      const cropHpx = newCrop.height * img.height;
+      const cx = newCrop.left + newCrop.width / 2;
+      const cy = newCrop.top + newCrop.height / 2;
+      state.images.forEach((other, idx) => {
+        if (idx === 0) return;
+        let w = cropWpx / other.width;
+        let h = cropHpx / other.height;
+        if (w > 1 || h > 1) { const s = Math.min(1/w, 1/h); w *= s; h *= s; }
+        let l = cx - w/2, t = cy - h/2;
+        if (l < 0) l = 0; if (t < 0) t = 0;
+        if (l + w > 1) l = 1 - w; if (t + h > 1) t = 1 - h;
+        if (mode === 'manual' || mode === 'shape') other.manualCropRect = { left: l, top: t, width: w, height: h };
+        else other[mode + 'CropRect'] = { left: l, top: t, width: w, height: h };
+      });
+    }
   }
 
   // Update DOM

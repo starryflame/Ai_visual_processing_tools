@@ -12,6 +12,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, font
 import subprocess
 import threading
+import webbrowser
 
 # 工具配置数据
 TOOLS_CONFIG = {
@@ -31,11 +32,34 @@ TOOLS_CONFIG = {
     ],
     "视频打标工具": [
         {
+            "name": "视频转图片",
+            "path": "pictures_mark_tool/tool/视频转图片.py",
+            "desc": "视频转图片",
+            "icon": "🎬",
+            "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
+        },
+        {
             "name": "视频打标器",
             "path": "video_mark_tool/视频打标器/code/video_tagger.py",
             "desc": "视频帧标记、AI 标签生成、片段导出",
             "icon": "🎬",
             "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
+        }
+    ],
+    "图片处理工具": [
+        {
+            "name": "图片缩放工具",
+            "path": "其他/图片缩放/image_resizer.py",
+            "desc": "批量缩放、保持比例、格式转换",
+            "icon": "📐"
+        }
+    ],
+    "网页工具": [
+        {
+            "name": "图片批量裁剪 (网页版)",
+            "path": "其他/文件处理/图片批量裁剪/batch_image_crop_offline.html",
+            "desc": "浏览器内运行、批量裁剪、离线可用",
+            "icon": "✂️"
         }
     ],
     "文件处理工具": [
@@ -56,6 +80,36 @@ TOOLS_CONFIG = {
             "path": "其他/文件处理/配对工具/main.py",
             "desc": "双面板对比、自动配对、导出配对",
             "icon": "🔗"
+        },
+        {
+            "name": "相似度配对工具",
+            "path": "其他/文件处理/相似度配对工具/main.py",
+            "desc": "相似度计算、智能配对、去重管理",
+            "icon": "🧩"
+        },
+        {
+            "name": "图片视频标签过滤",
+            "path": "其他/文件处理/图片视频标签过滤ui.py",
+            "desc": "按标签筛选、批量过滤媒体文件",
+            "icon": "🏷️"
+        },
+        {
+            "name": "多段音频拼接",
+            "path": "其他/文件处理/多段音频拼接/audio_merger_gui.py",
+            "desc": "多段音频合并、格式可选、排序拼接",
+            "icon": "🎵"
+        },
+        {
+            "name": "TXT 逗号分隔转换",
+            "path": "其他/文件处理/txt改逗号.py",
+            "desc": "文本内容按行转逗号分隔格式",
+            "icon": "📝"
+        },
+        {
+            "name": "数据集标签提取",
+            "path": "其他/文件处理/数据集标签提取.py",
+            "desc": "从数据集目录提取标签汇总",
+            "icon": "🏷️"
         }
     ],
     "格式转换工具": [
@@ -78,6 +132,36 @@ TOOLS_CONFIG = {
             "path": "其他/comfyui/batch_anime2real.py",
             "desc": "批量处理、实时预览",
             "icon": "🎨"
+        },
+        {
+            "name": "批量图片放大",
+            "path": "其他/comfyui/batch_image_upscale.py",
+            "desc": "SeedVR 放大、分辨率控制、断点续传",
+            "icon": "🔍"
+        },
+        {
+            "name": "真人转动漫",
+            "path": "其他/comfyui/真人转动漫.py",
+            "desc": "LoRA 风格迁移、实时预览、半自动模式",
+            "icon": "👤"
+        },
+        {
+            "name": "Wan22 放大",
+            "path": "其他/comfyui/wan22放大.py",
+            "desc": "Wan22 模型图片高清放大",
+            "icon": "⬆️"
+        },
+        {
+            "name": "提示词提取",
+            "path": "其他/comfyui/提示词提取.py",
+            "desc": "从图片/JSON 中提取生成提示词",
+            "icon": "💬"
+        },
+        {
+            "name": "插帧工具",
+            "path": "其他/comfyui/插帧.py",
+            "desc": "视频帧间插值、流畅度提升",
+            "icon": "🎬"
         }
     ]
 }
@@ -327,6 +411,11 @@ class ToolkitLauncher:
         # 在新线程中启动工具
         def _launch():
             try:
+                # HTML 文件用浏览器打开
+                if tool_path.endswith('.html'):
+                    abs_path = os.path.abspath(tool_path)
+                    webbrowser.open(f'file:///{abs_path}')
+                    return
                 # 检查是否有指定的虚拟环境
                 venv_python = tool_data.get("venv")
                 if venv_python and os.path.exists(venv_python):

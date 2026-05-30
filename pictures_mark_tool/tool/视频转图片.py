@@ -5,6 +5,7 @@ import argparse
 from tqdm import tqdm
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 设置系统编码为utf-8，解决中文路径问题
 if sys.platform.startswith('win'):
@@ -46,45 +47,48 @@ def get_all_videos(folder_path):
         logger.info(f"  - {video}")
     return video_files
 
-def extract_frames_from_video(video_path, output_folder, frames_per_second, start_index=0):
+def extract_frames_from_video(video_path, output_folder, frames_per_second, start_index=0, show_progress=True):
     """从单个视频中提取帧"""
     try:
         # 处理路径编码 - 移除重复的编码转换
         video_path = Path(video_path)
         output_folder = Path(output_folder)
-        
+
         # 确保输出文件夹存在
         output_folder.mkdir(parents=True, exist_ok=True)
-        
+
         # 打开视频文件 - 直接使用Path对象
         cap = cv2.VideoCapture(str(video_path))
-        
+
         if not cap.isOpened():
             logger.warning(f"无法打开视频文件: {video_path}")
             return 0, start_index
-        
+
         # 获取视频信息
         video_fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        
+
         if video_fps == 0 or total_frames == 0:
             logger.warning(f"视频文件信息异常: {video_path}")
             cap.release()
             return 0, start_index
-        
+
         logger.info(f"处理视频: {video_path}")
         logger.info(f"视频FPS: {video_fps:.2f}, 总帧数: {total_frames}")
-        
+
         # 计算需要跳过的帧数
         skip_frames = max(1, int(round(video_fps / frames_per_second)))
         logger.info(f"每隔 {skip_frames} 帧提取一张图片")
-        
+
         frame_count = 0
         saved_count = 0
         current_index = start_index
-        
-        # 显示进度条
-        pbar = tqdm(total=total_frames, desc=f"提取 {video_path.name}", leave=False)
+
+        # 显示进度条（多线程模式下隐藏单个视频的进度条，避免显示混乱）
+        if show_progress:
+            pbar = tqdm(total=total_frames, desc=f"提取 {video_path.name}", leave=False)
+        else:
+            pbar = None
         
         while True:
             ret, frame = cap.read()
@@ -117,9 +121,11 @@ def extract_frames_from_video(video_path, output_folder, frames_per_second, star
                     logger.warning(f"编码失败: {output_filename}")
             
             frame_count += 1
-            pbar.update(1)
-        
-        pbar.close()
+            if pbar:
+                pbar.update(1)
+
+        if pbar:
+            pbar.close()
         cap.release()
         
         logger.info(f"从 {video_path.name} 提取了 {saved_count} 张图片")
@@ -131,49 +137,82 @@ def extract_frames_from_video(video_path, output_folder, frames_per_second, star
         logger.error(traceback.format_exc())
         return 0, start_index
 
-def extract_frames_from_folder(input_folder, output_folder, frames_per_second):
-    """从文件夹中所有视频提取帧"""
+def _extract_video_task(args):
+    """线程安全的任务包装器，从 extract_frames_from_video 参数元组中解包并调用"""
+    video_file, output_folder, frames_per_second, start_index = args
+    return extract_frames_from_video(
+        video_file, output_folder, frames_per_second,
+        start_index=start_index, show_progress=False
+    )
+
+
+def extract_frames_from_folder(input_folder, output_folder, frames_per_second, max_workers=4):
+    """从文件夹中所有视频提取帧（支持多线程并行处理）"""
     # 处理路径编码
     input_folder = Path(str(input_folder).encode('utf-8').decode('utf-8'))
     output_folder = input_folder / str(output_folder).encode('utf-8').decode('utf-8')
-    
+
     logger.info(f"输入文件夹: {input_folder.absolute()}")
     logger.info(f"输出文件夹: {output_folder.absolute()}")
-    
+
     # 确保输出文件夹存在
     output_folder.mkdir(parents=True, exist_ok=True)
     logger.info(f"输出文件夹已创建: {output_folder}")
-    
+
     # 获取所有视频文件
     try:
         video_files = get_all_videos(input_folder)
     except Exception as e:
         logger.error(f"搜索视频文件时出错: {e}")
         return
-    
+
     if not video_files:
         logger.warning("未找到任何视频文件")
         return
-    
+
     total_saved = 0
-    current_index = 0
-    
-    logger.info(f"开始处理 {len(video_files)} 个视频文件...")
-    
-    # 处理每个视频文件
-    for i, video_file in enumerate(video_files, 1):
-        logger.info(f"[{i}/{len(video_files)}] 开始处理: {video_file}")
-        saved_count, current_index = extract_frames_from_video(
-            video_file, output_folder, frames_per_second, current_index
-        )
-        total_saved += saved_count
-    
+
+    # 为每个视频预分配起始编号，避免线程间的锁竞争
+    # 每个视频预留 100000 个编号空间（足以覆盖 27+ 小时的 1fps 视频）
+    INDEX_RANGE_PER_VIDEO = 100000
+    video_tasks = []
+    for i, video_file in enumerate(video_files):
+        start_index = i * INDEX_RANGE_PER_VIDEO
+        video_tasks.append((video_file, output_folder, frames_per_second, start_index))
+
+    # 判断是否使用多线程（视频数量 > 1 且 max_workers > 1）
+    use_multithreading = max_workers > 1 and len(video_files) > 1
+    actual_workers = min(max_workers, len(video_files))
+
+    if use_multithreading:
+        logger.info(f"使用 {actual_workers} 个线程并行处理 {len(video_files)} 个视频文件...")
+        with ThreadPoolExecutor(max_workers=actual_workers) as executor:
+            futures = {executor.submit(_extract_video_task, task): task[0] for task in video_tasks}
+            with tqdm(total=len(video_tasks), desc="视频处理总进度", unit="个") as pbar:
+                for future in as_completed(futures):
+                    video_file = futures[future]
+                    try:
+                        saved_count, _ = future.result()
+                        total_saved += saved_count
+                        pbar.set_postfix_str(f"完成: {video_file.name}")
+                    except Exception as e:
+                        logger.error(f"处理视频 {video_file} 时线程出错: {e}")
+                    pbar.update(1)
+    else:
+        logger.info(f"开始处理 {len(video_files)} 个视频文件...")
+        for i, (video_file, _, _, start_index) in enumerate(video_tasks, 1):
+            logger.info(f"[{i}/{len(video_files)}] 开始处理: {video_file}")
+            saved_count, _ = extract_frames_from_video(
+                video_file, output_folder, frames_per_second, start_index
+            )
+            total_saved += saved_count
+
     # 最终检查
     final_files = list(output_folder.glob("*.png"))
     logger.info(f"处理完成！")
     logger.info(f"报告提取了 {total_saved} 张图片")
     logger.info(f"实际在输出文件夹中找到 {len(final_files)} 个png文件")
-    
+
     if len(final_files) > 0:
         logger.info(f"前5个文件:")
         for file in final_files[:5]:
@@ -226,14 +265,14 @@ def extract_frames_from_single_video(video_path, output_folder, frames_per_secon
 
 def main():
     print("=== 视频帧提取工具 ===")
-    
+
     # 获取用户输入 - 简化编码处理
     input_path = input("请输入视频文件或包含视频的文件夹路径: ").strip()
-    
+
     if not input_path:
         print("错误: 必须指定输入路径")
         return
-    
+
     try:
         frames_per_second = float(input("请输入每秒提取的图片数量 (例如: 1 表示每秒1张): "))
         if frames_per_second <= 0:
@@ -242,13 +281,13 @@ def main():
     except ValueError:
         print("错误: 请输入有效的数字")
         return
-    
+
     output_folder = input("请输入输出文件夹名称 (回车使用默认值 extracted_frames): ").strip()
     if not output_folder:
         output_folder = "extracted_frames"
-    
+
     input_path_obj = Path(input_path)
-    
+
     # 判断输入的是文件还是文件夹
     if input_path_obj.is_file():
         print(f"\n检测到输入的是单个视频文件")
@@ -264,10 +303,29 @@ def main():
     else:
         print(f"\n检测到输入的是文件夹")
         print(f"输出文件夹 '{output_folder}' 将创建在输入文件夹内")
+
+        # 询问线程数
+        thread_input = input("请输入并行处理的线程数 (1-16, 回车使用默认值4): ").strip()
+        if not thread_input:
+            max_workers = 4
+        else:
+            try:
+                max_workers = int(thread_input)
+                if max_workers < 1:
+                    print("线程数不能小于1，已设置为1")
+                    max_workers = 1
+                elif max_workers > 16:
+                    print("线程数不建议超过16，已限制为16")
+                    max_workers = 16
+            except ValueError:
+                print("无效输入，使用默认值4")
+                max_workers = 4
+
+        print(f"将使用 {max_workers} 个线程进行并行处理")
         print("\n开始处理...")
         print("-" * 50)
         try:
-            extract_frames_from_folder(input_path, output_folder, frames_per_second)
+            extract_frames_from_folder(input_path, output_folder, frames_per_second, max_workers=max_workers)
         except Exception as e:
             logger.error(f"程序执行出错: {e}")
             import traceback
