@@ -29,3 +29,5 @@ pyproject.toml
 
 
 !video_prompt.txt
+resume_oneline.html
+.claude/settings.local.json

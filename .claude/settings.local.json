@@ -85,7 +85,15 @@
       "Bash(.venv/Scripts/python.exe -c \"from toolkit_launcher import TOOLS_CONFIG; count = sum\\(len\\(v\\) for v in TOOLS_CONFIG.values\\(\\)\\); print\\(f'Categories: {len\\(TOOLS_CONFIG\\)}'\\); print\\(f'Total tools: {count}'\\); [print\\(f'  {cat}: {len\\(tools\\)} tools'\\) for cat, tools in TOOLS_CONFIG.items\\(\\)]\")",
       "Bash(.venv/Scripts/python.exe -c ' *)",
       "Bash(.venv/Scripts/python.exe -c \"import os; files = os.listdir\\(r'j:\\\\Ai_visual_processing_tools\\\\其他\\\\图片缩放'\\); print\\(files\\)\")",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('gui.py', encoding='utf-8'\\).read\\(\\)\\); print\\('gui.py: OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('ai_matcher.py', encoding='utf-8'\\).read\\(\\)\\); print\\('ai_matcher.py: OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('main.py: OK'\\)\")",
+      "Bash(python -c \"from ai_matcher import LLMClient, run_ai_person_match, DEFAULT_MATCH_PROMPT; print\\('Imports OK'\\); print\\(f'Prompt length: {len\\(DEFAULT_MATCH_PROMPT\\)} chars'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\); print\\(f'{f}: OK'\\)\" f=gui.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\); print\\(f'{f}: OK'\\)\" f=ai_matcher.py)",
+      "Bash(python -c \"from ai_matcher import LLMClient, run_ai_person_match, run_ai_person_match_batch, _make_pair_key; print\\('All imports OK'\\); print\\(f'_make_pair_key test: {_make_pair_key\\(\\\\\"a.jpg\\\\\",\\\\\"b.jpg\\\\\"\\)} vs {_make_pair_key\\(\\\\\"b.jpg\\\\\",\\\\\"a.jpg\\\\\"\\)}'\\)\")",
+      "Bash(python -c \"from ai_matcher import LLMClient, run_ai_person_match, run_ai_person_match_batch, _make_pair_key; print\\('All imports OK'\\); print\\('_make_pair_key\\(a,b\\):', _make_pair_key\\('a.jpg','b.jpg'\\), '==', _make_pair_key\\('b.jpg','a.jpg'\\)\\)\")"
     ]
   }
 }

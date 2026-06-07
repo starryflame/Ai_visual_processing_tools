@@ -145,7 +145,7 @@ class BatchProcessorGUI:
 
         self.input_folder = tk.StringVar()
         self.output_folder = tk.StringVar()
-        self.prompt_text = tk.StringVar(value="动漫转真人，无水印")
+        self.prompt_text = tk.StringVar(value="动漫转真人")
         self.lora_path = tk.StringVar(value=r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors")
         # 用于存储完整路径的映射
         self.lora_full_paths = {}

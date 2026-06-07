@@ -33,7 +33,7 @@ TOOLS_CONFIG = {
     "视频打标工具": [
         {
             "name": "视频转图片",
-            "path": "pictures_mark_tool/tool/视频转图片.py",
+            "path": "pictures_mark_tool/tool/-------------视频转图片.py",
             "desc": "视频转图片",
             "icon": "🎬",
             "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"

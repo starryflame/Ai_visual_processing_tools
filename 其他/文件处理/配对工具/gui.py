@@ -7,6 +7,8 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import os
+import threading
+import configparser
 from pathlib import Path
 import shutil
 import random
@@ -19,15 +21,19 @@ from config import (
 )
 from panel import ImagePanel
 from utils import fill_image_with_background, crop_to_square, generate_renamed_filename, get_image_files, stitch_pair_preview
+from ai_matcher import run_ai_person_match, run_ai_person_match_batch
 
 
 class ImagePairToolGUI:
     """图片配对工具 GUI 界面"""
 
-    def __init__(self, root):
+    def __init__(self, root, config=None):
         self.root = root
         self.root.title("双面板图片配对工具 - 深色模式")
         self.root.geometry(f"{DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT}")
+
+        # AI 配置
+        self.config = config
 
         # 设置深色模式
         self.dark_mode = True
@@ -40,6 +46,9 @@ class ImagePairToolGUI:
 
         # 进度条变量
         self.progress_var = tk.DoubleVar()
+
+        # AI 匹配取消标志
+        self._cancel_ai_match = False
 
         self.create_widgets()
 
@@ -133,6 +142,18 @@ class ImagePairToolGUI:
                                       bg=DARK_BUTTON_BG if self.dark_mode else None,
                                       fg=DARK_BUTTON_FG if self.dark_mode else None)
         self.compare_btn.pack(side=tk.RIGHT, padx=5)
+
+        # AI 人物判断按钮（单张）
+        self.ai_match_btn = tk.Button(toolbar, text="AI人物判断", command=self.ai_person_match, width=12,
+                                       bg="#9b59b6" if self.dark_mode else "#9b59b6",
+                                       fg="white")
+        self.ai_match_btn.pack(side=tk.RIGHT, padx=5)
+
+        # 批量 AI 人物判断按钮
+        self.ai_batch_btn = tk.Button(toolbar, text="批量AI判断", command=self.ai_person_match_batch, width=12,
+                                       bg="#8e44ad" if self.dark_mode else "#8e44ad",
+                                       fg="white")
+        self.ai_batch_btn.pack(side=tk.RIGHT, padx=5)
 
         # 主体区域
         main_frame = tk.Frame(self.root, bg=DARK_BG if self.dark_mode else None)
@@ -1361,3 +1382,296 @@ class ImagePairToolGUI:
         except Exception as e:
             messagebox.showerror("错误", f"导出失败：{str(e)}")
             self.status_label.config(text="导出失败")
+
+    # ── AI 人物判断 ──
+
+    def ai_person_match(self):
+        """AI 人物判断：将左侧选中图片与右侧文件夹所有图片依次比对"""
+        # 验证左侧图片
+        left_path = self.left_panel.get_current_image_path()
+        if not left_path:
+            messagebox.showerror("错误", "请先在左侧面板选中一张参照图片")
+            return
+
+        # 验证右侧文件夹
+        right_folder = self.right_panel.folder_path.get()
+        if not right_folder or not os.path.isdir(right_folder):
+            messagebox.showerror("错误", "右侧面板未选择有效文件夹")
+            return
+
+        # 获取右侧图片列表
+        right_images = get_image_files(right_folder)
+        if not right_images:
+            messagebox.showerror("错误", "右侧文件夹中没有图片文件")
+            return
+
+        # 选择输出文件夹
+        export_folder = self.export_folder.get()
+        if export_folder and os.path.isdir(export_folder):
+            output_base = export_folder
+        else:
+            output_base = filedialog.askdirectory(title="选择 AI 判断结果输出文件夹")
+            if not output_base:
+                return
+
+        # 确认信息
+        left_name = Path(left_path).name
+        total = len(right_images)
+        confirm_msg = (
+            f"即将使用 AI 判断人物是否相同\n\n"
+            f"参照图（左侧）：{left_name}\n"
+            f"待判断文件夹（右侧）：{right_folder}\n"
+            f"待判断图片数：{total} 张\n"
+            f"输出文件夹：{output_base}\n\n"
+            f"将在输出文件夹下创建：\n"
+            f"  · 有些像/\n"
+            f"  · 肯定就是/\n"
+            f"（完全不是的图片直接跳过，不复制）\n\n"
+            f"确认开始？"
+        )
+        if not messagebox.askyesno("AI 人物判断", confirm_msg):
+            return
+
+        # 初始化进度和状态
+        self.progress_var.set(0)
+        self.status_label.config(text=f"AI 人物判断启动中... 共 {total} 张待判断")
+        self._cancel_ai_match = False
+        self.ai_match_btn.config(text="取消AI判断", bg="#c0392b", command=self._cancel_ai_match_handler)
+
+        # 在新线程中执行
+        def _run():
+            def update_status(text):
+                self.root.after(0, lambda t=text: self.status_label.config(text=t))
+
+            def update_progress(current, total_count):
+                pct = (current / total_count) * 100 if total_count > 0 else 0
+                self.root.after(0, lambda p=pct: self.progress_var.set(p))
+                self.root.after(0, lambda c=current, t=total_count:
+                               self.status_label.config(
+                                   text=f"AI 判断中... {c}/{t} | 左图: {left_name}"))
+
+            def on_done():
+                self.ai_match_btn.config(text="AI人物判断", bg="#9b59b6",
+                                         state=tk.NORMAL, command=self.ai_person_match)
+                self.ai_batch_btn.config(text="批量AI判断", bg="#8e44ad",
+                                         state=tk.NORMAL, command=self.ai_person_match_batch)
+
+            def should_cancel():
+                return self._cancel_ai_match
+
+            try:
+                results = run_ai_person_match(
+                    left_image_path=left_path,
+                    right_folder=right_folder,
+                    output_base_folder=output_base,
+                    config=self.config,
+                    status_callback=update_status,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+
+                if results is None:
+                    return
+
+                if results.get("_cancelled"):
+                    self.root.after(0, lambda: (self.status_label.config(text="AI 判断已取消"), on_done()))
+                    return
+
+                # 显示结果
+                def show_result():
+                    on_done()
+                    self.progress_var.set(100)
+                    error_info = ""
+                    if results.get("errors"):
+                        error_info = f"\n错误: {len(results['errors'])} 个\n{results['errors'][:3]}"
+                        if len(results["errors"]) > 3:
+                            error_info += f"\n... 还有 {len(results['errors']) - 3} 个错误"
+
+                    unmatched_info = ""
+                    if results.get("unmatched", 0) > 0:
+                        unmatched_info = f"\n（其中 {results['unmatched']} 张无法判断，已归入'有些像'）"
+
+                    messagebox.showinfo(
+                        "AI 判断完成",
+                        f"判断完成！共处理 {total} 张图片\n\n"
+                        f"完全不是：{results['完全不是']} 张\n"
+                        f"有些像：{results['有些像']} 张\n"
+                        f"肯定就是：{results['肯定就是']} 张"
+                        f"{unmatched_info}{error_info}\n\n"
+                        f"结果已保存到：{output_base}"
+                    )
+                    self.status_label.config(
+                        text=f"AI 判断完成 | 完全不是:{results['完全不是']} | "
+                             f"有些像:{results['有些像']} | 肯定就是:{results['肯定就是']}")
+
+                self.root.after(0, show_result)
+
+            except Exception as e:
+                def show_error():
+                    on_done()
+                    self.progress_var.set(0)
+                    messagebox.showerror("错误", f"AI 判断失败：{str(e)}")
+                    self.status_label.config(text=f"AI 判断失败: {str(e)[:80]}")
+
+                self.root.after(0, show_error)
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+    def _cancel_ai_match_handler(self):
+        """取消 AI 判断"""
+        self._cancel_ai_match = True
+        self.ai_match_btn.config(text="正在取消...", state=tk.DISABLED)
+        self.ai_batch_btn.config(text="正在取消...", state=tk.DISABLED)
+        self.status_label.config(text="正在取消 AI 判断，等待当前请求完成...")
+
+    # ── 批量 AI 人物判断 ──
+
+    def ai_person_match_batch(self):
+        """批量 AI 人物判断：左侧每张图依次作为参照图，与右侧所有图比对"""
+        # 验证左侧文件夹
+        left_folder = self.left_panel.folder_path.get()
+        if not left_folder or not os.path.isdir(left_folder):
+            messagebox.showerror("错误", "左侧面板未选择有效文件夹")
+            return
+
+        # 验证右侧文件夹
+        right_folder = self.right_panel.folder_path.get()
+        if not right_folder or not os.path.isdir(right_folder):
+            messagebox.showerror("错误", "右侧面板未选择有效文件夹")
+            return
+
+        # 获取图片列表
+        left_images = get_image_files(left_folder)
+        right_images = get_image_files(right_folder)
+        if not left_images:
+            messagebox.showerror("错误", "左侧文件夹中没有图片文件")
+            return
+        if not right_images:
+            messagebox.showerror("错误", "右侧文件夹中没有图片文件")
+            return
+
+        # 选择输出文件夹
+        export_folder = self.export_folder.get()
+        if export_folder and os.path.isdir(export_folder):
+            output_base = export_folder
+        else:
+            output_base = filedialog.askdirectory(title="选择批量 AI 判断结果输出文件夹")
+            if not output_base:
+                return
+
+        total_left = len(left_images)
+        total_right = len(right_images)
+        total_pairs = total_left * total_right
+
+        # 判断是否同一文件夹
+        same_folder = os.path.abspath(left_folder) == os.path.abspath(right_folder)
+        cache_note = ""
+        if same_folder:
+            unique_pairs = total_left * (total_left - 1) // 2
+            cache_note = (
+                f"\n\n检测到左右为同一文件夹，将使用对称缓存优化：\n"
+                f"实际 AI 调用次数 ≈ {unique_pairs}（而非 {total_pairs}）"
+            )
+
+        confirm_msg = (
+            f"即将批量 AI 判断人物是否相同\n\n"
+            f"左侧文件夹：{left_folder}\n"
+            f"  共 {total_left} 张图片（依次作为参照图）\n"
+            f"右侧文件夹：{right_folder}\n"
+            f"  共 {total_right} 张图片（待判断）\n"
+            f"输出文件夹：{output_base}\n"
+            f"总对比次数：{total_pairs}{cache_note}\n\n"
+            f"将在输出文件夹下为每张左图创建子目录：\n"
+            f"  · 左图名/\n"
+            f"  ·   ├ 参考图\n"
+            f"  ·   ├ 有些像/\n"
+            f"  ·   └ 肯定就是/\n"
+            f"（完全不是直接跳过）\n\n"
+            f"确认开始？"
+        )
+        if not messagebox.askyesno("批量 AI 人物判断", confirm_msg):
+            return
+
+        # 初始化进度和状态
+        self.progress_var.set(0)
+        self.status_label.config(text=f"批量 AI 判断启动中... 共 {total_pairs} 次对比")
+        self._cancel_ai_match = False
+        self.ai_match_btn.config(text="取消AI判断", bg="#c0392b", command=self._cancel_ai_match_handler)
+        self.ai_batch_btn.config(text="取消AI判断", bg="#c0392b", command=self._cancel_ai_match_handler)
+
+        # 在新线程中执行
+        def _run():
+            def update_status(text):
+                self.root.after(0, lambda t=text: self.status_label.config(text=t))
+
+            def update_progress(current, total_count):
+                pct = (current / total_count) * 100 if total_count > 0 else 0
+                self.root.after(0, lambda p=pct: self.progress_var.set(p))
+
+            def on_done():
+                self.ai_match_btn.config(text="AI人物判断", bg="#9b59b6",
+                                         state=tk.NORMAL, command=self.ai_person_match)
+                self.ai_batch_btn.config(text="批量AI判断", bg="#8e44ad",
+                                         state=tk.NORMAL, command=self.ai_person_match_batch)
+
+            def should_cancel():
+                return self._cancel_ai_match
+
+            try:
+                results = run_ai_person_match_batch(
+                    left_folder=left_folder,
+                    right_folder=right_folder,
+                    output_base_folder=output_base,
+                    config=self.config,
+                    status_callback=update_status,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+
+                if results is None:
+                    return
+
+                if results.get("_cancelled"):
+                    self.root.after(0, lambda: (self.status_label.config(text="批量 AI 判断已取消"), on_done()))
+                    return
+
+                def show_result():
+                    on_done()
+                    self.progress_var.set(100)
+                    error_info = ""
+                    if results.get("errors"):
+                        error_info = f"\n错误: {len(results['errors'])} 个"
+
+                    cache_info = ""
+                    if results.get("cached", 0) > 0:
+                        cache_info = f"\n缓存命中（跳过重复对比）: {results['cached']} 次"
+                    skip_info = ""
+                    if results.get("skipped_self", 0) > 0:
+                        skip_info = f"\n跳过自身对比: {results['skipped_self']} 次"
+
+                    messagebox.showinfo(
+                        "批量 AI 判断完成",
+                        f"判断完成！\n"
+                        f"左侧参照图: {total_left} 张 | 右侧待判断: {total_right} 张\n"
+                        f"总对比次数: {total_pairs}\n\n"
+                        f"完全不是（跳过）: {results['完全不是']}\n"
+                        f"有些像（已复制）: {results['有些像']}\n"
+                        f"肯定就是（已复制）: {results['肯定就是']}"
+                        f"{cache_info}{skip_info}{error_info}\n\n"
+                        f"结果已保存到：{output_base}"
+                    )
+
+                self.root.after(0, show_result)
+
+            except Exception as e:
+                def show_error():
+                    on_done()
+                    self.progress_var.set(0)
+                    messagebox.showerror("错误", f"批量 AI 判断失败：{str(e)}")
+                    self.status_label.config(text=f"批量 AI 判断失败: {str(e)[:80]}")
+
+                self.root.after(0, show_error)
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
