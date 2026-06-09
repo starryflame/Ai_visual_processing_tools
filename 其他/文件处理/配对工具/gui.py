@@ -793,7 +793,7 @@ class ImagePairToolGUI:
         fg = DARK_FG if self.dark_mode else "#000000"
         dialog.config(bg=bg)
 
-        size_mode = tk.IntVar(value=2)   # 0=较小值, 1=裁剪, 2=填充, 3=指定分辨率
+        size_mode = tk.IntVar(value=1)   # 0=较小值, 1=裁剪, 2=填充, 3=指定分辨率
         rename_mode = tk.IntVar(value=1)  # 0=原名, 1=序号
         shuffle_var = tk.BooleanVar(value=False)
         crop_direction = tk.StringVar(value="top")

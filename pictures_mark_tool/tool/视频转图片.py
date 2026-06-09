@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 支持的视频格式
-VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm', '.m4v'}
+VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm', '.m4v', '.webp'}
 
 def is_video_file(file_path):
     """判断是否为视频文件"""
@@ -47,8 +47,147 @@ def get_all_videos(folder_path):
         logger.info(f"  - {video}")
     return video_files
 
+def extract_frames_from_webp(webp_path, output_folder, frames_per_second, start_index=0, show_progress=True):
+    """从动画WebP文件中提取帧（使用Pillow，支持动画和静态WebP）"""
+    try:
+        from PIL import Image
+        import numpy as np
+
+        webp_path = Path(webp_path)
+        output_folder = Path(output_folder)
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        im = Image.open(str(webp_path))
+
+        # 检查是否为动画WebP
+        is_animated = getattr(im, 'is_animated', False)
+        n_frames = getattr(im, 'n_frames', 1)
+
+        if not is_animated or n_frames <= 1:
+            # 静态WebP，直接保存为PNG
+            logger.info(f"静态WebP图片: {webp_path}")
+            frame = np.array(im.convert('RGB'))
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            safe_stem = _sanitize_filename(webp_path.stem)
+            output_filename = f"{safe_stem}_{start_index:06d}.png"
+            output_path = output_folder / output_filename
+
+            success, encoded_image = cv2.imencode('.png', frame)
+            if success:
+                with open(str(output_path), 'wb') as f:
+                    f.write(encoded_image)
+                logger.info(f"已保存: {output_filename}")
+                im.close()
+                return 1, start_index + 1
+            else:
+                logger.warning(f"编码失败: {output_filename}")
+                im.close()
+                return 0, start_index
+
+        # 动画WebP处理
+        # 逐帧读取真实帧间隔（每帧的duration独立存储，需seek后才能获取）
+        logger.info(f"处理动画WebP: {webp_path}")
+        logger.info(f"总帧数: {n_frames}")
+
+        durations = []
+        for i in range(n_frames):
+            im.seek(i)
+            d = im.info.get('duration', 0)
+            durations.append(d if d > 0 else 0)
+
+        valid_durations = [d for d in durations if d > 0]
+
+        if valid_durations:
+            avg_duration = sum(valid_durations) / len(valid_durations)
+            min_d = min(valid_durations)
+            max_d = max(valid_durations)
+            webp_fps = 1000.0 / avg_duration
+
+            if min_d == max_d:
+                logger.info(f"帧间隔: {avg_duration:.0f}ms（所有帧统一）, 等效FPS: {webp_fps:.2f}")
+            else:
+                logger.info(f"帧间隔: 平均 {avg_duration:.0f}ms, 范围 {min_d}ms ~ {max_d}ms")
+                logger.info(f"等效FPS: {webp_fps:.2f}（基于平均帧间隔）")
+        else:
+            # 全部为0，Pillow无法读取帧间隔
+            logger.warning("无法读取帧间隔信息（文件可能未编码duration），使用默认 100ms/帧")
+            avg_duration = 100
+            webp_fps = 10.0
+            logger.info(f"默认帧间隔: 100ms, 等效FPS: {webp_fps:.2f}")
+
+        # 计算需要跳过的帧数
+        skip_frames = max(1, int(round(webp_fps / frames_per_second)))
+        actual_rate = webp_fps / skip_frames
+        logger.info(f"每隔 {skip_frames} 帧提取一张图片（等效 {actual_rate:.2f} 张/秒）")
+
+        saved_count = 0
+        current_index = start_index
+
+        if show_progress:
+            pbar = tqdm(total=n_frames, desc=f"提取 {webp_path.name}", leave=False)
+        else:
+            pbar = None
+
+        for frame_idx in range(n_frames):
+            if frame_idx % skip_frames != 0:
+                if pbar:
+                    pbar.update(1)
+                continue
+
+            im.seek(frame_idx)
+            frame = np.array(im.convert('RGB'))
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            safe_stem = _sanitize_filename(webp_path.stem)
+            output_filename = f"{safe_stem}_{current_index:06d}.png"
+            output_path = output_folder / output_filename
+
+            success, encoded_image = cv2.imencode('.png', frame)
+            if success:
+                with open(str(output_path), 'wb') as f:
+                    f.write(encoded_image)
+                saved_count += 1
+                current_index += 1
+            else:
+                logger.warning(f"编码失败: {output_filename}")
+
+            if pbar:
+                pbar.update(1)
+
+        if pbar:
+            pbar.close()
+        im.close()
+
+        logger.info(f"从 {webp_path.name} 提取了 {saved_count} 张图片")
+        return saved_count, current_index
+
+    except Exception as e:
+        logger.error(f"处理WebP文件 {webp_path} 时出错: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return 0, start_index
+
+
+def _sanitize_filename(stem):
+    """清理文件名，保留中文、字母数字和常见符号"""
+    safe = "".join(
+        c if c.isalnum() or c in (' ', '-', '_', '(', ')', '[', ']')
+           or '一' <= c <= '鿿' else '_'
+        for c in stem
+    )
+    return safe[:50] if len(safe) > 50 else safe
+
+
 def extract_frames_from_video(video_path, output_folder, frames_per_second, start_index=0, show_progress=True):
     """从单个视频中提取帧"""
+    # WebP文件使用Pillow处理
+    if Path(video_path).suffix.lower() == '.webp':
+        return extract_frames_from_webp(
+            video_path, output_folder, frames_per_second,
+            start_index=start_index, show_progress=show_progress
+        )
+
     try:
         # 处理路径编码 - 移除重复的编码转换
         video_path = Path(video_path)
@@ -97,11 +236,8 @@ def extract_frames_from_video(video_path, output_folder, frames_per_second, star
             
             # 每隔skip_frames帧保存一次
             if frame_count % skip_frames == 0:
-                # 生成输出文件名 - 简化文件名处理逻辑
-                safe_stem = "".join(c if c.isalnum() or c in (' ', '-', '_', '(', ')', '[', ']') or '\u4e00' <= c <= '\u9fff' else '_' for c in video_path.stem)
-                # 限制文件名长度避免过长
-                if len(safe_stem) > 50:
-                    safe_stem = safe_stem[:50]
+                # 生成输出文件名
+                safe_stem = _sanitize_filename(video_path.stem)
                 output_filename = f"{safe_stem}_{current_index:06d}.png"
                 output_path = output_folder / output_filename
                 

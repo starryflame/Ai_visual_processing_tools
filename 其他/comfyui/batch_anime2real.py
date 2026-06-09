@@ -277,6 +277,7 @@ class BatchProcessorGUI:
         # 缩放最长边输入
         resize_frame = tk.Frame(parent, pady=5)
         resize_frame.pack(fill=tk.X)
+        self._after_lora_frame = resize_frame  # 保存引用以便恢复 LoRA 到原位
         tk.Label(resize_frame, text="缩放最长边:", width=12).pack(side=tk.LEFT)
         self.resize_spinbox = tk.Spinbox(resize_frame, textvariable=self.resize_longest_edge, from_=256, to=8192, width=10)
         self.resize_spinbox.pack(side=tk.LEFT, padx=5)
@@ -440,7 +441,7 @@ class BatchProcessorGUI:
         if wn == "图片编辑(无LoRA)":
             self._lora_frame.pack_forget()
         else:
-            self._lora_frame.pack(fill=tk.X)
+            self._lora_frame.pack(fill=tk.X, before=self._after_lora_frame)
 
     def resize_image(self, img, max_width, max_height):
         """缩放图片以填充显示区域（小图放大，大图缩小）"""

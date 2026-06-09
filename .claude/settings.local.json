@@ -93,7 +93,20 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\); print\\(f'{f}: OK'\\)\" f=gui.py)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\); print\\(f'{f}: OK'\\)\" f=ai_matcher.py)",
       "Bash(python -c \"from ai_matcher import LLMClient, run_ai_person_match, run_ai_person_match_batch, _make_pair_key; print\\('All imports OK'\\); print\\(f'_make_pair_key test: {_make_pair_key\\(\\\\\"a.jpg\\\\\",\\\\\"b.jpg\\\\\"\\)} vs {_make_pair_key\\(\\\\\"b.jpg\\\\\",\\\\\"a.jpg\\\\\"\\)}'\\)\")",
-      "Bash(python -c \"from ai_matcher import LLMClient, run_ai_person_match, run_ai_person_match_batch, _make_pair_key; print\\('All imports OK'\\); print\\('_make_pair_key\\(a,b\\):', _make_pair_key\\('a.jpg','b.jpg'\\), '==', _make_pair_key\\('b.jpg','a.jpg'\\)\\)\")"
+      "Bash(python -c \"from ai_matcher import LLMClient, run_ai_person_match, run_ai_person_match_batch, _make_pair_key; print\\('All imports OK'\\); print\\('_make_pair_key\\(a,b\\):', _make_pair_key\\('a.jpg','b.jpg'\\), '==', _make_pair_key\\('b.jpg','a.jpg'\\)\\)\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -m py_compile \"其他\\\\图片过滤\\\\__init__.py\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -m py_compile \"其他\\\\图片过滤\\\\config.py\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -m py_compile \"其他\\\\图片过滤\\\\ai_filter.py\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -m py_compile \"其他\\\\图片过滤\\\\panel.py\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -m py_compile \"其他\\\\图片过滤\\\\gui.py\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -m py_compile \"其他\\\\图片过滤\\\\main.py\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -c \"from PIL import Image; print\\('PIL OK'\\)\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -c \"from openai import OpenAI; print\\('openai OK'\\)\")",
+      "Bash(\".venv\\\\Scripts\\\\python.exe\" -c \"import tkinter; print\\('tkinter OK'\\)\")",
+      "Bash(pip list *)",
+      "Bash(python -m pip list)",
+      "Bash(python pictures_mark_tool/tool/_fix_webp.py)",
+      "Bash(python -m py_compile \"j:\\\\Ai_visual_processing_tools\\\\pictures_mark_tool\\\\tool\\\\视频转图片.py\")"
     ]
   }
 }
