@@ -106,7 +106,27 @@
       "Bash(pip list *)",
       "Bash(python -m pip list)",
       "Bash(python pictures_mark_tool/tool/_fix_webp.py)",
-      "Bash(python -m py_compile \"j:\\\\Ai_visual_processing_tools\\\\pictures_mark_tool\\\\tool\\\\视频转图片.py\")"
+      "Bash(python -m py_compile \"j:\\\\Ai_visual_processing_tools\\\\pictures_mark_tool\\\\tool\\\\视频转图片.py\")",
+      "Bash(mv pictures_mark_tool/tool/视频转图片.py tools/video_processing/video_to_image/)",
+      "Bash(mv pictures_mark_tool/tool/词频统计/* tools/tagging/word_frequency/)",
+      "Bash(mv pictures_mark_tool/* tools/tagging/image_tagger/)",
+      "Bash(mv video_mark_tool/视频打标器/* tools/tagging/video_tagger/)",
+      "Bash(mv 其他/图像视频标签预览/* tools/tagging/label_manager/)",
+      "Bash(mv 其他/图片缩放/* tools/image_processing/image_resizer/)",
+      "Bash(mv 其他/图片过滤/* tools/image_processing/image_filter/)",
+      "Bash(mv video_mark_tool/拆分视频工具/* tools/video_processing/video_splitter/)",
+      "Bash(mv 其他/视频扩充/* tools/video_processing/video_extender/)",
+      "Bash(mv 其他/文件处理/配对工具/* tools/pairing/image_pairing/)",
+      "Bash(mv 其他/文件处理/相似度配对工具/* tools/pairing/similarity_pairing/)",
+      "Bash(mv 其他/文件处理/多段音频拼接/* tools/audio/audio_merger/)",
+      "Bash(mv 其他/文件处理/图片视频标签过滤ui.py tools/tagging/label_filter/label_filter_ui.py)",
+      "Bash(mv 其他/文件处理/数据集标签提取.py tools/tagging/label_extractor/label_extractor.py)",
+      "Bash(mv 其他/格式转换/transform.py tools/media_conversion/media_converter/transform.py)",
+      "Bash(mv 其他/格式转换/music_kmg.py tools/media_conversion/music_kmg/music_kmg.py)",
+      "Bash(mv 其他/文件处理/文件夹通用处理_GUI.py tools/file_operations/folder_batch/folder_batch.py)",
+      "Bash(mkdir -p docs/images)",
+      "Bash(mv 其他/image/* docs/images/)",
+      "Bash(mv video_mark_tool/视频打标器/.claude tools/tagging/video_tagger/)"
     ]
   }
 }

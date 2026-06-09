@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import configparser
+import os
 
 
 
@@ -9,11 +10,15 @@ class VideoTagger:
     def __init__(self, root):
         self.root = root
         self.root.title("视频打标器")
-        
+
+        # 配置文件路径（与当前脚本同目录）
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.config_path = os.path.join(_script_dir, 'config.ini')
+
         # 读取配置文件
         self.config = configparser.ConfigParser()
         # 修改读取配置文件的方式，显式指定编码为utf-8
-        self.config.read(r'video_mark_tool\视频打标器\code\config.ini', encoding='utf-8')
+        self.config.read(self.config_path, encoding='utf-8')
         print(self.config)
         # 设置初始窗口大小
         window_width = self.config.getint('UI', 'window_width', fallback=1200)
@@ -24,9 +29,6 @@ class VideoTagger:
         x = (screen_width - window_width) // 2
         y = (screen_height - window_height) // 2
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-        
-        # 配置路径
-        self.config_path = r'video_mark_tool\视频打标器\code\config.ini'
 
         # 视频相关变量
         self.video_path = ""

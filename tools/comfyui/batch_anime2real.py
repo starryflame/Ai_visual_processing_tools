@@ -13,6 +13,7 @@ import requests
 import uuid
 import time
 import os
+import random
 from pathlib import Path
 import threading
 
@@ -20,9 +21,20 @@ import threading
 class ComfyUIBatchProcessor:
     """ComfyUI 批量处理器"""
     
-    def __init__(self, server_address="127.0.0.1:8188"):
+    def __init__(self, server_address="127.0.0.1:8188", workflow_name="高还原"):
         self.server_address = server_address
-        self.workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json"
+        self.workflow_name = workflow_name
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        self._workflow_paths = {
+            "高还原": os.path.join(_script_dir, "工作流", "动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json"),
+            "图片编辑(无LoRA)": os.path.join(_script_dir, "工作流", "图片编辑无lora.json"),
+        }
+        self.workflow_path = self._workflow_paths[workflow_name]
+
+    @property
+    def has_lora_node(self):
+        """当前工作流是否包含自定义 LoRA 节点"""
+        return self.workflow_name == "高还原"
         
     def load_workflow(self):
         """加载工作流配置"""
@@ -33,24 +45,24 @@ class ComfyUIBatchProcessor:
         """提交任务到 ComfyUI"""
         url = f"http://{self.server_address}/prompt"
         data = {"prompt": prompt}
-        response = requests.post(url, json=data)
+        response = requests.post(url, json=data, timeout=10)
         return response.json()
-    
+
     def get_history(self, prompt_id):
         """获取任务历史"""
         url = f"http://{self.server_address}/history/{prompt_id}"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         return response.json()
-    
+
     def get_image(self, filename, subfolder, folder_type):
         """获取生成的图片"""
         params = {"filename": filename, "subfolder": subfolder, "type": folder_type}
         url = f"http://{self.server_address}/view"
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=30)
         return response.content
     
-    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name):
-        """处理单张图片"""
+    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name, resize_longest_edge=1440, stop_check=None):
+        """处理单张图片。stop_check 是可选的 callable，返回 True 时应中止处理。"""
         # 修改 LoadImage 节点的输入图片
         workflow["78"]["inputs"]["image"] = input_image_path
 
@@ -58,12 +70,25 @@ class ComfyUIBatchProcessor:
         if "110" in workflow:
             workflow["110"]["inputs"]["prompt"] = prompt
 
-        # 修改 LoRA 路径（节点 297）
-        if "297" in workflow:
-            workflow["297"]["inputs"]["lora_name"] = lora_name
+        # 修改 LoRA 路径（节点 337）
+        if "337" in workflow:
+            workflow["337"]["inputs"]["lora_name"] = lora_name
+
+        # 修改缩放最长边长度（节点 301）
+        if "301" in workflow:
+            workflow["301"]["inputs"]["scale_to_length"] = resize_longest_edge
+
+        # 随机化采样种子，确保每次生成结果不同
+        if "3" in workflow and "seed" in workflow["3"]["inputs"]:
+            max_seed = 2**64 - 1
+            workflow["3"]["inputs"]["seed"] = random.randint(0, max_seed)
 
         # 提交任务
-        result = self.queue_prompt(workflow)
+        try:
+            result = self.queue_prompt(workflow)
+        except requests.exceptions.RequestException:
+            return False, "ComfyUI 连接失败（提交任务时无法连接到服务器）"
+
         if "prompt_id" not in result:
             return False, "任务提交失败"
 
@@ -73,14 +98,25 @@ class ComfyUIBatchProcessor:
         max_wait = 300  # 最大等待 5 分钟
         start_time = time.time()
         while time.time() - start_time < max_wait:
-            history = self.get_history(prompt_id)
+            if stop_check and stop_check():
+                return False, "用户停止"
+
+            # 使用较短的超时，让停止检查能及时生效
+            try:
+                history = self.get_history(prompt_id)
+            except requests.exceptions.RequestException:
+                time.sleep(2)
+                continue
+
             if prompt_id in history:
-                # 任务完成，保存图片
                 outputs = history[prompt_id]["outputs"]
                 for node_id, node_output in outputs.items():
                     if "images" in node_output:
                         for img in node_output["images"]:
-                            img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
+                            try:
+                                img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
+                            except requests.exceptions.RequestException:
+                                return False, "ComfyUI 连接失败（获取图片时无法连接到服务器）"
                             # 生成输出文件名 - 保持与原图相同的扩展名
                             original_ext = Path(input_image_path).suffix.lower()
                             output_name = f"{Path(input_image_path).stem}{original_ext}"
@@ -101,6 +137,8 @@ class ComfyUIBatchProcessor:
 class BatchProcessorGUI:
     """批量处理 GUI 界面"""
 
+    PRESETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt_presets.json")
+
     def __init__(self, root):
         self.root = root
         self.root.title("ComfyUI 批量动漫转写实处理")
@@ -108,13 +146,15 @@ class BatchProcessorGUI:
 
         self.input_folder = tk.StringVar()
         self.output_folder = tk.StringVar()
-        self.prompt_text = tk.StringVar(value="动漫转真人，无水印")
+        self.prompt_text = tk.StringVar(value="动漫转真人")
         self.lora_path = tk.StringVar(value=r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors")
         # 用于存储完整路径的映射
         self.lora_full_paths = {}
         self.start_index = tk.IntVar(value=0)
+        self.resize_longest_edge = tk.IntVar(value=1440)
         self.process_mode = tk.StringVar(value="全自动模式")  # 全自动模式/半自动模式
-        self.processor = ComfyUIBatchProcessor()
+        self.workflow_name = tk.StringVar(value="高还原")
+        self.processor = ComfyUIBatchProcessor(workflow_name="高还原")
 
         # 控制变量
         self.is_running = False
@@ -130,6 +170,8 @@ class BatchProcessorGUI:
         # 半自动模式专用
         self.semi_result = None  # None=等待中，"next"=下一张，"retry"=重新生成，"stop"=停止
         self.semi_done_event = threading.Event()
+        self.semi_dialog_ref = None  # 用于持有对话框引用，更新下一张预览
+        self.prompt_presets = self._load_presets()
 
         # 日志区折叠状态
         self.log_expanded = True
@@ -137,6 +179,7 @@ class BatchProcessorGUI:
         # 图片预览
         self.input_photo = None
         self.output_photo = None
+        self.semi_next_photo = None  # 半自动对话框中下一张预览
         self.current_input_img = None
         self.current_output_img = False
 
@@ -211,14 +254,35 @@ class BatchProcessorGUI:
         # 设置默认值
         mode_combo.current(0)
 
+        # 工作流选择 - 下拉框
+        workflow_frame = tk.Frame(parent, pady=5)
+        workflow_frame.pack(fill=tk.X)
+        tk.Label(workflow_frame, text="工作流:", width=12).pack(side=tk.LEFT)
+        workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.workflow_name, state="readonly", width=20)
+        workflow_combo['values'] = ["高还原", "图片编辑(无LoRA)"]
+        workflow_combo.pack(side=tk.LEFT, padx=5)
+        workflow_combo.current(0)
+        workflow_combo.bind('<<ComboboxSelected>>', lambda _: self.on_workflow_changed())
+
         # LoRA 路径选择 - 下拉框
         lora_frame = tk.Frame(parent, pady=5)
         lora_frame.pack(fill=tk.X)
         tk.Label(lora_frame, text="LoRA 路径:", width=12).pack(side=tk.LEFT)
         self.lora_combo = ttk.Combobox(lora_frame, textvariable=self.lora_path, state="readonly")
         self.lora_combo.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        tk.Button(lora_frame, text="刷新", command=self.load_lora_models, width=6).pack(side=tk.LEFT, padx=2)
         # 加载模型列表
         self.load_lora_models()
+        self._lora_frame = lora_frame  # 保存引用以便切换工作流时隐藏/显示
+
+        # 缩放最长边输入
+        resize_frame = tk.Frame(parent, pady=5)
+        resize_frame.pack(fill=tk.X)
+        self._after_lora_frame = resize_frame  # 保存引用以便恢复 LoRA 到原位
+        tk.Label(resize_frame, text="缩放最长边:", width=12).pack(side=tk.LEFT)
+        self.resize_spinbox = tk.Spinbox(resize_frame, textvariable=self.resize_longest_edge, from_=256, to=8192, width=10)
+        self.resize_spinbox.pack(side=tk.LEFT, padx=5)
+        tk.Label(resize_frame, text="(像素，默认1440)", fg="#666").pack(side=tk.LEFT)
 
         # 起始索引输入
         index_frame = tk.Frame(parent, pady=5)
@@ -281,14 +345,14 @@ class BatchProcessorGUI:
     def create_preview_panel(self, parent):
         """创建底部图片预览面板"""
         # 标题栏
-        title_label = tk.Label(
+        self.title_label = tk.Label(
             parent,
             text="🖼️ 实时预览 - 输入/输出对比",
             font=("Microsoft YaHei UI", 16, "bold"),
             bg='#1a1a1a',
             fg='white'
         )
-        title_label.pack(pady=10)
+        self.title_label.pack(pady=10)
 
         # 图片容器 - 左右并排
         imgs_container = tk.Frame(parent, bg='#1a1a1a')
@@ -298,13 +362,14 @@ class BatchProcessorGUI:
         input_preview_frame = tk.Frame(imgs_container, bg='#2a2a2a', relief=tk.RAISED, bd=0)
         input_preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0), pady=0)
 
-        tk.Label(
+        self.input_label = tk.Label(
             input_preview_frame,
             text="输入图 (原图)",
             font=("Microsoft YaHei UI", 14, "bold"),
             bg='#2a2a2a',
             fg='#2196F3'
-        ).pack(pady=5)
+        )
+        self.input_label.pack(pady=5)
 
         # 使用 Canvas 显示图片，支持靠右对齐
         self.input_canvas = tk.Canvas(input_preview_frame, bg='#1a1a1a', highlightthickness=0)
@@ -315,13 +380,14 @@ class BatchProcessorGUI:
         output_preview_frame = tk.Frame(imgs_container, bg='#2a2a2a', relief=tk.RAISED, bd=0)
         output_preview_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 0), pady=0)
 
-        tk.Label(
+        self.output_label = tk.Label(
             output_preview_frame,
             text="输出图 (生成结果)",
             font=("Microsoft YaHei UI", 14, "bold"),
             bg='#2a2a2a',
             fg='#4CAF50'
-        ).pack(pady=5)
+        )
+        self.output_label.pack(pady=5)
 
         # 使用 Canvas 显示图片，支持靠左对齐
         self.output_canvas = tk.Canvas(output_preview_frame, bg='#1a1a1a', highlightthickness=0)
@@ -345,9 +411,15 @@ class BatchProcessorGUI:
         if self.control_panel_hidden:
             # 使用 before 参数确保放在 bottom_frame 之前
             self.control_frame.pack(fill=tk.X, expand=False, padx=10, pady=10, before=self.bottom_frame)
+            self.title_label.pack(pady=10)
+            self.input_label.pack(pady=5)
+            self.output_label.pack(pady=5)
             self.control_panel_hidden = False
         else:
             self.control_frame.pack_forget()
+            self.title_label.pack_forget()
+            self.input_label.pack_forget()
+            self.output_label.pack_forget()
             self.control_panel_hidden = True
 
     def toggle_log(self):
@@ -363,18 +435,26 @@ class BatchProcessorGUI:
             self.log_toggle_button.config(text="▲ 收起")
             self.log_expanded = True
 
+    def on_workflow_changed(self):
+        """工作流切换时显示/隐藏 LoRA 选项，并更新处理器"""
+        wn = self.workflow_name.get()
+        self.processor = ComfyUIBatchProcessor(workflow_name=wn)
+        if wn == "图片编辑(无LoRA)":
+            self._lora_frame.pack_forget()
+        else:
+            self._lora_frame.pack(fill=tk.X, before=self._after_lora_frame)
+
     def resize_image(self, img, max_width, max_height):
-        """缩放图片以适应显示区域"""
+        """缩放图片以填充显示区域（小图放大，大图缩小）"""
         if max_width <= 0 or max_height <= 0:
             return img
 
-        # 计算缩放比例（保持宽高比，留一些边距）
         target_width = max_width - 20
         target_height = max_height - 20
 
         ratio = min(target_width / img.width, target_height / img.height)
 
-        if ratio < 1:
+        if ratio != 1:
             new_width = int(img.width * ratio)
             new_height = int(img.height * ratio)
             img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
@@ -496,6 +576,24 @@ class BatchProcessorGUI:
                     self.lora_path.set(model_files[0])
         else:
             messagebox.showwarning("警告", f"模型文件夹不存在：{lora_folder}")
+
+    def _load_presets(self):
+        """加载提示词预设"""
+        if os.path.exists(self.PRESETS_FILE):
+            try:
+                with open(self.PRESETS_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return []
+
+    def _save_presets(self):
+        """保存提示词预设到文件"""
+        try:
+            with open(self.PRESETS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.prompt_presets, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存预设失败: {e}")
     
     def log(self, message):
         """添加日志"""
@@ -574,99 +672,242 @@ class BatchProcessorGUI:
             if messagebox.askyesno("确认", "确定要停止处理吗？"):
                 self.stop_flag = True
                 self.pause_event.set()  # 如果在暂停状态，先恢复以便退出
-                self.log("⏹ 正在停止...")
+                self.stop_button.config(state=tk.DISABLED)
+                self.log("⏹ 正在停止...（等待当前请求超时，最多10秒）")
 
-    def wait_semi_decision(self):
+    def wait_semi_decision(self, input_folder, next_index):
         """半自动模式：等待用户确认"""
         self.semi_result = None
         self.semi_new_prompt = None  # 存储新提示词
         self.semi_done_event.clear()
 
         # 在主线程中显示对话框
-        self.root.after(0, self.show_semi_dialog)
+        self.root.after(0, lambda: self.show_semi_dialog(input_folder, next_index))
 
-        # 等待用户决定
-        self.semi_done_event.wait()
+        # 等待用户决定（带超时，以便检查 stop_flag）
+        while not self.semi_done_event.is_set():
+            self.semi_done_event.wait(timeout=0.3)
+            if self.stop_flag:
+                self.semi_result = "stop"
+                self.semi_done_event.set()
+                break
 
         # 如果用户修改了提示词，更新主界面的提示词
         if self.semi_new_prompt is not None:
             self.prompt_text.set(self.semi_new_prompt)
 
-    def show_semi_dialog(self):
+        # 清理引用
+        self.semi_dialog_ref = None
+
+    def show_semi_dialog(self, input_folder, next_index):
         """显示半自动模式确认对话框"""
         dialog = tk.Toplevel(self.root)
         dialog.title("生成完成 - 请选择操作")
-        dialog.geometry("450x280")
-        dialog.resizable(False, False)
+        dialog.resizable(True, True)
         dialog.transient(self.root)
         dialog.grab_set()  # 模态对话框
 
+        self.semi_dialog_ref = dialog
+
+        # 计算对话框尺寸：左侧按钮+提示词 + 右侧下一张预览
+        dialog_width = 820
+        dialog_height = 520
+        dialog.geometry(f"{dialog_width}x{dialog_height}")
+
         # 居中显示
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (280 // 2)
-        dialog.geometry(f"450x280+{x}+{y}")
+        x = (dialog.winfo_screenwidth() // 2) - (dialog_width // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog_height // 2)
+        dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
 
         # 标题
         tk.Label(
             dialog,
-            text="图片已生成完成",
-            font=("Microsoft YaHei UI", 14, "bold")
-        ).pack(pady=10)
+            text="图片已生成完成（下方预览区可查看结果）",
+            font=("Microsoft YaHei UI", 12, "bold")
+        ).pack(pady=(8, 5))
+
+        # 提示词预设区域
+        presets_frame = tk.Frame(dialog)
+        presets_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+
+        tk.Label(presets_frame, text="预设:", font=("Microsoft YaHei UI", 9)).pack(side=tk.LEFT, padx=(0, 5))
+
+        preset_btn_frame = tk.Frame(presets_frame)
+        preset_btn_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # 预设按钮列表（用于动态刷新）
+        preset_buttons = []
+
+        def apply_preset(text):
+            """应用预设到输入框"""
+            prompt_entry.delete(0, tk.END)
+            prompt_entry.insert(0, text)
+
+        def add_preset():
+            """添加当前提示词为预设"""
+            current = prompt_entry.get().strip()
+            if not current:
+                return
+            if current in self.prompt_presets:
+                return
+            self.prompt_presets.append(current)
+            self._save_presets()
+            _refresh_preset_buttons()
+
+        def delete_last_preset():
+            """删除最后一个预设"""
+            if self.prompt_presets:
+                self.prompt_presets.pop()
+                self._save_presets()
+                _refresh_preset_buttons()
+
+        def _refresh_preset_buttons():
+            """刷新预设按钮显示"""
+            for btn in preset_buttons:
+                btn.destroy()
+            preset_buttons.clear()
+            for p in self.prompt_presets:
+                display = p[:12] + "..." if len(p) > 12 else p
+                btn = tk.Button(
+                    preset_btn_frame,
+                    text=display,
+                    command=lambda t=p: apply_preset(t),
+                    font=("Microsoft YaHei UI", 8),
+                    bg="#E3F2FD",
+                    fg="#1565C0",
+                    relief=tk.RAISED,
+                    padx=4,
+                    pady=1
+                )
+                btn.bind("<Button-3>", lambda e, t=p: _delete_preset(t))
+                btn.pack(side=tk.LEFT, padx=1)
+                preset_buttons.append(btn)
+
+        def _delete_preset(text):
+            """删除指定预设"""
+            if text in self.prompt_presets:
+                self.prompt_presets.remove(text)
+                self._save_presets()
+                _refresh_preset_buttons()
+
+        _refresh_preset_buttons()
+
+        # 添加/删除按钮
+        tk.Button(
+            presets_frame,
+            text="+",
+            command=add_preset,
+            font=("Microsoft YaHei UI", 9, "bold"),
+            width=3,
+            bg="#E8F5E9",
+            fg="#2E7D32"
+        ).pack(side=tk.LEFT, padx=(5, 2))
+
+        tk.Button(
+            presets_frame,
+            text="−",
+            command=delete_last_preset,
+            font=("Microsoft YaHei UI", 9, "bold"),
+            width=3,
+            bg="#FFEBEE",
+            fg="#C62828"
+        ).pack(side=tk.LEFT, padx=2)
+
+        # 主容器：左右分栏
+        main_pane = tk.Frame(dialog)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # 左侧：提示词编辑 + 按钮
+        left_panel = tk.Frame(main_pane)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
 
         # 提示词编辑区域
-        prompt_edit_frame = tk.Frame(dialog)
-        prompt_edit_frame.pack(fill=tk.X, padx=20, pady=5)
-
-        tk.Label(
-            prompt_edit_frame,
-            text="提示词:",
-            font=("Microsoft YaHei UI", 10)
-        ).pack(side=tk.LEFT)
+        prompt_edit_frame = tk.LabelFrame(left_panel, text="提示词（当前即将处理的）", font=("Microsoft YaHei UI", 9))
+        prompt_edit_frame.pack(fill=tk.X, pady=(0, 8))
 
         prompt_entry = tk.Entry(prompt_edit_frame, font=("Microsoft YaHei UI", 10))
-        prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8, pady=5)
         prompt_entry.insert(0, self.prompt_text.get())
 
-        # 按钮框架
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=15)
+        # 按钮行
+        btn_frame = tk.Frame(left_panel)
+        btn_frame.pack(pady=5)
 
         # 重新生成按钮
         retry_btn = tk.Button(
             btn_frame,
             text="↻ 不满意，重新生成",
             command=lambda: self.semi_decide("retry", dialog, prompt_entry.get()),
-            width=18,
+            width=20,
             bg="#FF9800",
             fg="white",
             font=("Microsoft YaHei UI", 10)
         )
-        retry_btn.pack(side=tk.LEFT, padx=10)
+        retry_btn.pack(side=tk.LEFT, padx=5)
 
         # 下一张按钮
         next_btn = tk.Button(
             btn_frame,
             text="✓ 满意，下一张",
             command=lambda: self.semi_decide("next", dialog, prompt_entry.get()),
-            width=15,
+            width=16,
             bg="#4CAF50",
             fg="white",
             font=("Microsoft YaHei UI", 10)
         )
-        next_btn.pack(side=tk.LEFT, padx=10)
+        next_btn.pack(side=tk.LEFT, padx=5)
 
         # 停止按钮
         stop_btn = tk.Button(
             btn_frame,
-            text="⏹ 停止处理",
+            text="⏹ 停止",
             command=lambda: self.semi_decide("stop", dialog, prompt_entry.get()),
             width=10,
             bg="#f44336",
             fg="white",
             font=("Microsoft YaHei UI", 10)
         )
-        stop_btn.pack(side=tk.LEFT, padx=10)
+        stop_btn.pack(side=tk.LEFT, padx=5)
+
+        # 右侧：下一张预览
+        right_panel = tk.LabelFrame(main_pane, text="下一张输入预览", font=("Microsoft YaHei UI", 9))
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
+
+        next_preview_label = tk.Label(right_panel, text="无更多图片", fg="#888", font=("Microsoft YaHei UI", 10))
+        next_preview_label.pack(expand=True)
+
+        # 加载下一张图片
+        if next_index < len(self.image_files):
+            next_image_file = self.image_files[next_index]
+            next_input_path = os.path.join(input_folder, next_image_file)
+            try:
+                img = Image.open(next_input_path)
+                # 限制预览大小
+                max_w, max_h = 280, 350
+                ratio = min(max_w / img.width, max_h / img.height, 1.0)
+                if ratio < 1.0:
+                    img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                next_preview_label.config(image=photo, text="", anchor=tk.CENTER)
+                next_preview_label.image = photo  # 防止被 GC
+                next_preview_label.config(text=next_image_file, compound=tk.BOTTOM)
+            except Exception as e:
+                next_preview_label.config(text=f"加载失败: {e}", fg="red")
+
+        # 如果还有下张之后的图片，加个小标记
+        if next_index + 1 < len(self.image_files):
+            after_next = self.image_files[next_index + 1]
+            info_text = f"即将: {self.image_files[next_index]}  |  之后: {after_next}"
+        else:
+            info_text = f"即将: {self.image_files[next_index]}  |  这是最后一张"
+
+        tk.Label(
+            left_panel,
+            text=info_text,
+            fg="#666",
+            font=("Microsoft YaHei UI", 8)
+        ).pack(pady=(8, 0), side=tk.BOTTOM)
 
     def semi_decide(self, decision, dialog, new_prompt=None):
         """处理用户的决定"""
@@ -720,7 +961,13 @@ class BatchProcessorGUI:
 
             # 每次循环前获取最新的提示词和 LoRA 路径（支持在半自动模式下修改）
             prompt = self.prompt_text.get().strip()
-            lora_name = self.lora_path.get().strip()
+            resize_value = self.resize_longest_edge.get()
+
+            # 只有高还原工作流才需要 LoRA
+            if self.processor.has_lora_node:
+                lora_name = self.lora_path.get().strip()
+            else:
+                lora_name = None
 
             image_file = image_files[i]
             # 更新当前索引
@@ -735,7 +982,8 @@ class BatchProcessorGUI:
             workflow = self.processor.load_workflow()
             success, result = self.processor.process_image(
                 workflow, input_path, output_folder, original_folder,
-                output_image_folder, prompt, lora_name
+                output_image_folder, prompt, lora_name, resize_value,
+                stop_check=lambda: self.stop_flag
             )
 
             if success:
@@ -746,8 +994,9 @@ class BatchProcessorGUI:
 
                 # 半自动模式下等待用户确认
                 if is_semi_auto:
+                    next_idx = i + 1
                     self.root.after(0, lambda: self.log("⏸ 等待用户确认..."))
-                    self.wait_semi_decision()
+                    self.wait_semi_decision(input_folder, next_idx)
 
                     # 检查用户决定
                     if self.semi_result == "stop":
@@ -766,8 +1015,9 @@ class BatchProcessorGUI:
                 self.root.after(0, lambda f=image_file, r=result: self.log(f"✗ {f} - {r}"))
                 # 失败时也等待用户确认
                 if is_semi_auto:
+                    next_idx = i + 1
                     self.root.after(0, lambda: self.log("⏸ 等待用户确认..."))
-                    self.wait_semi_decision()
+                    self.wait_semi_decision(input_folder, next_idx)
 
                     if self.semi_result == "stop":
                         self.start_index.set(self.current_index)

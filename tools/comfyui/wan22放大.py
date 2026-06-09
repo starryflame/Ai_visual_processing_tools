@@ -52,7 +52,8 @@ class ComfyUIClient:
     def process_video(self, input_video_path, output_prefix="processed_video"):
         """处理单个视频"""
         # 加载原始工作流
-        workflow = self.load_workflow(r"其他\comfyui\wan视频放大.json")
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        workflow = self.load_workflow(os.path.join(_script_dir, "工作流", "wan视频放大.json"))
         
         # 更新视频输入
         self.update_video_input(workflow, input_video_path)

@@ -20,7 +20,8 @@ class ComfyUISeedVR2UpscaleProcessor:
 
     def __init__(self, server_address="127.0.0.1:8188"):
         self.server_address = server_address
-        self.workflow_path = r"J:\Ai_visual_processing_tools\其他\comfyui\工作流\seedvr2uoscale.json"
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.workflow_path = os.path.join(_script_dir, "工作流", "seedvr2uoscale.json")
 
     def load_workflow(self):
         """加载工作流配置"""

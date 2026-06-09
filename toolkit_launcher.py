@@ -15,153 +15,221 @@ import threading
 import webbrowser
 
 # 工具配置数据
+# 所有工具现在统一放在 tools/ 目录下，按功能分类
+# ui 字段: "gui" = 完整图形界面, "cli" = 命令行/脚本 (无交互界面)
 TOOLS_CONFIG = {
-    "图片打标工具": [
+    "🏷️ 打标 / 标签": [
         {
             "name": "图片打标器 (主程序)",
-            "path": "pictures_mark_tool/main.py",
-            "desc": "PyQt5 图片浏览、标签管理、AI 提示词生成",
-            "icon": "🖼️"
-        },
-        {
-            "name": "词频统计工具",
-            "path": "pictures_mark_tool/tool/词频统计/词频统计.py",
-            "desc": "标签词频分析、批量替换、AI 重新生成",
-            "icon": "📊"
-        }
-    ],
-    "视频打标工具": [
-        {
-            "name": "视频转图片",
-            "path": "pictures_mark_tool/tool/-------------视频转图片.py",
-            "desc": "视频转图片",
-            "icon": "🎬",
-            "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
+            "path": "tools/tagging/image_tagger/main.py",
+            "desc": "缩略图网格浏览、标签增删改查、AI提示词生成、批量打标、导出重命名",
+            "icon": "🖼️",
+            "ui": "gui"
         },
         {
             "name": "视频打标器",
-            "path": "video_mark_tool/视频打标器/code/video_tagger.py",
-            "desc": "视频帧标记、AI 标签生成、片段导出",
+            "path": "tools/tagging/video_tagger/code/video_tagger.py",
+            "desc": "视频逐帧标记、AI标签生成、片段裁剪导出、标签预设管理",
             "icon": "🎬",
+            "ui": "gui",
             "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
-        }
-    ],
-    "图片处理工具": [
-        {
-            "name": "图片缩放工具",
-            "path": "其他/图片缩放/image_resizer.py",
-            "desc": "批量缩放、保持比例、格式转换",
-            "icon": "📐"
-        }
-    ],
-    "网页工具": [
-        {
-            "name": "图片批量裁剪 (网页版)",
-            "path": "其他/文件处理/图片批量裁剪/batch_image_crop_offline.html",
-            "desc": "浏览器内运行、批量裁剪、离线可用",
-            "icon": "✂️"
-        }
-    ],
-    "文件处理工具": [
-        {
-            "name": "图像视频标签管理器",
-            "path": "其他/图像视频标签预览/pic_video_label_manager.py",
-            "desc": "视频播放、图片预览、标签编辑",
-            "icon": "📁"
         },
         {
-            "name": "文件夹批处理工具",
-            "path": "其他/文件处理/文件夹通用处理_GUI.py",
-            "desc": "拆分大文件夹、扁平化、打乱名称",
-            "icon": "📂"
+            "name": "标签预览管理器",
+            "path": "tools/tagging/label_manager/pic_video_label_manager.py",
+            "desc": "图片/视频混合浏览、标签编辑、拖拽导入、视频播放、双击快速删除",
+            "icon": "📁",
+            "ui": "gui"
         },
         {
-            "name": "图片配对工具",
-            "path": "其他/文件处理/配对工具/main.py",
-            "desc": "双面板对比、自动配对、导出配对",
-            "icon": "🔗"
-        },
-        {
-            "name": "相似度配对工具",
-            "path": "其他/文件处理/相似度配对工具/main.py",
-            "desc": "相似度计算、智能配对、去重管理",
-            "icon": "🧩"
+            "name": "词频统计工具",
+            "path": "tools/tagging/word_frequency/词频统计.py",
+            "desc": "加载标签数据、词频统计排序、批量替换标签、AI重新生成标签",
+            "icon": "📊",
+            "ui": "gui"
         },
         {
             "name": "图片视频标签过滤",
-            "path": "其他/文件处理/图片视频标签过滤ui.py",
-            "desc": "按标签筛选、批量过滤媒体文件",
-            "icon": "🏷️"
-        },
-        {
-            "name": "多段音频拼接",
-            "path": "其他/文件处理/多段音频拼接/audio_merger_gui.py",
-            "desc": "多段音频合并、格式可选、排序拼接",
-            "icon": "🎵"
-        },
-        {
-            "name": "TXT 逗号分隔转换",
-            "path": "其他/文件处理/txt改逗号.py",
-            "desc": "文本内容按行转逗号分隔格式",
-            "icon": "📝"
+            "path": "tools/tagging/label_filter/label_filter_ui.py",
+            "desc": "缩略图网格浏览、按标签筛选图片/视频、多选批量导出或删除",
+            "icon": "🏷️",
+            "ui": "gui"
         },
         {
             "name": "数据集标签提取",
-            "path": "其他/文件处理/数据集标签提取.py",
-            "desc": "从数据集目录提取标签汇总",
-            "icon": "🏷️"
+            "path": "tools/tagging/label_extractor/label_extractor.py",
+            "desc": "从数据集目录递归收集所有txt标签文件，汇总合并为单一文本文件",
+            "icon": "🏷️",
+            "ui": "cli"
         }
     ],
-    "格式转换工具": [
+    "🖼️ 图片处理": [
         {
-            "name": "图片转视频",
-            "path": "其他/格式转换/图片转视频.py",
-            "desc": "批量图片转单帧 MP4",
-            "icon": "🎞️"
+            "name": "图片缩放工具",
+            "path": "tools/image_processing/image_resizer/image_resizer.py",
+            "desc": "拖拽导入图片、批量压缩到指定文件大小、质量/分辨率调节、格式转换",
+            "icon": "📐",
+            "ui": "gui"
         },
         {
-            "name": "全能媒体转换器",
-            "path": "其他/格式转换/transform.py",
-            "desc": "图片/视频/音频格式互转",
-            "icon": "🔄"
+            "name": "图片过滤工具",
+            "path": "tools/image_processing/image_filter/main.py",
+            "desc": "用AI视觉模型按自定义条件筛选图片、双栏YES/NO分类、一键导出",
+            "icon": "🔍",
+            "ui": "gui"
+        },
+        {
+            "name": "图片批量裁剪 (网页版)",
+            "path": "tools/image_processing/image_crop/batch_image_crop_offline.html",
+            "desc": "浏览器内运行、多比例裁剪预设、拖拽导入、暗色模式、ZIP打包导出",
+            "icon": "✂️",
+            "ui": "gui"
         }
     ],
-    "ComfyUI 工具": [
+    "🎬 视频处理": [
+        {
+            "name": "视频转图片",
+            "path": "tools/video_processing/video_to_image/视频转图片.py",
+            "desc": "批量将视频逐帧导出为图片序列、支持webp/mp4等格式、多线程加速",
+            "icon": "🎞️",
+            "ui": "cli",
+            "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
+        },
+        {
+            "name": "视频拆分工具",
+            "path": "tools/video_processing/video_splitter/通用拆分视频.py",
+            "desc": "按指定秒数将视频切分为多个片段、保留音频、使用ffmpeg精确切割",
+            "icon": "✂️",
+            "ui": "cli"
+        },
+        {
+            "name": "视频时长扩充",
+            "path": "tools/video_processing/video_extender/扩充视频时长.py",
+            "desc": "将短视频通过慢放拉伸到目标时长(默认5秒)、固定帧率输出",
+            "icon": "⏱️",
+            "ui": "cli"
+        },
+        {
+            "name": "批量修改帧率",
+            "path": "tools/video_processing/frame_rate_changer/frame_rate_changer.py",
+            "desc": "用ffmpeg批量调整视频FPS(默认30fps)、保留音频流、支持多种格式",
+            "icon": "⚡",
+            "ui": "cli"
+        }
+    ],
+    "🔗 配对工具": [
+        {
+            "name": "图片配对工具",
+            "path": "tools/pairing/image_pairing/main.py",
+            "desc": "双面板图片浏览、AI视觉模型自动配对人物、配对预览拼接图、批量导出",
+            "icon": "🔗",
+            "ui": "gui"
+        },
+        {
+            "name": "相似度配对工具",
+            "path": "tools/pairing/similarity_pairing/main.py",
+            "desc": "双面板图片浏览、感知哈希+颜色直方图计算相似度、自动匹配最相似图片",
+            "icon": "🧩",
+            "ui": "gui"
+        }
+    ],
+    "🔄 格式转换": [
+        {
+            "name": "全能媒体转换器",
+            "path": "tools/media_conversion/media_converter/transform.py",
+            "desc": "图片/视频/音频格式互转、视频转GIF(可控帧率分辨率)、批量处理",
+            "icon": "🔄",
+            "ui": "gui"
+        },
+        {
+            "name": "改音频文件后缀",
+            "path": "tools/media_conversion/music_kmg/music_kmg.py",
+            "desc": "扫描目录下所有 .kgm.flac 文件，批量重命名为 .kgm 后缀",
+            "icon": "🔓",
+            "ui": "cli"
+        }
+    ],
+    "📂 文件处理": [
+        {
+            "name": "文件夹批处理工具",
+            "path": "tools/file_operations/folder_batch/folder_batch.py",
+            "desc": "拆分大文件夹(保持图片/标签配对)、扁平化子目录、随机打乱文件名",
+            "icon": "📂",
+            "ui": "gui"
+        },
+        {
+            "name": "批量改文件名",
+            "path": "tools/file_operations/batch_rename/batch_rename.py",
+            "desc": "批量删除文件名中的特定后缀(_real/_fake/_hd/_sd)，支持扩展后缀列表",
+            "icon": "✏️",
+            "ui": "cli"
+        },
+        {
+            "name": "TXT 逗号分隔转换",
+            "path": "tools/file_operations/txt_formatter/txt_formatter.py",
+            "desc": "批量将TXT文件中中文逗号(，)替换为英文逗号(,)并删除所有空格",
+            "icon": "📝",
+            "ui": "cli"
+        }
+    ],
+    "🎵 音频工具": [
+        {
+            "name": "多段音频拼接",
+            "path": "tools/audio/audio_merger/audio_merger_gui.py",
+            "desc": "多段音频合并拼接、支持按名称/修改时间排序、可选输出格式(mp3/wav/flac等)",
+            "icon": "🎵",
+            "ui": "gui"
+        },
+        {
+            "name": "TTS 文字转语音",
+            "path": "tools/audio/tts/qwen3tts/gradio的tts.py",
+            "desc": "Qwen3TTS语音合成、多音色可选(御姐/萝莉/老男人等)、Gradio客户端调用",
+            "icon": "🗣️",
+            "ui": "gui"
+        }
+    ],
+    "🎨 ComfyUI AI 工具": [
         {
             "name": "批量动漫转写实",
-            "path": "其他/comfyui/batch_anime2real.py",
-            "desc": "批量处理、实时预览",
-            "icon": "🎨"
+            "path": "tools/comfyui/batch_anime2real.py",
+            "desc": "连接ComfyUI批量将动漫图转为写实风格、实时预览、支持多工作流切换",
+            "icon": "🎨",
+            "ui": "gui"
         },
         {
             "name": "批量图片放大",
-            "path": "其他/comfyui/batch_image_upscale.py",
-            "desc": "SeedVR 放大、分辨率控制、断点续传",
-            "icon": "🔍"
+            "path": "tools/comfyui/batch_image_upscale.py",
+            "desc": "连接ComfyUI使用SeedVR2模型批量放大图片、分辨率控制、断点续传",
+            "icon": "🔍",
+            "ui": "gui"
         },
         {
             "name": "真人转动漫",
-            "path": "其他/comfyui/真人转动漫.py",
-            "desc": "LoRA 风格迁移、实时预览、半自动模式",
-            "icon": "👤"
+            "path": "tools/comfyui/真人转动漫.py",
+            "desc": "连接ComfyUI使用LoRA将真人照片转为动漫风格、实时预览、半自动模式",
+            "icon": "👤",
+            "ui": "gui"
         },
         {
-            "name": "Wan22 放大",
-            "path": "其他/comfyui/wan22放大.py",
-            "desc": "Wan22 模型图片高清放大",
-            "icon": "⬆️"
+            "name": "Wan22 视频放大",
+            "path": "tools/comfyui/wan22放大.py",
+            "desc": "连接ComfyUI使用Wan2.2模型对视频进行高清放大处理",
+            "icon": "⬆️",
+            "ui": "cli"
         },
         {
             "name": "提示词提取",
-            "path": "其他/comfyui/提示词提取.py",
-            "desc": "从图片/JSON 中提取生成提示词",
-            "icon": "💬"
+            "path": "tools/comfyui/提示词提取.py",
+            "desc": "从ComfyUI生成的PNG图片或视频文件中提取工作流提示词(节点113文本)",
+            "icon": "💬",
+            "ui": "cli"
         },
         {
             "name": "插帧工具",
-            "path": "其他/comfyui/插帧.py",
-            "desc": "视频帧间插值、流畅度提升",
-            "icon": "🎬"
+            "path": "tools/comfyui/插帧.py",
+            "desc": "连接ComfyUI使用VHS节点对视频进行帧间插值、提升流畅度",
+            "icon": "🎬",
+            "ui": "cli"
         }
     ]
 }
@@ -259,9 +327,11 @@ class ToolkitLauncher:
         status_frame.pack(fill=tk.X, side=tk.BOTTOM)
         status_frame.pack_propagate(False)
 
+        gui_count = self.count_tools_by_ui("gui")
+        cli_count = self.count_tools_by_ui("cli")
         status_label = tk.Label(
             status_frame,
-            text=f"共 {self.count_tools()} 个工具可用",
+            text=f"共 {self.count_tools()} 个工具  |  GUI 界面: {gui_count}  |  命令行脚本: {cli_count}",
             font=("Microsoft YaHei", 9),
             bg=self.colors["bg_secondary"],
             fg=self.colors["text_secondary"]
@@ -281,6 +351,15 @@ class ToolkitLauncher:
         count = 0
         for category, tools in TOOLS_CONFIG.items():
             count += len(tools)
+        return count
+
+    def count_tools_by_ui(self, ui_type):
+        """统计指定 UI 类型的工具数量"""
+        count = 0
+        for category, tools in TOOLS_CONFIG.items():
+            for tool in tools:
+                if tool.get("ui", "gui") == ui_type:
+                    count += 1
         return count
 
     def build_tool_categories(self):
@@ -316,7 +395,7 @@ class ToolkitLauncher:
             parent,
             bg=self.colors["bg_card"],
             width=250,
-            height=120
+            height=130
         )
         card.pack_propagate(False)
 
@@ -335,6 +414,27 @@ class ToolkitLauncher:
         )
         icon_label.place(x=15, y=15)
 
+        # UI 类型徽章 (右上角)
+        ui_type = tool_data.get("ui", "gui")
+        if ui_type == "gui":
+            badge_text = "GUI"
+            badge_bg = "#1a7f3f"    # 绿色 - 有图形界面
+            badge_fg = "#dcfce7"
+        else:
+            badge_text = "脚本"
+            badge_bg = "#7f6a1a"    # 琥珀色 - 命令行脚本
+            badge_fg = "#fef9c3"
+        badge = tk.Label(
+            card,
+            text=badge_text,
+            font=("Microsoft YaHei", 8, "bold"),
+            bg=badge_bg,
+            fg=badge_fg,
+            padx=6,
+            pady=1
+        )
+        badge.place(x=188, y=8)
+
         # 工具名称
         name_label = tk.Label(
             card,
@@ -342,7 +442,7 @@ class ToolkitLauncher:
             font=("Microsoft YaHei", 11, "bold"),
             bg=self.colors["bg_card"],
             fg=self.colors["text_primary"],
-            wraplength=180,
+            wraplength=175,
             anchor="w"
         )
         name_label.place(x=60, y=20)
@@ -354,7 +454,7 @@ class ToolkitLauncher:
             font=self.desc_font,
             bg=self.colors["bg_card"],
             fg=self.colors["text_secondary"],
-            wraplength=180,
+            wraplength=175,
             anchor="w",
             justify=tk.LEFT
         )
@@ -382,7 +482,8 @@ class ToolkitLauncher:
         card.configure(bg=self.colors["button_hover"])
         for child in card.winfo_children():
             if isinstance(child, tk.Label):
-                if child.cget("bg") == self.colors["bg_card"]:
+                child_bg = child.cget("bg")
+                if child_bg == self.colors["bg_card"]:
                     child.configure(bg=self.colors["button_hover"])
 
     def on_card_leave(self, card):
@@ -390,7 +491,8 @@ class ToolkitLauncher:
         card.configure(bg=self.colors["bg_card"])
         for child in card.winfo_children():
             if isinstance(child, tk.Label):
-                if child.cget("bg") == self.colors["button_hover"]:
+                child_bg = child.cget("bg")
+                if child_bg == self.colors["button_hover"]:
                     child.configure(bg=self.colors["bg_card"])
 
     def launch_tool(self, tool_data):
