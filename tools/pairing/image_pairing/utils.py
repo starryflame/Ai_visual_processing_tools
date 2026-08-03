@@ -36,15 +36,20 @@ def fill_image_with_background(img, target_size, bg_color=(255, 255, 255)):
     return background.convert('RGB')
 
 
-def crop_to_square(img, crop_style='top'):
+def crop_to_square(img, portrait_crop='top', landscape_crop='center'):
     """
     将图片裁剪为 1:1 正方形
 
     Args:
         img: PIL Image 对象
-        crop_style: 裁剪方式
-            - 'top': 竖图裁剪上面（保留顶部），横图居中
-            - 'bottom': 竖图裁剪下面（保留底部），横图居中
+        portrait_crop: 竖图裁剪方式
+            - 'top': 保留顶部
+            - 'center': 保留中间
+            - 'bottom': 保留底部
+        landscape_crop: 横图裁剪方式
+            - 'left': 保留左边
+            - 'center': 保留中间
+            - 'right': 保留右边
 
     Returns:
         裁剪后的正方形图片
@@ -56,19 +61,29 @@ def crop_to_square(img, crop_style='top'):
         return img.copy()
 
     if width > height:
-        # 横图：从中间裁剪
-        left = (width - height) // 2
+        # 横图：根据 landscape_crop 决定裁剪位置
         top = 0
-        right = left + size
         bottom = height
+        if landscape_crop == 'left':
+            left = 0
+            right = size
+        elif landscape_crop == 'right':
+            left = width - size
+            right = width
+        else:  # 'center'
+            left = (width - size) // 2
+            right = left + size
     else:
-        # 竖图
+        # 竖图：根据 portrait_crop 决定裁剪位置
         left = 0
         right = size
-        if crop_style == 'bottom':
+        if portrait_crop == 'bottom':
             top = height - size
             bottom = height
-        else:
+        elif portrait_crop == 'center':
+            top = (height - size) // 2
+            bottom = top + size
+        else:  # 'top'
             top = 0
             bottom = size
 

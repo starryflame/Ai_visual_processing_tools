@@ -3,7 +3,7 @@
     "inputs": {
       "seed": 786725570531223,
       "steps": 5,
-      "cfg": 1,
+      "cfg": 1.1,
       "sampler_name": "euler",
       "scheduler": "simple",
       "denoise": 1,
@@ -228,7 +228,7 @@
   "337": {
     "inputs": {
       "lora_name": "qwen_edit\\自创\\动漫转真人_我的人物2_000003250.safetensors",
-      "strength_model": 1,
+      "strength_model": 1.5,
       "model": [
         "169",
         0

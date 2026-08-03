@@ -126,7 +126,26 @@
       "Bash(mv 其他/文件处理/文件夹通用处理_GUI.py tools/file_operations/folder_batch/folder_batch.py)",
       "Bash(mkdir -p docs/images)",
       "Bash(mv 其他/image/* docs/images/)",
-      "Bash(mv video_mark_tool/视频打标器/.claude tools/tagging/video_tagger/)"
+      "Bash(mv video_mark_tool/视频打标器/.claude tools/tagging/video_tagger/)",
+      "Bash(.venv/Scripts/python.exe toolkit_launcher.py)",
+      "Bash(python -c \"from utils import crop_to_square; print\\('utils.py OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\); print\\('gui.py syntax OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('gui.py', doraise=True\\); print\\('gui.py OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('panel.py', doraise=True\\); print\\('panel.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('j:/Ai_visual_processing_tools/tools/pairing/image_pairing/gui.py'\\).read\\(\\)\\); print\\('语法检查通过'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('j:/Ai_visual_processing_tools/tools/pairing/image_pairing/gui.py', encoding='utf-8'\\).read\\(\\)\\); print\\('语法检查通过'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('j:/Ai_visual_processing_tools/tools/comfyui/batch_anime2real.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(.venv/Scripts/python -m pip install django)",
+      "Bash(.venv/Scripts/python -m pip install django -i https://pypi.tuna.tsinghua.edu.cn/simple)",
+      "Bash(.venv/Scripts/django-admin startproject *)",
+      "Bash(../.venv/Scripts/python manage.py migrate)",
+      "Bash(../.venv/Scripts/python manage.py runserver 0.0.0.0:8000)",
+      "Bash(sleep 3 && cat /c/Users/19864/AppData/Local/Temp/claude/j--Ai-visual-processing-tools/84b2a699-5418-4b5a-b378-32d27731b779/tasks/bbcpvz6rc.output)",
+      "Read(//c/Users/19864/AppData/Local/Temp/claude/j--Ai-visual-processing-tools/84b2a699-5418-4b5a-b378-32d27731b779/tasks/**)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('tools/document_processing/pdf_to_image/pdf_to_image.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(pip show *)",
+      "Bash(pip install *)",
+      "Bash(python -m pip install PyMuPDF Pillow)"
     ]
   }
 }

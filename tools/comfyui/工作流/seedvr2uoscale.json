@@ -10,7 +10,7 @@
       "decode_tile_size": 1024,
       "decode_tile_overlap": 128,
       "tile_debug": "false",
-      "offload_device": "cpu",
+      "offload_device": "cuda:0",
       "cache_model": false
     },
     "class_type": "SeedVR2LoadVAEModel",
@@ -24,7 +24,7 @@
       "device": "cuda:0",
       "blocks_to_swap": 0,
       "swap_io_components": false,
-      "offload_device": "cpu",
+      "offload_device": "cuda:0",
       "cache_model": "sdpa",
       "attention_mode": "sdpa"
     },
@@ -64,7 +64,7 @@
       "prepend_frames": 0,
       "input_noise_scale": 0.005,
       "latent_noise_scale": 0,
-      "offload_device": "cpu",
+      "offload_device": "cuda:0",
       "enable_debug": false,
       "image": [
         "17",

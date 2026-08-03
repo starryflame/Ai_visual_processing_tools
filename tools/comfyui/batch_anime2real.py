@@ -20,21 +20,70 @@ import threading
 
 class ComfyUIBatchProcessor:
     """ComfyUI 批量处理器"""
-    
+
+    # 工作流配置：定义每个工作流的节点 ID 映射
+    WORKFLOW_CONFIGS = {
+        "高还原": {
+            "file": "动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json",
+            "load_image_node": "78",
+            "prompt_node": "110",
+            "resize_node": "301",
+            "seed_node": "3",
+            "has_lora": True,
+            "lora_node": "337",
+            "has_checkpoint": False,
+            "lora_search_subdir": r"qwen_edit\自创",
+            "lora_default": r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors",
+        },
+        "图片编辑(无LoRA)": {
+            "file": "图片编辑无lora.json",
+            "load_image_node": "78",
+            "prompt_node": "110",
+            "resize_node": "301",
+            "seed_node": "3",
+            "has_lora": False,
+            "has_checkpoint": False,
+        },
+        "qwen_edit_aio_单图编辑": {
+            "file": "qwen_edit_aio_单图编辑.json",
+            "load_image_node": "9",
+            "prompt_node": "5",
+            "resize_node": "3",
+            "seed_node": "4",
+            "has_lora": False,
+            "has_checkpoint": True,
+            "checkpoint_node": "2",
+        },
+        "Krea2+Edit+动漫转写实": {
+            "file": "Krea2+Edit+动漫转写实风格.json",
+            "load_image_node": "25",
+            "prompt_node": "34",
+            "resize_node": "39",
+            "seed_node": "7",
+            "has_lora": True,
+            "lora_node": "32",
+            "has_checkpoint": False,
+            "lora_search_subdir": r"flux",
+            "lora_default": r"flux\Krea2_Anything2RealCharacters-V1.safetensors",
+        },
+    }
+
     def __init__(self, server_address="127.0.0.1:8188", workflow_name="高还原"):
         self.server_address = server_address
         self.workflow_name = workflow_name
+        self.config = self.WORKFLOW_CONFIGS[workflow_name]
         _script_dir = os.path.dirname(os.path.abspath(__file__))
-        self._workflow_paths = {
-            "高还原": os.path.join(_script_dir, "工作流", "动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json"),
-            "图片编辑(无LoRA)": os.path.join(_script_dir, "工作流", "图片编辑无lora.json"),
-        }
-        self.workflow_path = self._workflow_paths[workflow_name]
+        self.workflow_path = os.path.join(_script_dir, "工作流", self.config["file"])
 
     @property
     def has_lora_node(self):
         """当前工作流是否包含自定义 LoRA 节点"""
-        return self.workflow_name == "高还原"
+        return self.config.get("has_lora", False)
+
+    @property
+    def has_checkpoint(self):
+        """当前工作流是否需要选择 Checkpoint 模型"""
+        return self.config.get("has_checkpoint", False)
         
     def load_workflow(self):
         """加载工作流配置"""
@@ -60,28 +109,63 @@ class ComfyUIBatchProcessor:
         url = f"http://{self.server_address}/view"
         response = requests.get(url, params=params, timeout=30)
         return response.content
-    
-    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name, resize_longest_edge=1440, stop_check=None):
+
+    def upload_image(self, image_path):
+        """上传图片到 ComfyUI input 目录，返回文件名"""
+        url = f"http://{self.server_address}/upload/image"
+        with open(image_path, 'rb') as f:
+            files = {'image': (os.path.basename(image_path), f, 'image/png')}
+            response = requests.post(url, files=files, timeout=30)
+        data = response.json()
+        name = data["name"]
+        subfolder = data.get("subfolder", "")
+        if subfolder:
+            return os.path.join(subfolder, name)
+        return name
+
+    def process_image(self, workflow, input_image_path, output_folder, original_folder, output_image_folder, prompt, lora_name=None, strength_model=1.5, checkpoint_name=None, resize_longest_edge=1440, stop_check=None):
         """处理单张图片。stop_check 是可选的 callable，返回 True 时应中止处理。"""
+        cfg = self.config
+
+        # 上传图片到 ComfyUI input 目录，获取文件名
+        try:
+            image_filename = self.upload_image(input_image_path)
+        except requests.exceptions.RequestException:
+            return False, "ComfyUI 连接失败（上传图片时无法连接到服务器）"
+        except Exception:
+            return False, "上传图片失败"
+
         # 修改 LoadImage 节点的输入图片
-        workflow["78"]["inputs"]["image"] = input_image_path
+        workflow[cfg["load_image_node"]]["inputs"]["image"] = image_filename
 
-        # 修改提示词（节点 110）
-        if "110" in workflow:
-            workflow["110"]["inputs"]["prompt"] = prompt
+        # 修改提示词
+        prompt_node = cfg["prompt_node"]
+        if prompt_node in workflow:
+            workflow[prompt_node]["inputs"]["prompt"] = prompt
 
-        # 修改 LoRA 路径（节点 337）
-        if "337" in workflow:
-            workflow["337"]["inputs"]["lora_name"] = lora_name
+        # 修改 LoRA（仅限有 LoRA 的工作流）
+        if cfg.get("has_lora"):
+            lora_node = cfg["lora_node"]
+            if lora_node in workflow:
+                workflow[lora_node]["inputs"]["lora_name"] = lora_name
+                workflow[lora_node]["inputs"]["strength_model"] = strength_model
 
-        # 修改缩放最长边长度（节点 301）
-        if "301" in workflow:
-            workflow["301"]["inputs"]["scale_to_length"] = resize_longest_edge
+        # 修改 Checkpoint（仅限有 checkpoint 的工作流）
+        if cfg.get("has_checkpoint") and checkpoint_name:
+            ckpt_node = cfg["checkpoint_node"]
+            if ckpt_node in workflow:
+                workflow[ckpt_node]["inputs"]["ckpt_name"] = checkpoint_name
 
-        # 随机化采样种子，确保每次生成结果不同
-        if "3" in workflow and "seed" in workflow["3"]["inputs"]:
-            max_seed = 2**64 - 1
-            workflow["3"]["inputs"]["seed"] = random.randint(0, max_seed)
+        # 修改缩放最长边长度
+        resize_node = cfg["resize_node"]
+        if resize_node in workflow:
+            workflow[resize_node]["inputs"]["scale_to_length"] = resize_longest_edge
+
+        # 随机化采样种子（使用 rgthree Seed 节点的 max 值，兼容所有工作流）
+        seed_node = cfg["seed_node"]
+        if seed_node in workflow and "seed" in workflow[seed_node]["inputs"]:
+            max_seed = 1125899906842624  # rgthree Seed 节点的上限，约 2^50，足够随机
+            workflow[seed_node]["inputs"]["seed"] = random.randint(0, max_seed)
 
         # 提交任务
         try:
@@ -142,16 +226,19 @@ class BatchProcessorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("ComfyUI 批量动漫转写实处理")
-        self.root.geometry("1200x800")
-
+        k,g = self.root.maxsize()
+        self.root.geometry(f"{int(k*0.8)}x{int(g*0.8)}+{int(k*0.1)}+{int(g*0.1)}")
         self.input_folder = tk.StringVar()
         self.output_folder = tk.StringVar()
-        self.prompt_text = tk.StringVar(value="动漫转真人")
-        self.lora_path = tk.StringVar(value=r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors")
+        self.prompt_text = tk.StringVar(value="transform the image to realistic photograph")
+        self.lora_path = tk.StringVar()
         # 用于存储完整路径的映射
         self.lora_full_paths = {}
+        self.checkpoint_path = tk.StringVar()
+        self.checkpoint_full_paths = {}
         self.start_index = tk.IntVar(value=0)
         self.resize_longest_edge = tk.IntVar(value=1440)
+        self.strength_model = tk.DoubleVar(value=1.0)
         self.process_mode = tk.StringVar(value="全自动模式")  # 全自动模式/半自动模式
         self.workflow_name = tk.StringVar(value="高还原")
         self.processor = ComfyUIBatchProcessor(workflow_name="高还原")
@@ -212,6 +299,9 @@ class BatchProcessorGUI:
         self.create_control_panel(self.control_frame)
         self.create_preview_panel(self.bottom_frame)
 
+        # 根据默认工作流设置初始可见性
+        self.on_workflow_changed()
+
         # 全屏提示标签
         self.fullscreen_hint = tk.Label(
             self.root,
@@ -244,6 +334,61 @@ class BatchProcessorGUI:
         tk.Label(prompt_frame, text="提示词:", width=12).pack(side=tk.LEFT)
         tk.Entry(prompt_frame, textvariable=self.prompt_text).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
 
+        # 提示词预设按钮
+        presets_frame = tk.Frame(parent)
+        presets_frame.pack(fill=tk.X, pady=(0, 5))
+        tk.Label(presets_frame, text="", width=12).pack(side=tk.LEFT)  # 占位对齐
+
+        self._preset_buttons = []
+        self._preset_btn_frame = tk.Frame(presets_frame)
+        self._preset_btn_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        def apply_preset(text):
+            self.prompt_text.set(text)
+
+        def add_current_as_preset():
+            current = self.prompt_text.get().strip()
+            if not current:
+                return
+            if current in self.prompt_presets:
+                return
+            self.prompt_presets.append(current)
+            self._save_presets()
+            _refresh_preset_buttons()
+
+        def _refresh_preset_buttons():
+            for btn in self._preset_buttons:
+                btn.destroy()
+            self._preset_buttons.clear()
+            for p in self.prompt_presets:
+                display = p[:14] + "…" if len(p) > 14 else p
+                btn = tk.Button(
+                    self._preset_btn_frame,
+                    text=display,
+                    command=lambda t=p: apply_preset(t),
+                    font=("Microsoft YaHei UI", 8),
+                    bg="#E3F2FD",
+                    fg="#1565C0",
+                    relief=tk.RAISED,
+                    padx=5,
+                    pady=1
+                )
+                btn.pack(side=tk.LEFT, padx=2)
+                self._preset_buttons.append(btn)
+
+        _refresh_preset_buttons()
+
+        # 添加当前提示词为预设的按钮
+        tk.Button(
+            presets_frame,
+            text="+",
+            command=add_current_as_preset,
+            font=("Microsoft YaHei UI", 9, "bold"),
+            width=3,
+            bg="#E8F5E9",
+            fg="#2E7D32"
+        ).pack(side=tk.LEFT, padx=(5, 0))
+
         # 模式选择 - 下拉框
         mode_frame = tk.Frame(parent, pady=5)
         mode_frame.pack(fill=tk.X)
@@ -259,7 +404,7 @@ class BatchProcessorGUI:
         workflow_frame.pack(fill=tk.X)
         tk.Label(workflow_frame, text="工作流:", width=12).pack(side=tk.LEFT)
         workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.workflow_name, state="readonly", width=20)
-        workflow_combo['values'] = ["高还原", "图片编辑(无LoRA)"]
+        workflow_combo['values'] = ["高还原", "图片编辑(无LoRA)", "qwen_edit_aio_单图编辑", "Krea2+Edit+动漫转写实"]
         workflow_combo.pack(side=tk.LEFT, padx=5)
         workflow_combo.current(0)
         workflow_combo.bind('<<ComboboxSelected>>', lambda _: self.on_workflow_changed())
@@ -274,6 +419,26 @@ class BatchProcessorGUI:
         # 加载模型列表
         self.load_lora_models()
         self._lora_frame = lora_frame  # 保存引用以便切换工作流时隐藏/显示
+
+        # 模型强度输入
+        strength_frame = tk.Frame(parent, pady=5)
+        strength_frame.pack(fill=tk.X)
+        tk.Label(strength_frame, text="模型强度:", width=12).pack(side=tk.LEFT)
+        self.strength_spinbox = tk.Spinbox(strength_frame, textvariable=self.strength_model, from_=0.1, to=10.0, increment=0.1, width=10)
+        self.strength_spinbox.pack(side=tk.LEFT, padx=5)
+        tk.Label(strength_frame, text="(默认 1.0，范围 0.1-10.0)", fg="#666").pack(side=tk.LEFT)
+        self._strength_frame = strength_frame  # 保存引用以便切换工作流时隐藏/显示
+
+        # Checkpoint 模型选择（qwen_edit_aio 工作流使用）
+        checkpoint_frame = tk.Frame(parent, pady=5)
+        checkpoint_frame.pack(fill=tk.X)
+        tk.Label(checkpoint_frame, text="Checkpoint:", width=12).pack(side=tk.LEFT)
+        self.checkpoint_combo = ttk.Combobox(checkpoint_frame, textvariable=self.checkpoint_path, state="readonly")
+        self.checkpoint_combo.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        tk.Button(checkpoint_frame, text="刷新", command=self.load_checkpoint_models, width=6).pack(side=tk.LEFT, padx=2)
+        self._checkpoint_frame = checkpoint_frame  # 保存引用以便切换工作流时隐藏/显示
+        # 加载 checkpoint 列表
+        self.load_checkpoint_models()
 
         # 缩放最长边输入
         resize_frame = tk.Frame(parent, pady=5)
@@ -436,13 +601,22 @@ class BatchProcessorGUI:
             self.log_expanded = True
 
     def on_workflow_changed(self):
-        """工作流切换时显示/隐藏 LoRA 选项，并更新处理器"""
+        """工作流切换时显示/隐藏对应选项，并更新处理器"""
         wn = self.workflow_name.get()
         self.processor = ComfyUIBatchProcessor(workflow_name=wn)
-        if wn == "图片编辑(无LoRA)":
-            self._lora_frame.pack_forget()
-        else:
+
+        # 先全部隐藏
+        self._lora_frame.pack_forget()
+        self._strength_frame.pack_forget()
+        self._checkpoint_frame.pack_forget()
+
+        if wn == "高还原" or wn == "Krea2+Edit+动漫转写实":
             self._lora_frame.pack(fill=tk.X, before=self._after_lora_frame)
+            self._strength_frame.pack(fill=tk.X, before=self._after_lora_frame)
+            self.load_lora_models()
+        elif wn == "qwen_edit_aio_单图编辑":
+            self._checkpoint_frame.pack(fill=tk.X, before=self._after_lora_frame)
+        # 图片编辑(无LoRA): 不显示任何额外选项
 
     def resize_image(self, img, max_width, max_height):
         """缩放图片以填充显示区域（小图放大，大图缩小）"""
@@ -547,8 +721,9 @@ class BatchProcessorGUI:
 
     def load_lora_models(self):
         """加载 LoRA 模型列表"""
-        lora_folder = r"J:\models\loras\qwen_edit\自创"
         base_path = r"J:\models\loras"
+        subdir = self.processor.config.get("lora_search_subdir", r"qwen_edit\自创")
+        lora_folder = os.path.join(base_path, subdir)
 
         if os.path.exists(lora_folder):
             model_files = []
@@ -558,7 +733,7 @@ class BatchProcessorGUI:
                     if file.lower().endswith('.safetensors') or file.lower().endswith('.pt') or file.lower().endswith('.pth'):
                         # 存储完整路径
                         full_path = os.path.join(root, file)
-                        # 生成相对路径（从 qwen_edit\自创 开始）
+                        # 生成相对路径（从 models\loras 开始）
                         rel_path = os.path.relpath(full_path, base_path)
                         model_files.append(rel_path)
                         # 保存相对路径到完整路径的映射
@@ -569,7 +744,7 @@ class BatchProcessorGUI:
 
             # 设置默认选中项
             if model_files:
-                default_model = r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors"
+                default_model = self.processor.config.get("lora_default", model_files[0])
                 if default_model in model_files:
                     self.lora_path.set(default_model)
                 else:
@@ -577,15 +752,51 @@ class BatchProcessorGUI:
         else:
             messagebox.showwarning("警告", f"模型文件夹不存在：{lora_folder}")
 
+    def load_checkpoint_models(self):
+        """加载 Checkpoint 模型列表"""
+        ckpt_folder = r"J:\models\checkpoints"
+        base_path = r"J:\models\checkpoints"
+
+        if os.path.exists(ckpt_folder):
+            model_files = []
+            for root, _, files in os.walk(ckpt_folder):
+                for file in files:
+                    if file.lower().endswith('.safetensors') or file.lower().endswith('.ckpt') or file.lower().endswith('.pt'):
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, base_path)
+                        model_files.append(rel_path)
+                        self.checkpoint_full_paths[rel_path] = full_path
+
+            self.checkpoint_combo['values'] = model_files
+
+            if model_files:
+                # 默认选 AIO 模型
+                default_ckpt = r"Qwen-Image-Edit-Remix-AIO-v2.0.safetensors"
+                if default_ckpt in model_files:
+                    self.checkpoint_path.set(default_ckpt)
+                else:
+                    self.checkpoint_path.set(model_files[0])
+        else:
+            messagebox.showwarning("警告", f"Checkpoint 文件夹不存在：{ckpt_folder}")
+
+    DEFAULT_PRESETS = [
+        "transform the image to realistic photograph",
+        "动漫转真人",
+        "动漫转写实",
+        "写实转二次元动漫风格",
+    ]
+
     def _load_presets(self):
         """加载提示词预设"""
         if os.path.exists(self.PRESETS_FILE):
             try:
                 with open(self.PRESETS_FILE, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if data:
+                        return data
             except Exception:
                 pass
-        return []
+        return list(self.DEFAULT_PRESETS)
 
     def _save_presets(self):
         """保存提示词预设到文件"""
@@ -962,12 +1173,19 @@ class BatchProcessorGUI:
             # 每次循环前获取最新的提示词和 LoRA 路径（支持在半自动模式下修改）
             prompt = self.prompt_text.get().strip()
             resize_value = self.resize_longest_edge.get()
+            strength_value = self.strength_model.get()
 
             # 只有高还原工作流才需要 LoRA
             if self.processor.has_lora_node:
                 lora_name = self.lora_path.get().strip()
             else:
                 lora_name = None
+
+            # 只有带 checkpoint 的工作流才需要 checkpoint
+            if self.processor.has_checkpoint:
+                checkpoint_name = self.checkpoint_path.get().strip()
+            else:
+                checkpoint_name = None
 
             image_file = image_files[i]
             # 更新当前索引
@@ -982,7 +1200,8 @@ class BatchProcessorGUI:
             workflow = self.processor.load_workflow()
             success, result = self.processor.process_image(
                 workflow, input_path, output_folder, original_folder,
-                output_image_folder, prompt, lora_name, resize_value,
+                output_image_folder, prompt, lora_name, strength_value,
+                checkpoint_name, resize_value,
                 stop_check=lambda: self.stop_flag
             )
 

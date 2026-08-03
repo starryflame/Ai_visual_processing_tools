@@ -17,7 +17,7 @@ DARK_HIGHLIGHT = "#0078d4"
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
 
 # 窗口默认尺寸
-DEFAULT_WINDOW_WIDTH = 1000
+DEFAULT_WINDOW_WIDTH = 1400
 DEFAULT_WINDOW_HEIGHT = 1000
 
 # 图片展示区域默认高度

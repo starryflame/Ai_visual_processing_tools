@@ -428,29 +428,8 @@ body {
 .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; width: 0%; transition: width 0.2s; }
 .progress-text { margin: 12px 0 0; font-size: 14px; color: var(--fg-secondary); }
 
-/* ===== Manual Crop Modal ===== */
-.manual-crop-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-  display: none; align-items: center; justify-content: center; z-index: 1000; padding: 24px;
-}
-.manual-crop-modal {
-  background: var(--bg); border-radius: 12px; max-width: 90vw; max-height: 90vh;
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.manual-crop-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px; border-bottom: 1px solid var(--border);
-}
-.manual-crop-title { margin: 0; font-size: 16px; font-weight: 600; }
-.manual-crop-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; background: #1a1a1a; }
-#crop-canvas { max-width: 100%; max-height: 60vh; cursor: crosshair; }
-.manual-crop-footer {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px; border-top: 1px solid var(--border);
-}
 .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-secondary); cursor: pointer; }
 .checkbox-label input { width: 16px; height: 16px; }
-.manual-crop-actions { display: flex; gap: 8px; }
 
 /* ===== Footer ===== */
 .footer { padding: 20px 24px; border-top: 1px solid var(--border); text-align: center; font-size: 13px; color: var(--fg-tertiary); }
@@ -669,30 +648,6 @@ body {
   </div>
 </div>
 
-<!-- Manual Crop Overlay -->
-<div class="manual-crop-overlay" id="manual-crop-overlay">
-  <div class="manual-crop-modal">
-    <div class="manual-crop-header">
-      <span class="manual-crop-title">精细调整裁剪</span>
-      <button class="btn btn-icon" id="close-manual-crop">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="manual-crop-body">
-      <canvas id="crop-canvas"></canvas>
-    </div>
-    <div class="manual-crop-footer">
-      <label class="checkbox-label">
-        <input type="checkbox" id="show-grid"> 显示九宫格
-      </label>
-      <div class="manual-crop-actions">
-        <button class="btn btn-secondary" id="reset-crop-btn">重置</button>
-        <button class="btn btn-primary" id="apply-crop-btn">应用</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Footer -->
 <div class="footer">2025 批量图片裁剪离线版 —— 所有处理在浏览器本地完成</div>
 
@@ -783,27 +738,41 @@ function loadRegularImage(file) {
   });
 }
 
+let _addImagesBusy = false;
+
 async function addImages(files) {
-  const validFiles = Array.from(files).filter(f => f.type.startsWith('image/') || /\.(heic|heif|avif)$/i.test(f.name));
-  if (!validFiles.length) return;
+  if (_addImagesBusy) return;
+  _addImagesBusy = true;
 
-  const results = [];
-  for (const file of validFiles) {
-    const data = await loadRegularImage(file);
-    if (data) results.push(data);
+  try {
+    const existingKeys = new Set(state.images.map(i => `${i.name}|${i.size}`));
+    const validFiles = Array.from(files).filter(f =>
+      (f.type.startsWith('image/') || /\.(heic|heif|avif)$/i.test(f.name)) &&
+      !existingKeys.has(`${f.name.replace(/\.jpeg$/i, '.jpg')}|${f.size}`)
+    );
+    if (!validFiles.length) return;
+
+    const results = [];
+    for (const file of validFiles) {
+      const data = await loadRegularImage(file);
+      if (data) results.push(data);
+    }
+
+    if (!results.length) return;
+    state.images.push(...results);
+
+    if (state.cropOptions.mode === 'pixels' && state.images.length > 0) {
+      const minW = Math.min(...state.images.map(i => i.width));
+      const minH = Math.min(...state.images.map(i => i.height));
+      if (state.cropOptions.pixelWidth > minW) state.cropOptions.pixelWidth = minW;
+      if (state.cropOptions.pixelHeight > minH) state.cropOptions.pixelHeight = minH;
+      document.getElementById('px-width').value = state.cropOptions.pixelWidth;
+      document.getElementById('px-height').value = state.cropOptions.pixelHeight;
+    }
+    updateUI();
+  } finally {
+    _addImagesBusy = false;
   }
-
-  state.images.push(...results);
-
-  if (state.cropOptions.mode === 'pixels' && state.images.length > 0) {
-    const minW = Math.min(...state.images.map(i => i.width));
-    const minH = Math.min(...state.images.map(i => i.height));
-    if (state.cropOptions.pixelWidth > minW) state.cropOptions.pixelWidth = minW;
-    if (state.cropOptions.pixelHeight > minH) state.cropOptions.pixelHeight = minH;
-    document.getElementById('px-width').value = state.cropOptions.pixelWidth;
-    document.getElementById('px-height').value = state.cropOptions.pixelHeight;
-  }
-  updateUI();
 }
 
 function removeImage(id) {
@@ -1442,143 +1411,6 @@ async function downloadAsZip(results) {
   downloadBlob(zipBlob, 'cropped_images.zip');
 }
 
-// ==================== Manual Crop Modal ====================
-let manualCropState = { img: null, canvas: null, ctx: null, imgElement: null, cropBox: { left: 0.1, top: 0.1, width: 0.8, height: 0.8 }, dragging: null, dragStart: { x: 0, y: 0 }, cropStart: null };
-
-function openManualCrop(image) {
-  manualCropState.img = image;
-  const overlay = document.getElementById('manual-crop-overlay');
-  const canvas = document.getElementById('crop-canvas');
-  const ctx = canvas.getContext('2d');
-  manualCropState.canvas = canvas;
-  manualCropState.ctx = ctx;
-
-  overlay.style.display = 'flex';
-  manualCropState.cropBox = image.manualCropRect ? { ...image.manualCropRect } : { left: 0.1, top: 0.1, width: 0.8, height: 0.8 };
-
-  const imgEl = new Image();
-  imgEl.onload = () => {
-    manualCropState.imgElement = imgEl;
-    const maxW = window.innerWidth * 0.8, maxH = window.innerHeight * 0.6;
-    const scale = Math.min(maxW / imgEl.width, maxH / imgEl.height, 1);
-    canvas.width = imgEl.width * scale;
-    canvas.height = imgEl.height * scale;
-    drawManualCrop();
-  };
-  imgEl.src = image.preview;
-}
-
-function closeManualCrop() {
-  document.getElementById('manual-crop-overlay').style.display = 'none';
-  manualCropState.img = null;
-  manualCropState.imgElement = null;
-}
-
-function drawManualCrop() {
-  const { ctx, canvas, imgElement, cropBox } = manualCropState;
-  if (!ctx || !imgElement) return;
-
-  const w = canvas.width, h = canvas.height;
-  const showGrid = document.getElementById('show-grid').checked;
-
-  ctx.drawImage(imgElement, 0, 0, w, h);
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.fillRect(0, 0, w, h);
-
-  const cx = cropBox.left * w, cy = cropBox.top * h;
-  const cw = cropBox.width * w, ch = cropBox.height * h;
-
-  ctx.save(); ctx.beginPath(); ctx.rect(cx, cy, cw, ch); ctx.clip();
-  ctx.drawImage(imgElement, 0, 0, w, h); ctx.restore();
-
-  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2;
-  ctx.strokeRect(cx, cy, cw, ch);
-
-  if (showGrid) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx+cw/3, cy); ctx.lineTo(cx+cw/3, cy+ch);
-    ctx.moveTo(cx+cw*2/3, cy); ctx.lineTo(cx+cw*2/3, cy+ch);
-    ctx.moveTo(cx, cy+ch/3); ctx.lineTo(cx+cw, cy+ch/3);
-    ctx.moveTo(cx, cy+ch*2/3); ctx.lineTo(cx+cw, cy+ch*2/3);
-    ctx.stroke();
-  }
-
-  const hs = 10;
-  ctx.fillStyle = '#3b82f6';
-  [[cx, cy], [cx+cw, cy], [cx, cy+ch], [cx+cw, cy+ch], [cx+cw/2, cy], [cx+cw/2, cy+ch], [cx, cy+ch/2], [cx+cw, cy+ch/2]]
-    .forEach(([px, py]) => ctx.fillRect(px-hs/2, py-hs/2, hs, hs));
-}
-
-function getMCHandle(x, y) {
-  const { canvas, cropBox } = manualCropState;
-  const w = canvas.width, h = canvas.height;
-  const cx = cropBox.left * w, cy = cropBox.top * h;
-  const cw = cropBox.width * w, ch = cropBox.height * h;
-  const t = 15;
-  if (Math.abs(x-cx) < t && Math.abs(y-cy) < t) return 'nw';
-  if (Math.abs(x-cx-cw) < t && Math.abs(y-cy) < t) return 'ne';
-  if (Math.abs(x-cx) < t && Math.abs(y-cy-ch) < t) return 'sw';
-  if (Math.abs(x-cx-cw) < t && Math.abs(y-cy-ch) < t) return 'se';
-  if (Math.abs(y-cy) < t && x > cx && x < cx+cw) return 'n';
-  if (Math.abs(y-cy-ch) < t && x > cx && x < cx+cw) return 's';
-  if (Math.abs(x-cx) < t && y > cy && y < cy+ch) return 'w';
-  if (Math.abs(x-cx-cw) < t && y > cy && y < cy+ch) return 'e';
-  if (x > cx && x < cx+cw && y > cy && y < cy+ch) return 'move';
-  return null;
-}
-
-function onMCCanvasMouseDown(e) {
-  const rect = manualCropState.canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const handle = getMCHandle(x, y);
-  if (handle) {
-    manualCropState.dragging = handle;
-    manualCropState.dragStart = { x, y };
-    manualCropState.cropStart = { ...manualCropState.cropBox };
-  }
-}
-
-function onMCCanvasMouseMove(e) {
-  const rect = manualCropState.canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const handle = getMCHandle(x, y);
-  const canvas = manualCropState.canvas;
-  if (handle === 'nw' || handle === 'se') canvas.style.cursor = 'nwse-resize';
-  else if (handle === 'ne' || handle === 'sw') canvas.style.cursor = 'nesw-resize';
-  else if (handle === 'n' || handle === 's') canvas.style.cursor = 'ns-resize';
-  else if (handle === 'e' || handle === 'w') canvas.style.cursor = 'ew-resize';
-  else if (handle === 'move') canvas.style.cursor = 'move';
-  else canvas.style.cursor = 'crosshair';
-
-  if (!manualCropState.dragging) return;
-
-  const dx = (x - manualCropState.dragStart.x) / canvas.width;
-  const dy = (y - manualCropState.dragStart.y) / canvas.height;
-  const mw = 24 / Math.max(1, manualCropState.img.width);
-  const mh = 24 / Math.max(1, manualCropState.img.height);
-  const start = manualCropState.cropStart;
-  let cb = { ...start };
-
-  if (manualCropState.dragging === 'move') {
-    cb.left = Math.max(0, Math.min(1 - start.width, start.left + dx));
-    cb.top = Math.max(0, Math.min(1 - start.height, start.top + dy));
-  } else {
-    const ht = manualCropState.dragging;
-    if (ht.includes('w')) { cb.left = Math.max(0, start.left + dx); cb.width = Math.max(mw, start.width - dx); if (cb.left + cb.width > 1) cb.width = 1 - cb.left; }
-    if (ht.includes('e')) { cb.width = Math.max(mw, start.width + dx); if (cb.left + cb.width > 1) cb.width = 1 - cb.left; }
-    if (ht.includes('n')) { cb.top = Math.max(0, start.top + dy); cb.height = Math.max(mh, start.height - dy); if (cb.top + cb.height > 1) cb.height = 1 - cb.top; }
-    if (ht.includes('s')) { cb.height = Math.max(mh, start.height + dy); if (cb.top + cb.height > 1) cb.height = 1 - cb.top; }
-  }
-  cb = clampRectToBounds(cb);
-  manualCropState.cropBox = cb;
-  drawManualCrop();
-}
-
-function onMCCanvasMouseUp() {
-  manualCropState.dragging = null;
-}
-
 // ==================== Filename Preview ====================
 function updateFilenamePreview() {
   const el = document.getElementById('filename-preview');
@@ -1682,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
   uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
   uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
   uploadZone.addEventListener('drop', e => {
-    e.preventDefault(); uploadZone.classList.remove('dragover');
+    e.preventDefault(); e.stopPropagation(); uploadZone.classList.remove('dragover');
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/') || /\.(heic|heif|avif)$/i.test(f.name));
     if (files.length) addImages(files);
   });
@@ -1872,37 +1704,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   renderSocialGrid();
 
-  // Manual crop modal
-  document.getElementById('close-manual-crop').addEventListener('click', closeManualCrop);
-  document.getElementById('reset-crop-btn').addEventListener('click', () => {
-    manualCropState.cropBox = { left: 0.1, top: 0.1, width: 0.8, height: 0.8 };
-    drawManualCrop();
-  });
-  document.getElementById('apply-crop-btn').addEventListener('click', () => {
-    if (manualCropState.img) {
-      manualCropState.img.manualCropRect = { ...manualCropState.cropBox };
-    }
-    closeManualCrop();
-    renderGrid();
-  });
-  document.getElementById('show-grid').addEventListener('change', drawManualCrop);
-
-  const mcCanvas = document.getElementById('crop-canvas');
-  mcCanvas.addEventListener('mousedown', onMCCanvasMouseDown);
-  mcCanvas.addEventListener('mousemove', onMCCanvasMouseMove);
-  mcCanvas.addEventListener('mouseup', onMCCanvasMouseUp);
-  mcCanvas.addEventListener('mouseleave', onMCCanvasMouseUp);
-
-  // Click on image card to open manual crop
-  document.getElementById('image-grid').addEventListener('click', e => {
-    const card = e.target.closest('.image-card');
-    if (!card) return;
-    if (e.target.closest('.image-remove') || e.target.closest('.crop-box') || e.target.closest('.crop-handle')) return;
-    const img = state.images.find(i => i.id === card.dataset.id);
-    if (img && (state.cropOptions.mode === 'manual' || state.cropOptions.mode === 'shape')) {
-      openManualCrop(img);
-    }
-  });
+  // manual crop modal removed
 });
 
 // ==================== Apply aspect ratio to manual crop ====================

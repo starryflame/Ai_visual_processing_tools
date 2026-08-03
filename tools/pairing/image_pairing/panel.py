@@ -477,6 +477,10 @@ class ImagePanel:
         if self.main_window and hasattr(self.main_window, 'enable_export_button'):
             self.main_window.enable_export_button()
 
+        # 对比模式下刷新对比视图
+        if self.main_window and hasattr(self.main_window, '_on_pair_changed'):
+            self.main_window._on_pair_changed()
+
     def _preload_neighbors(self, current_index):
         """异步预加载相邻图片"""
         if not self.image_files:

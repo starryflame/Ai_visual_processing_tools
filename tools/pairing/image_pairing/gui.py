@@ -298,7 +298,14 @@ class ImagePairToolGUI:
         self.pending_delete = None
 
     def _on_arrow_key(self, direction):
-        """处理上下箭头键：列表聚焦时放行，否则同步切换"""
+        """处理上下箭头键：对比模式下始终同步切换，否则列表聚焦时放行"""
+        if self.compare_mode:
+            # 对比模式下始终同步两侧面板
+            if direction == 'prev':
+                self.sync_prev_image()
+            else:
+                self.sync_next_image()
+            return "break"
         focused = self.root.focus_get()
         if focused is self.left_panel.listbox or focused is self.right_panel.listbox:
             return  # 列表聚焦时交给 Listbox 自己的导航处理
@@ -796,10 +803,11 @@ class ImagePairToolGUI:
         size_mode = tk.IntVar(value=1)   # 0=较小值, 1=裁剪, 2=填充, 3=指定分辨率
         rename_mode = tk.IntVar(value=1)  # 0=原名, 1=序号
         shuffle_var = tk.BooleanVar(value=False)
-        crop_direction = tk.StringVar(value="top")
+        portrait_crop = tk.StringVar(value="top")
+        landscape_crop = tk.StringVar(value="center")
         rotate_var = tk.BooleanVar(value=False)
-        custom_w_var = tk.StringVar(value="1024")
-        custom_h_var = tk.StringVar(value="1024")
+        custom_w_var = tk.StringVar(value="1560")
+        custom_h_var = tk.StringVar(value="1560")
 
         body = tk.Frame(dialog, bg=bg)
         body.pack(padx=24, pady=16)
@@ -821,13 +829,47 @@ class ImagePairToolGUI:
         radio("调整为两者中较小的宽高值", size_mode, 0)
         radio("转为 1:1 正方形（裁剪：横图居中，竖图方向见下方）", size_mode, 1)
         radio("转为 1:1 正方形（白色背景填充，保留完整内容）", size_mode, 2)
-        radio("统一调整为指定分辨率", size_mode, 3)
+        radio("统一调整为指定分辨率（直接缩放，不做裁剪/填充）", size_mode, 3)
 
-        # 自定义分辨率输入区域
-        custom_size_holder = tk.Frame(body, bg=bg)
-        custom_size_holder.pack(fill=tk.X)
-        custom_size_row = tk.Frame(custom_size_holder, bg=bg)
-        tk.Label(custom_size_row, text="目标分辨率：", bg=bg, fg=fg).pack(side=tk.LEFT)
+        # 裁剪方向区域（竖图 + 横图）—— 仅 1:1 裁剪模式显示
+        crop_holder = tk.Frame(body, bg=bg)
+        crop_holder.pack(fill=tk.X)
+
+        # 竖图裁剪方向
+        portrait_crop_row = tk.Frame(crop_holder, bg=bg)
+        tk.Label(portrait_crop_row, text="竖图裁剪方向：", bg=bg, fg=fg).pack(side=tk.LEFT)
+        portrait_crop_cb = ttk.Combobox(portrait_crop_row, textvariable=portrait_crop,
+                                        values=["上方（top）", "中间（center）", "下方（bottom）"],
+                                        state="readonly", width=16)
+        portrait_crop_cb.pack(side=tk.LEFT)
+
+        # 横图裁剪方向
+        landscape_crop_row = tk.Frame(crop_holder, bg=bg)
+        tk.Label(landscape_crop_row, text="横图裁剪方向：", bg=bg, fg=fg).pack(side=tk.LEFT)
+        landscape_crop_cb = ttk.Combobox(landscape_crop_row, textvariable=landscape_crop,
+                                         values=["左方（left）", "中间（center）", "右方（right）"],
+                                         state="readonly", width=16)
+        landscape_crop_cb.pack(side=tk.LEFT)
+
+        # 初始隐藏裁剪方向（默认选中 mode 1，所以需要显示）
+        portrait_crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
+        landscape_crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
+
+        def on_mode_change(*_):
+            if size_mode.get() == 1:
+                portrait_crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
+                landscape_crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
+            else:
+                portrait_crop_row.pack_forget()
+                landscape_crop_row.pack_forget()
+
+        size_mode.trace_add("write", on_mode_change)
+
+        # 目标分辨率（始终可见，所有模式均可指定最终输出分辨率）
+        tk.Label(body, text="", bg=bg).pack()  # 间距
+        custom_size_row = tk.Frame(body, bg=bg)
+        custom_size_row.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(custom_size_row, text="输出分辨率：", bg=bg, fg=fg).pack(side=tk.LEFT)
         tk.Entry(custom_size_row, textvariable=custom_w_var, width=6,
                  bg=DARK_ENTRY_BG if self.dark_mode else "white",
                  fg=fg).pack(side=tk.LEFT)
@@ -835,30 +877,8 @@ class ImagePairToolGUI:
         tk.Entry(custom_size_row, textvariable=custom_h_var, width=6,
                  bg=DARK_ENTRY_BG if self.dark_mode else "white",
                  fg=fg).pack(side=tk.LEFT)
-
-        # 裁剪方向区域（占位 + 内容，初始隐藏但占布局顺序）
-        crop_holder = tk.Frame(body, bg=bg)
-        crop_holder.pack(fill=tk.X)
-        crop_row = tk.Frame(crop_holder, bg=bg)
-        tk.Label(crop_row, text="竖图裁剪方向：", bg=bg, fg=fg).pack(side=tk.LEFT)
-        crop_cb = ttk.Combobox(crop_row, textvariable=crop_direction,
-                               values=["上方（top）", "下方（bottom）"],
-                               state="readonly", width=14)
-        crop_cb.pack(side=tk.LEFT)
-        crop_cb["state"] = "readonly"
-
-        def on_mode_change(*_):
-            if size_mode.get() == 1:
-                crop_row.pack(fill=tk.X, padx=(32, 0), pady=1)
-                custom_size_row.pack_forget()
-            elif size_mode.get() == 3:
-                crop_row.pack_forget()
-                custom_size_row.pack(fill=tk.X, padx=(32, 0), pady=1)
-            else:
-                crop_row.pack_forget()
-                custom_size_row.pack_forget()
-
-        size_mode.trace_add("write", on_mode_change)
+        tk.Label(custom_size_row, text="  （留空则使用处理后的原始尺寸）", bg=bg,
+                 fg="#888888" if self.dark_mode else "#666666").pack(side=tk.LEFT)
 
         label("文件命名方式", bold=True)
         radio("保留原始文件名（统一导出为 .png）", rename_mode, 0)
@@ -882,19 +902,38 @@ class ImagePairToolGUI:
             result["fill_ratio"] = size_mode.get() >= 1
             result["size_mode"] = size_mode.get()
             if size_mode.get() == 1:
-                result["crop_style"] = 'bottom' if crop_direction.get().startswith("下方") else 'top'
+                # 竖图裁剪
+                if portrait_crop.get().startswith("下方"):
+                    result["portrait_crop"] = 'bottom'
+                elif portrait_crop.get().startswith("中间"):
+                    result["portrait_crop"] = 'center'
+                else:
+                    result["portrait_crop"] = 'top'
+                # 横图裁剪
+                if landscape_crop.get().startswith("右方"):
+                    result["landscape_crop"] = 'right'
+                elif landscape_crop.get().startswith("中间"):
+                    result["landscape_crop"] = 'center'
+                else:
+                    result["landscape_crop"] = 'left'
             else:
-                result["crop_style"] = None
-            if size_mode.get() == 3:
+                result["portrait_crop"] = None
+                result["landscape_crop"] = None
+            # 自定义分辨率（始终可指定，留空则不强制缩放）
+            cw_str = custom_w_var.get().strip()
+            ch_str = custom_h_var.get().strip()
+            if cw_str and ch_str:
                 try:
-                    cw = int(custom_w_var.get())
-                    ch = int(custom_h_var.get())
+                    cw = int(cw_str)
+                    ch = int(ch_str)
                     if cw <= 0 or ch <= 0:
                         raise ValueError
                     result["custom_size"] = (cw, ch)
                 except ValueError:
-                    messagebox.showwarning("输入错误", "请输入有效的正整数分辨率", parent=dialog)
+                    messagebox.showwarning("输入错误", "请输入有效的正整数分辨率，或留空使用原始尺寸", parent=dialog)
                     return
+            else:
+                result["custom_size"] = None
             result["enable_rename"] = rename_mode.get() == 1
             result["shuffle_order"] = shuffle_var.get() if rename_mode.get() == 1 else False
             result["rotate"] = rotate_var.get()
@@ -905,6 +944,18 @@ class ImagePairToolGUI:
 
         tk.Button(btn_frame, text="确定", command=on_ok, width=10).pack(side=tk.LEFT, padx=10)
         tk.Button(btn_frame, text="取消", command=on_cancel, width=10).pack(side=tk.LEFT, padx=10)
+
+        # 对话框居中显示
+        dialog.update_idletasks()
+        dw = dialog.winfo_reqwidth()
+        dh = dialog.winfo_reqheight()
+        rw = self.root.winfo_rootx()
+        rh = self.root.winfo_rooty()
+        ww = self.root.winfo_width()
+        wh = self.root.winfo_height()
+        x = rw + (ww - dw) // 2
+        y = rh + (wh - dh) // 2
+        dialog.geometry(f"+{x}+{y}")
 
         dialog.wait_window()
         return result if result["ok"] else None
@@ -950,7 +1001,8 @@ class ImagePairToolGUI:
             return
 
         fill_ratio = cfg["fill_ratio"]
-        crop_style = cfg["crop_style"]
+        portrait_crop = cfg.get("portrait_crop", "top")
+        landscape_crop = cfg.get("landscape_crop", "center")
         size_mode = cfg.get("size_mode", 0)
         custom_size = cfg.get("custom_size", None)
         enable_rename = cfg["enable_rename"]
@@ -1120,14 +1172,14 @@ class ImagePairToolGUI:
 
                 # 处理尺寸
                 if size_mode == 3:
-                    target_w, target_h = custom_size
-                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
-                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+                    # 模式3：不做中间处理，直接走后面的自定义分辨率缩放
+                    img_left_processed = img_left
+                    img_right_processed = img_right
                 elif fill_ratio:
                     target_square_size = max(target_w, target_h)
-                    if crop_style:
-                        img_left_cropped = crop_to_square(img_left, crop_style)
-                        img_right_cropped = crop_to_square(img_right, crop_style)
+                    if portrait_crop or landscape_crop:
+                        img_left_cropped = crop_to_square(img_left, portrait_crop, landscape_crop)
+                        img_right_cropped = crop_to_square(img_right, portrait_crop, landscape_crop)
                         img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
                         img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
                     else:
@@ -1136,6 +1188,12 @@ class ImagePairToolGUI:
                 else:
                     img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
                     img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+
+                # 如果指定了自定义分辨率，最终缩放到目标分辨率（所有模式通用）
+                if custom_size:
+                    cw, ch = custom_size
+                    img_left_processed = img_left_processed.resize((cw, ch), Image.LANCZOS)
+                    img_right_processed = img_right_processed.resize((cw, ch), Image.LANCZOS)
 
                 # 生成导出文件名
                 suffix = ROT_SUFFIX[angle]
@@ -1200,15 +1258,18 @@ class ImagePairToolGUI:
         # 显示结果
         rotate_info = "（4旋转版本）" if do_rotate else ""
         if error_count == 0:
+            # 构建处理描述
             if size_mode == 3:
-                fill_info = f"（已统一调整为 {custom_size[0]}x{custom_size[1]}）"
+                fill_info = ""
             elif fill_ratio:
-                if crop_style:
+                if portrait_crop or landscape_crop:
                     fill_info = "（已裁剪为 1:1）"
                 else:
                     fill_info = "（已填充为 1:1 白色背景）"
             else:
                 fill_info = ""
+            if custom_size:
+                fill_info += f" → 已缩放至 {custom_size[0]}×{custom_size[1]}"
             preview_line = f"\n- {preview_folder}" if preview_folder else ""
             messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}{rotate_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}{preview_line}")
         else:
@@ -1254,14 +1315,16 @@ class ImagePairToolGUI:
             if not cfg:
                 return
             fill_ratio = cfg["fill_ratio"]
-            crop_style = cfg["crop_style"]
+            portrait_crop = cfg.get("portrait_crop", "top")
+            landscape_crop = cfg.get("landscape_crop", "center")
             size_mode = cfg.get("size_mode", 0)
             custom_size = cfg.get("custom_size", None)
             do_rotate = cfg.get("rotate", False)
             do_preview = self.preview_var.get()
         else:
             fill_ratio = False
-            crop_style = None
+            portrait_crop = None
+            landscape_crop = None
             size_mode = 0
             custom_size = None
             do_rotate = False
@@ -1312,26 +1375,36 @@ class ImagePairToolGUI:
                 rw, rh = img_right.size
 
                 if size_mode == 3:
-                    target_w, target_h = custom_size
-                    img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
-                    img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
-                    final_size = f"{target_w}x{target_h}"
+                    # 模式3：不做中间处理，直接走后面的自定义分辨率缩放
+                    img_left_processed = img_left
+                    img_right_processed = img_right
                 elif fill_ratio:
                     target_square_size = max(lw, rw, lh, rh)
-                    if crop_style:
-                        img_left_cropped = crop_to_square(img_left, crop_style)
-                        img_right_cropped = crop_to_square(img_right, crop_style)
+                    if portrait_crop or landscape_crop:
+                        img_left_cropped = crop_to_square(img_left, portrait_crop, landscape_crop)
+                        img_right_cropped = crop_to_square(img_right, portrait_crop, landscape_crop)
                         img_left_processed = img_left_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
                         img_right_processed = img_right_cropped.resize((target_square_size, target_square_size), Image.LANCZOS)
                     else:
                         img_left_processed = fill_image_with_background(img_left, (target_square_size, target_square_size))
                         img_right_processed = fill_image_with_background(img_right, (target_square_size, target_square_size))
-                    final_size = f"{target_square_size}x{target_square_size}"
                 else:
                     target_w = min(lw, rw)
                     target_h = min(lh, rh)
                     img_left_processed = img_left.resize((target_w, target_h), Image.LANCZOS)
                     img_right_processed = img_right.resize((target_w, target_h), Image.LANCZOS)
+
+                # 如果指定了自定义分辨率，最终缩放到目标分辨率（所有模式通用）
+                if custom_size:
+                    cw, ch = custom_size
+                    img_left_processed = img_left_processed.resize((cw, ch), Image.LANCZOS)
+                    img_right_processed = img_right_processed.resize((cw, ch), Image.LANCZOS)
+                    final_size = f"{cw}x{ch}"
+                elif size_mode == 3:
+                    final_size = "原始尺寸"
+                elif size_mode == 1 or size_mode == 2:
+                    final_size = f"{target_square_size}x{target_square_size}"
+                else:
                     final_size = f"{target_w}x{target_h}"
 
                 suffix = ROT_SUFFIX[angle]
@@ -1363,14 +1436,16 @@ class ImagePairToolGUI:
                 self.status_label.config(text=self.status_label.cget("text") + f" | 预览图已保存至 配对预览/")
 
             if size_mode == 3:
-                fill_text = f"（已统一调整为 {custom_size[0]}x{custom_size[1]}）"
+                fill_text = ""
             elif fill_ratio:
-                if crop_style:
+                if portrait_crop or landscape_crop:
                     fill_text = "（已裁剪为 1:1）"
                 else:
                     fill_text = "（已填充为 1:1 白色背景）"
             else:
                 fill_text = ""
+            if custom_size:
+                fill_text += f" → 已缩放至 {custom_size[0]}×{custom_size[1]}"
 
             rotate_info = "（4旋转版本）" if do_rotate else ""
             self.status_label.config(text=f"✓ 已导出{fill_text}{rotate_info}：共 {len(exported)} 对 ({final_size}) | 切换图片后可再次导出")

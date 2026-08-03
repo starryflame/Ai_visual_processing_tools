@@ -26,7 +26,7 @@ __pycache__/
 video_mark_tool\视频打标器\重构 copy
 pyproject.toml
 .vscode/settings.json
-
+简历/
 
 !video_prompt.txt
 resume_oneline.html
