@@ -7,6 +7,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import os
+import re
 from pathlib import Path
 import shutil
 import random
@@ -37,6 +38,7 @@ class ImagePairToolGUI:
         self.export_disabled = False
         self.ask_export_options = tk.BooleanVar(value=False)  # 默认不勾选，导出时不询问处理选项
         self.preview_var = tk.BooleanVar(value=False)  # 导出时生成配对预览拼接图
+        self.pair_format_var = tk.BooleanVar(value=False)  # 两两配对格式：N_start / N_end 直接存入输出文件夹
 
         # 进度条变量
         self.progress_var = tk.DoubleVar()
@@ -101,6 +103,19 @@ class ImagePairToolGUI:
                                        width=15, bg="#2d7a3e" if self.dark_mode else "#4CAF50",
                                        fg="white")
         self.export_button.pack(side=tk.RIGHT, padx=10)
+
+        # 两两配对格式勾选框（N_start / N_end，直接存入输出文件夹）
+        self.pair_format_checkbutton = tk.Checkbutton(
+            toolbar,
+            text="两两配对（start/end）",
+            variable=self.pair_format_var,
+            bg=DARK_BG if self.dark_mode else None,
+            fg=DARK_FG if self.dark_mode else None,
+            activebackground=DARK_BG if self.dark_mode else None,
+            activeforeground=DARK_FG if self.dark_mode else None,
+            selectcolor=DARK_HIGHLIGHT
+        )
+        self.pair_format_checkbutton.pack(side=tk.RIGHT, padx=10)
 
         # 导出时询问选项勾选框
         self.ask_options_checkbutton = tk.Checkbutton(
@@ -860,8 +875,13 @@ class ImagePairToolGUI:
                  fg="#888888" if self.dark_mode else "#666666").pack(side=tk.LEFT)
 
         label("文件命名方式", bold=True)
-        radio("保留原始文件名（统一导出为 .png）", rename_mode, 0)
-        radio("按序号重命名（pair_001.png, pair_002.png...）", rename_mode, 1)
+        if self.pair_format_var.get():
+            tk.Label(body, text="两两配对：1_start.jpg / 1_end.jpg（直接存入输出文件夹）",
+                     bg=bg, fg=DARK_HIGHLIGHT if self.dark_mode else "#0078d4",
+                     anchor="w").pack(fill=tk.X, padx=(16, 0), pady=1)
+        else:
+            radio("保留原始文件名（统一导出为 .png）", rename_mode, 0)
+            radio("按序号重命名（pair_001.png, pair_002.png...）", rename_mode, 1)
         checkbox("随机打乱顺序", shuffle_var)
 
         label("数据增强", bold=True)
@@ -913,8 +933,9 @@ class ImagePairToolGUI:
                     return
             else:
                 result["custom_size"] = None
-            result["enable_rename"] = rename_mode.get() == 1
-            result["shuffle_order"] = shuffle_var.get() if rename_mode.get() == 1 else False
+            result["enable_rename"] = rename_mode.get() == 1 and not self.pair_format_var.get()
+            result["rename_mode"] = 2 if self.pair_format_var.get() else rename_mode.get()
+            result["shuffle_order"] = shuffle_var.get() and (result["enable_rename"] or self.pair_format_var.get())
             result["rotate"] = rotate_var.get()
             dialog.destroy()
 
@@ -985,6 +1006,7 @@ class ImagePairToolGUI:
         size_mode = cfg.get("size_mode", 0)
         custom_size = cfg.get("custom_size", None)
         enable_rename = cfg["enable_rename"]
+        rename_mode_val = cfg.get("rename_mode", 1)
         shuffle_order = cfg["shuffle_order"]
         do_rotate = cfg["rotate"]
         do_preview = self.preview_var.get()
@@ -992,11 +1014,14 @@ class ImagePairToolGUI:
         ROTATION_ANGLES = [0, 90, 180, 270] if do_rotate else [0]
         ROT_SUFFIX = {0: "", 90: "_r90", 180: "_r180", 270: "_r270"}
 
-        # 创建导出子文件夹
-        control_folder = os.path.join(export_folder, "control")
-        target_folder = os.path.join(export_folder, "target")
-        os.makedirs(control_folder, exist_ok=True)
-        os.makedirs(target_folder, exist_ok=True)
+        # 创建导出子文件夹（模式2直接存入输出文件夹，不创建子文件夹）
+        if rename_mode_val == 2:
+            control_folder = target_folder = export_folder
+        else:
+            control_folder = os.path.join(export_folder, "control")
+            target_folder = os.path.join(export_folder, "target")
+            os.makedirs(control_folder, exist_ok=True)
+            os.makedirs(target_folder, exist_ok=True)
         preview_folder = os.path.join(export_folder, "配对预览") if do_preview else None
         if preview_folder:
             os.makedirs(preview_folder, exist_ok=True)
@@ -1013,7 +1038,13 @@ class ImagePairToolGUI:
         # 如果启用重命名，先扫描已存在的文件，获取已使用的序号和文件
         used_indices = set()
         existing_files = []  # 已存在的文件列表
-        if enable_rename:
+        if rename_mode_val == 2:
+            # 扫描输出文件夹中已存在的 序号_start.jpg，序号从已有最大编号累增
+            for f in os.listdir(export_folder):
+                m = re.match(r"(\d+)_start\.jpg$", f, re.IGNORECASE)
+                if m:
+                    used_indices.add(int(m.group(1)))
+        elif enable_rename:
             image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
             for folder in [control_folder, target_folder]:
                 for f in os.listdir(folder):
@@ -1028,7 +1059,16 @@ class ImagePairToolGUI:
         # 为每个任务分配序号
         file_index_map = {}
         existing_index_map = {}  # 已存在文件的序号映射：旧序号 -> 新序号
-        if enable_rename and shuffle_order:
+        if rename_mode_val == 2:
+            # 每对图（同一文件名）分配一个序号，旋转版本共用该序号
+            next_index = 1
+            for filename, angle in task_list:
+                if filename not in file_index_map:
+                    while next_index in used_indices:
+                        next_index += 1
+                    file_index_map[filename] = next_index
+                    next_index += 1
+        elif enable_rename and shuffle_order:
             # 彻底打乱模式：所有文件（已存在 + 新导出）一起分配随机序号
             total_files = len(used_indices) + total_count  # 总文件数
             all_indices = list(range(1, total_files + 1))  # 连续序号 1 到总数
@@ -1176,6 +1216,31 @@ class ImagePairToolGUI:
 
                 # 生成导出文件名
                 suffix = ROT_SUFFIX[angle]
+
+                if rename_mode_val == 2:
+                    # 两两配对格式：直接存入输出文件夹，命名为 序号_start.jpg / 序号_end.jpg
+                    pair_idx = file_index_map[filename]
+                    left_out_name = f"{pair_idx}_start{suffix}.jpg"
+                    right_out_name = f"{pair_idx}_end{suffix}.jpg"
+                    img_left_processed.convert("RGB").save(os.path.join(export_folder, left_out_name))
+                    img_right_processed.convert("RGB").save(os.path.join(export_folder, right_out_name))
+
+                    # 导出 TXT 标注文件
+                    txt_name = Path(filename).stem + '.txt'
+                    left_txt = os.path.join(left_folder, txt_name)
+                    right_txt = os.path.join(right_folder, txt_name)
+                    if os.path.exists(left_txt):
+                        shutil.copy2(left_txt, os.path.join(export_folder, f"{pair_idx}_start{suffix}.txt"))
+                    if os.path.exists(right_txt):
+                        shutil.copy2(right_txt, os.path.join(export_folder, f"{pair_idx}_end{suffix}.txt"))
+
+                    # 生成配对预览拼接图
+                    if preview_folder:
+                        stitched = stitch_pair_preview(img_left_processed, img_right_processed)
+                        stitched.convert("RGB").save(os.path.join(preview_folder, f"{pair_idx}_pair{suffix}.jpg"))
+
+                    return (filename, True, None)
+
                 if enable_rename:
                     file_index = file_index_map[(filename, angle)]
                     export_name = f"pair_{file_index:03d}{suffix}.png"
@@ -1250,7 +1315,11 @@ class ImagePairToolGUI:
             if custom_size:
                 fill_info += f" → 已缩放至 {custom_size[0]}×{custom_size[1]}"
             preview_line = f"\n- {preview_folder}" if preview_folder else ""
-            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}{rotate_info}\n所有文件保存到:\n- {control_folder}\n- {target_folder}{preview_line}")
+            if rename_mode_val == 2:
+                save_lines = f"- {export_folder}"
+            else:
+                save_lines = f"- {control_folder}\n- {target_folder}"
+            messagebox.showinfo("完成", f"成功导出 {success_count} 对图片！{fill_info}{rotate_info}\n所有文件保存到:\n{save_lines}{preview_line}")
         else:
             error_details = "\n".join(errors[:5])
             if error_count > 5:
@@ -1269,7 +1338,7 @@ class ImagePairToolGUI:
         self.right_panel.update_listbox_colors()
 
     def export_pairs(self):
-        """导出配对图片（调整分辨率后分别保存），同时导出同名 TXT 标注文件"""
+        """导出配对图片：未勾选询问选项时直接复制原图重命名；勾选时按配置处理后保存"""
         export_folder = self.export_folder.get()
 
         if not export_folder:
@@ -1287,32 +1356,103 @@ class ImagePairToolGUI:
             messagebox.showerror("错误", "右侧面板没有选中的图片")
             return
 
-        # 根据勾选框决定是否弹出配置对话框
-        if self.ask_export_options.get():
-            self._pending_export_count = 1
-            cfg = self._show_export_config_dialog()
-            if not cfg:
-                return
-            fill_ratio = cfg["fill_ratio"]
-            portrait_crop = cfg.get("portrait_crop", "top")
-            landscape_crop = cfg.get("landscape_crop", "center")
-            size_mode = cfg.get("size_mode", 0)
-            custom_size = cfg.get("custom_size", None)
-            do_rotate = cfg.get("rotate", False)
-            do_preview = self.preview_var.get()
-        else:
-            fill_ratio = False
-            portrait_crop = None
-            landscape_crop = None
-            size_mode = 0
-            custom_size = None
-            do_rotate = False
-            do_preview = self.preview_var.get()
+        startend = self.pair_format_var.get()
 
-        control_folder = os.path.join(export_folder, "control")
-        target_folder = os.path.join(export_folder, "target")
-        os.makedirs(control_folder, exist_ok=True)
-        os.makedirs(target_folder, exist_ok=True)
+        # 未勾选"导出时询问选项"：直接复制原图重命名（不做任何尺寸处理）
+        if not self.ask_export_options.get():
+            IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
+            if startend:
+                out_dir_l = out_dir_r = export_folder
+                used = set()
+                for f in os.listdir(export_folder):
+                    m = re.match(r"(\d+)_start\.[A-Za-z0-9]+$", f)
+                    if m:
+                        used.add(int(m.group(1)))
+                pair_index = 1
+                while pair_index in used:
+                    pair_index += 1
+                l_name = f"{pair_index}_start{Path(left_path).suffix}"
+                r_name = f"{pair_index}_end{Path(right_path).suffix}"
+            else:
+                out_dir_l = os.path.join(export_folder, "control")
+                out_dir_r = os.path.join(export_folder, "target")
+                os.makedirs(out_dir_l, exist_ok=True)
+                os.makedirs(out_dir_r, exist_ok=True)
+                if Path(left_path).name == Path(right_path).name:
+                    # 左右同名：保留原名直接复制，不重命名
+                    l_name = r_name = Path(left_path).name
+                else:
+                    used = set()
+                    for folder in [out_dir_l, out_dir_r]:
+                        for f in os.listdir(folder):
+                            if f.startswith("pair_") and Path(f).suffix.lower() in IMAGE_EXTS:
+                                try:
+                                    used.add(int(f[5:8]))
+                                except ValueError:
+                                    pass
+                    pair_index = 1
+                    while pair_index in used:
+                        pair_index += 1
+                    l_name = f"pair_{pair_index:03d}{Path(left_path).suffix}"
+                    r_name = f"pair_{pair_index:03d}{Path(right_path).suffix}"
+
+            shutil.copy2(left_path, os.path.join(out_dir_l, l_name))
+            shutil.copy2(right_path, os.path.join(out_dir_r, r_name))
+
+            base_name = Path(left_path).stem
+            left_txt = Path(left_path).parent / (base_name + '.txt')
+            right_txt = Path(right_path).parent / (base_name + '.txt')
+            if left_txt.exists():
+                shutil.copy2(left_txt, os.path.join(out_dir_l, Path(l_name).stem + '.txt'))
+            if right_txt.exists():
+                shutil.copy2(right_txt, os.path.join(out_dir_r, Path(r_name).stem + '.txt'))
+
+            if self.preview_var.get():
+                preview_folder = os.path.join(export_folder, "配对预览")
+                os.makedirs(preview_folder, exist_ok=True)
+                img_l = Image.open(left_path)
+                img_r = Image.open(right_path)
+                stitched = stitch_pair_preview(img_l, img_r)
+                preview_name = Path(l_name).stem.replace("_start", "_pair") + '.jpg'
+                stitched.convert("RGB").save(os.path.join(preview_folder, preview_name))
+
+            fmt_text = "start/end" if startend else "control/target"
+            self.status_label.config(text=f"✓ 已直接复制（{fmt_text}）：{l_name} / {r_name} | 切换图片后可再次导出")
+            self.disable_export_button()
+            self.left_panel.mark_as_paired(Path(left_path).name)
+            self.right_panel.mark_as_paired(Path(right_path).name)
+            return
+
+        # 勾选"导出时询问选项"：弹出配置对话框，尺寸处理对两种格式均有效
+        self._pending_export_count = 1
+        cfg = self._show_export_config_dialog()
+        if not cfg:
+            return
+        fill_ratio = cfg["fill_ratio"]
+        portrait_crop = cfg.get("portrait_crop", "top")
+        landscape_crop = cfg.get("landscape_crop", "center")
+        size_mode = cfg.get("size_mode", 0)
+        custom_size = cfg.get("custom_size", None)
+        do_rotate = cfg.get("rotate", False)
+        do_preview = self.preview_var.get()
+        rename_mode_val = cfg.get("rename_mode", 1)
+
+        if rename_mode_val == 2:
+            # 两两配对格式：直接存入输出文件夹
+            control_folder = target_folder = export_folder
+            used_indices = set()
+            for f in os.listdir(export_folder):
+                m = re.match(r"(\d+)_start\.jpg$", f, re.IGNORECASE)
+                if m:
+                    used_indices.add(int(m.group(1)))
+            pair_index = 1
+            while pair_index in used_indices:
+                pair_index += 1
+        else:
+            control_folder = os.path.join(export_folder, "control")
+            target_folder = os.path.join(export_folder, "target")
+            os.makedirs(control_folder, exist_ok=True)
+            os.makedirs(target_folder, exist_ok=True)
 
         left_name = Path(left_path).name
         right_name = Path(right_path).name
@@ -1387,31 +1527,51 @@ class ImagePairToolGUI:
                     final_size = f"{target_w}x{target_h}"
 
                 suffix = ROT_SUFFIX[angle]
-                export_name = alloc_name(suffix)
 
-                img_left_processed.save(os.path.join(control_folder, export_name))
-                img_right_processed.save(os.path.join(target_folder, export_name))
-                exported.append(export_name)
+                if rename_mode_val == 2:
+                    left_out_name = f"{pair_index}_start{suffix}.jpg"
+                    right_out_name = f"{pair_index}_end{suffix}.jpg"
+                    img_left_processed.convert("RGB").save(os.path.join(export_folder, left_out_name))
+                    img_right_processed.convert("RGB").save(os.path.join(export_folder, right_out_name))
+                    exported.append((left_out_name, right_out_name))
+                else:
+                    export_name = alloc_name(suffix)
+                    img_left_processed.save(os.path.join(control_folder, export_name))
+                    img_right_processed.save(os.path.join(target_folder, export_name))
+                    exported.append(export_name)
 
             # 导出 TXT 标注文件（每份旋转副本都复制一份）
-            for export_name in exported:
-                txt_export_name = Path(export_name).stem + '.txt'
-                if left_txt.exists():
-                    shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
-                if right_txt.exists():
-                    shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
+            for name in exported:
+                if rename_mode_val == 2:
+                    left_out_name, right_out_name = name
+                    if left_txt.exists():
+                        shutil.copy2(left_txt, os.path.join(export_folder, Path(left_out_name).stem + '.txt'))
+                    if right_txt.exists():
+                        shutil.copy2(right_txt, os.path.join(export_folder, Path(right_out_name).stem + '.txt'))
+                else:
+                    txt_export_name = Path(name).stem + '.txt'
+                    if left_txt.exists():
+                        shutil.copy2(left_txt, os.path.join(control_folder, txt_export_name))
+                    if right_txt.exists():
+                        shutil.copy2(right_txt, os.path.join(target_folder, txt_export_name))
 
             # 生成配对预览拼接图
             if do_preview:
                 preview_folder = os.path.join(export_folder, "配对预览")
                 os.makedirs(preview_folder, exist_ok=True)
-                for export_name in exported:
-                    ctrl_path = os.path.join(control_folder, export_name)
-                    tgt_path = os.path.join(target_folder, export_name)
-                    img_left = Image.open(ctrl_path)
-                    img_right = Image.open(tgt_path)
-                    stitched = stitch_pair_preview(img_left, img_right)
-                    stitched.save(os.path.join(preview_folder, export_name))
+                for name in exported:
+                    if rename_mode_val == 2:
+                        left_out_name, right_out_name = name
+                        img_left = Image.open(os.path.join(export_folder, left_out_name))
+                        img_right = Image.open(os.path.join(export_folder, right_out_name))
+                        stitched = stitch_pair_preview(img_left, img_right)
+                        preview_name = Path(left_out_name).stem.replace("_start", "_pair") + '.jpg'
+                        stitched.convert("RGB").save(os.path.join(preview_folder, preview_name))
+                    else:
+                        img_left = Image.open(os.path.join(control_folder, name))
+                        img_right = Image.open(os.path.join(target_folder, name))
+                        stitched = stitch_pair_preview(img_left, img_right)
+                        stitched.save(os.path.join(preview_folder, name))
                 self.status_label.config(text=self.status_label.cget("text") + f" | 预览图已保存至 配对预览/")
 
             if size_mode == 3:
