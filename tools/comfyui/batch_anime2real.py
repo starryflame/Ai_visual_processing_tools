@@ -33,7 +33,7 @@ class ComfyUIBatchProcessor:
             "lora_node": "337",
             "has_checkpoint": False,
             "lora_search_subdir": r"qwen_edit\自创",
-            "lora_default": r"qwen_edit\自创\动漫转真人_我的人物_000002000.safetensors",
+            "lora_default": r"qwen_edit\自创\动漫转真人_best.safetensors",
         },
         "图片编辑(无LoRA)": {
             "file": "图片编辑无lora.json",
@@ -54,17 +54,41 @@ class ComfyUIBatchProcessor:
             "has_checkpoint": True,
             "checkpoint_node": "2",
         },
-        "Krea2+Edit+动漫转写实": {
-            "file": "Krea2+Edit+动漫转写实风格.json",
-            "load_image_node": "25",
-            "prompt_node": "34",
-            "resize_node": "39",
-            "seed_node": "7",
+        "Krea2_漫转写实真人": {
+            # 该工作流已内置全部模型参数，批量处理时可覆盖
+            # 提示词、分辨率与 LoRA（扫描 J:\models\loras\flux 目录）
+            "file": "Krea2_漫转写实真人.json",
+            "load_image_node": "227",
+            "prompt_node": "220",
+            "resize_node": "225",
             "has_lora": True,
-            "lora_node": "32",
-            "has_checkpoint": False,
+            "lora_node": "236",
+            "lora_name_input": "lora_01",        # rgthree LoRA堆加载器的输入键名
+            "lora_strength_input": "strength_01",
             "lora_search_subdir": r"flux",
-            "lora_default": r"flux\Krea2_Anything2RealCharacters-V1.safetensors",
+            "lora_default": r"flux\Krea2_Anything2RealCharacters-V3.safetensors",
+        },
+        "Qwen2.1_漫转写实真人": {
+            # Qwen Image 2.1 图像编辑工作流，LoRA 仅扫描 J:\models\loras\qwenimage2.1
+            "file": "image_qwen_image_2_1_image_edit.json",
+            "load_image_node": "470",
+            "prompt_node": "493",
+            "resize_node": "480",
+            "seed_node": "489",
+            "has_lora": True,
+            "lora_node": "494",
+            "lora_search_subdir": r"qwenimage2.1",
+            "lora_default": r"qwenimage2.1\anime2real4_c1-st5000.safetensors",
+        },
+        "Qwen2.1_无LoRA": {
+            # 与上一条同一工作流，但去掉了 LoRA 节点（494），直接用底模
+            "file": "image_qwen_image_2_1_image_edit_no_lora.json",
+            "load_image_node": "470",
+            "prompt_node": "493",
+            "resize_node": "480",
+            "seed_node": "489",
+            "has_lora": False,
+            "has_checkpoint": False,
         },
     }
 
@@ -138,17 +162,21 @@ class ComfyUIBatchProcessor:
         # 修改 LoadImage 节点的输入图片
         workflow[cfg["load_image_node"]]["inputs"]["image"] = image_filename
 
-        # 修改提示词
-        prompt_node = cfg["prompt_node"]
-        if prompt_node in workflow:
+        # 修改提示词（仅当工作流配置了提示词节点）
+        prompt_node = cfg.get("prompt_node")
+        if prompt_node and prompt_node in workflow:
             workflow[prompt_node]["inputs"]["prompt"] = prompt
 
         # 修改 LoRA（仅限有 LoRA 的工作流）
         if cfg.get("has_lora"):
             lora_node = cfg["lora_node"]
             if lora_node in workflow:
-                workflow[lora_node]["inputs"]["lora_name"] = lora_name
-                workflow[lora_node]["inputs"]["strength_model"] = strength_model
+                # 普通 LoraLoader 节点用 lora_name/strength_model，
+                # rgthree LoRA堆加载器用 lora_01/strength_01，可通过配置指定
+                name_key = cfg.get("lora_name_input", "lora_name")
+                strength_key = cfg.get("lora_strength_input", "strength_model")
+                workflow[lora_node]["inputs"][name_key] = lora_name
+                workflow[lora_node]["inputs"][strength_key] = strength_model
 
         # 修改 Checkpoint（仅限有 checkpoint 的工作流）
         if cfg.get("has_checkpoint") and checkpoint_name:
@@ -156,14 +184,14 @@ class ComfyUIBatchProcessor:
             if ckpt_node in workflow:
                 workflow[ckpt_node]["inputs"]["ckpt_name"] = checkpoint_name
 
-        # 修改缩放最长边长度
-        resize_node = cfg["resize_node"]
-        if resize_node in workflow:
+        # 修改缩放最长边长度（仅当工作流配置了缩放节点）
+        resize_node = cfg.get("resize_node")
+        if resize_node and resize_node in workflow:
             workflow[resize_node]["inputs"]["scale_to_length"] = resize_longest_edge
 
-        # 随机化采样种子（使用 rgthree Seed 节点的 max 值，兼容所有工作流）
-        seed_node = cfg["seed_node"]
-        if seed_node in workflow and "seed" in workflow[seed_node]["inputs"]:
+        # 随机化采样种子（仅当工作流配置了种子节点）
+        seed_node = cfg.get("seed_node")
+        if seed_node and seed_node in workflow and "seed" in workflow[seed_node]["inputs"]:
             max_seed = 1125899906842624  # rgthree Seed 节点的上限，约 2^50，足够随机
             workflow[seed_node]["inputs"]["seed"] = random.randint(0, max_seed)
 
@@ -404,7 +432,7 @@ class BatchProcessorGUI:
         workflow_frame.pack(fill=tk.X)
         tk.Label(workflow_frame, text="工作流:", width=12).pack(side=tk.LEFT)
         workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.workflow_name, state="readonly", width=20)
-        workflow_combo['values'] = ["高还原", "图片编辑(无LoRA)", "qwen_edit_aio_单图编辑", "Krea2+Edit+动漫转写实"]
+        workflow_combo['values'] = list(ComfyUIBatchProcessor.WORKFLOW_CONFIGS.keys())
         workflow_combo.pack(side=tk.LEFT, padx=5)
         workflow_combo.current(0)
         workflow_combo.bind('<<ComboboxSelected>>', lambda _: self.on_workflow_changed())
@@ -610,11 +638,12 @@ class BatchProcessorGUI:
         self._strength_frame.pack_forget()
         self._checkpoint_frame.pack_forget()
 
-        if wn == "高还原" or wn == "Krea2+Edit+动漫转写实":
+        cfg = self.processor.config
+        if cfg.get("has_lora"):
             self._lora_frame.pack(fill=tk.X, before=self._after_lora_frame)
             self._strength_frame.pack(fill=tk.X, before=self._after_lora_frame)
             self.load_lora_models()
-        elif wn == "qwen_edit_aio_单图编辑":
+        if cfg.get("has_checkpoint"):
             self._checkpoint_frame.pack(fill=tk.X, before=self._after_lora_frame)
         # 图片编辑(无LoRA): 不显示任何额外选项
 
@@ -1175,7 +1204,7 @@ class BatchProcessorGUI:
             resize_value = self.resize_longest_edge.get()
             strength_value = self.strength_model.get()
 
-            # 只有高还原工作流才需要 LoRA
+            # 只有需要 LoRA 的工作流才需要选择 LoRA
             if self.processor.has_lora_node:
                 lora_name = self.lora_path.get().strip()
             else:

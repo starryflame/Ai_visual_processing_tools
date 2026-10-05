@@ -145,7 +145,10 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('tools/document_processing/pdf_to_image/pdf_to_image.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
       "Bash(pip show *)",
       "Bash(pip install *)",
-      "Bash(python -m pip install PyMuPDF Pillow)"
+      "Bash(python -m pip install PyMuPDF Pillow)",
+      "Bash(python -c \"import flask, PIL; print\\('flask', flask.__version__\\)\")",
+      "Bash(python -)",
+      "Bash(python -m py_compile batch_anime2real.py)"
     ]
   }
 }

@@ -1,0 +1,239 @@
+{
+  "461": {
+    "inputs": {
+      "filename_prefix": "Qwen_image_2.1",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB",
+      "images": [
+        "488",
+        0
+      ]
+    },
+    "class_type": "SaveImageAdvanced",
+    "_meta": {
+      "title": "保存图像（高级）"
+    }
+  },
+  "470": {
+    "inputs": {
+      "image": "illust_137863188_20251126_195912.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "480": {
+    "inputs": {
+      "aspect_ratio": "original",
+      "proportional_width": 1,
+      "proportional_height": 1,
+      "fit": "crop",
+      "method": "nearest",
+      "round_to_multiple": "None",
+      "scale_to_side": "longest",
+      "scale_to_length": 2048,
+      "background_color": "#000000",
+      "image": [
+        "470",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "图层工具：按宽高比缩放 V2"
+    }
+  },
+  "483": {
+    "inputs": {
+      "rgthree_comparer": {
+        "images": [
+          {
+            "name": "A",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_zruap_00073_.png&type=temp&subfolder=&rand=0.22393856051285443"
+          },
+          {
+            "name": "B",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_zruap_00074_.png&type=temp&subfolder=&rand=0.6240107857070497"
+          }
+        ]
+      },
+      "image_a": [
+        "461",
+        0
+      ],
+      "image_b": [
+        "480",
+        0
+      ]
+    },
+    "class_type": "Image Comparer (rgthree)",
+    "_meta": {
+      "title": "图像对比"
+    }
+  },
+  "485": {
+    "inputs": {
+      "clip_name": "Qwen3-VL\\qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "486": {
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "487": {
+    "inputs": {
+      "width": [
+        "480",
+        3
+      ],
+      "height": [
+        "480",
+        4
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "空Latent图像"
+    }
+  },
+  "488": {
+    "inputs": {
+      "samples": [
+        "489",
+        0
+      ],
+      "vae": [
+        "486",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "489": {
+    "inputs": {
+      "seed": 399179870997237,
+      "steps": 18,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "491",
+        0
+      ],
+      "positive": [
+        "493",
+        0
+      ],
+      "negative": [
+        "493",
+        1
+      ],
+      "latent_image": [
+        "490",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "490": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "493",
+        2
+      ],
+      "on_true": [
+        "487",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "切换"
+    }
+  },
+  "491": {
+    "inputs": {
+      "device": "auto",
+      "dtype": "default",
+      "model": [
+        "494",
+        0
+      ]
+    },
+    "class_type": "QwenImage21Cache",
+    "_meta": {
+      "title": "Qwen Image 2.1 Cache"
+    }
+  },
+  "492": {
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "493": {
+    "inputs": {
+      "prompt": "transform the image to realistic photograph",
+      "negative_prompt": "",
+      "resolution": 1024,
+      "clip": [
+        "485",
+        0
+      ],
+      "images.image_1": [
+        "480",
+        0
+      ],
+      "vae": [
+        "486",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImage21",
+    "_meta": {
+      "title": "Text Encode Qwen Image 2.1"
+    }
+  },
+  "494": {
+    "inputs": {
+      "lora_name": "qwenimage2.1\\anime2real4_c1-st5000.safetensors",
+      "strength_model": 1,
+      "model": [
+        "492",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  }
+}

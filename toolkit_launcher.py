@@ -206,6 +206,13 @@ TOOLS_CONFIG = {
             "ui": "gui"
         },
         {
+            "name": "批量动漫转写实 (网页查看器)",
+            "path": "tools/comfyui/batch_anime2real_viewer.py",
+            "desc": "局域网网页实时查看动漫转写实批处理的原图/生成图对比,平板浏览器直接访问",
+            "icon": "🌐", "icon_color": "#7986CB",
+            "ui": "gui"
+        },
+        {
             "name": "批量图片放大",
             "path": "tools/comfyui/batch_image_upscale.py",
             "desc": "连接ComfyUI使用SeedVR2模型批量放大图片、分辨率控制、断点续传",
