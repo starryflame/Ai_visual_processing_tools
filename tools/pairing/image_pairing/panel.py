@@ -7,6 +7,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
+import re
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageTk
@@ -272,6 +273,22 @@ class ImagePanel:
                 break
 
         if valid_folder:
+            # start/end 文件夹：识别 数字_start / 数字_end，分别加载到左右面板
+            all_images = get_image_files(valid_folder)
+            start_files = [f for f in all_images if re.match(r"^\d+_start\.[A-Za-z0-9]+$", f)]
+            end_files = [f for f in all_images if re.match(r"^\d+_end\.[A-Za-z0-9]+$", f)]
+            if start_files and end_files:
+                main_window = getattr(self, 'main_window', None)
+                if main_window and hasattr(main_window, 'left_panel') and hasattr(main_window, 'right_panel'):
+                    lp, rp = main_window.left_panel, main_window.right_panel
+                    lp.folder_path.set(valid_folder)
+                    rp.folder_path.set(valid_folder)
+                    lp.refresh_images(start_files)
+                    rp.refresh_images(end_files)
+                    main_window.status_label.config(
+                        text=f"✓ 已加载 start/end 文件夹：start → 左面板 | end → 右面板（{len(start_files)} 对）")
+                    return
+
             # 检查是否包含 target 和 control 子文件夹
             control_folder = os.path.join(valid_folder, "control")
             target_folder = os.path.join(valid_folder, "target")
@@ -309,11 +326,14 @@ class ImagePanel:
             self.folder_path.set(folder)
             self.refresh_images()
 
-    def refresh_images(self):
-        """刷新图片列表"""
+    def refresh_images(self, files=None):
+        """刷新图片列表（files 传入时按数字序号排序，否则扫描整个文件夹）"""
         folder = self.folder_path.get()
-        self.image_files = get_image_files(folder)
-        self.image_files.sort()
+        if files is not None:
+            self.image_files = sorted(files, key=lambda f: (int(Path(f).stem.split('_')[0]), f))
+        else:
+            self.image_files = get_image_files(folder)
+            self.image_files.sort()
 
         self.listbox.delete(0, tk.END)
         for i, img in enumerate(self.image_files):
@@ -362,6 +382,18 @@ class ImagePanel:
                         if other_name_stem == selected_name_stem:
                             other_index = i
                             break
+
+                    # start/end 按数字配对：N_start ↔ N_end
+                    if other_index is None:
+                        m = re.match(r"^(\d+)_(start|end)$", selected_name_stem)
+                        if m:
+                            num, side = m.group(1), m.group(2)
+                            target_side = 'end' if side == 'start' else 'start'
+                            for i, other_filename in enumerate(other_panel.image_files):
+                                om = re.match(r"^(\d+)_(start|end)$", Path(other_filename).stem)
+                                if om and om.group(1) == num and om.group(2) == target_side:
+                                    other_index = i
+                                    break
 
                 if other_index is not None:
                     if other_panel.current_index != other_index:
