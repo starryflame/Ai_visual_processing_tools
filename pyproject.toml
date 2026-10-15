@@ -10,9 +10,15 @@ dependencies = [
     "gradio-client>=2.4.0",
     "lmstudio>=1.5.0",
     "pyaudio>=0.2.14",
+    "pyqt5>=5.15.11",
     "streamlit>=1.55.0",
     "tkinterdnd2>=0.4.3",
     "websocket>=0.2.1",
     "websocket-client>=1.9.0",
     "werkzeug>=3.1.7",
 ]
+
+[tool.uv]
+# PyQt5-Qt5 只在 5.15.2 提供了 win_amd64 wheel，更新的版本只有 Linux/macOS 轮子，
+# 不加这个约束在 Windows 上会解析失败（且会去尝试编译 Qt 源码）。
+constraint-dependencies = ["pyqt5-qt5==5.15.2"]
