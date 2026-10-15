@@ -23,51 +23,6 @@ class ComfyUIBatchProcessor:
 
     # 工作流配置：定义每个工作流的节点 ID 映射
     WORKFLOW_CONFIGS = {
-        "高还原": {
-            "file": "动漫转写实真人2511（AnythingtoRealCharacters）正式版-高还原2.json",
-            "load_image_node": "78",
-            "prompt_node": "110",
-            "resize_node": "301",
-            "seed_node": "3",
-            "has_lora": True,
-            "lora_node": "337",
-            "has_checkpoint": False,
-            "lora_search_subdir": r"qwen_edit\自创",
-            "lora_default": r"qwen_edit\自创\动漫转真人_best.safetensors",
-        },
-        "图片编辑(无LoRA)": {
-            "file": "图片编辑无lora.json",
-            "load_image_node": "78",
-            "prompt_node": "110",
-            "resize_node": "301",
-            "seed_node": "3",
-            "has_lora": False,
-            "has_checkpoint": False,
-        },
-        "qwen_edit_aio_单图编辑": {
-            "file": "qwen_edit_aio_单图编辑.json",
-            "load_image_node": "9",
-            "prompt_node": "5",
-            "resize_node": "3",
-            "seed_node": "4",
-            "has_lora": False,
-            "has_checkpoint": True,
-            "checkpoint_node": "2",
-        },
-        "Krea2_漫转写实真人": {
-            # 该工作流已内置全部模型参数，批量处理时可覆盖
-            # 提示词、分辨率与 LoRA（扫描 J:\models\loras\flux 目录）
-            "file": "Krea2_漫转写实真人.json",
-            "load_image_node": "227",
-            "prompt_node": "220",
-            "resize_node": "225",
-            "has_lora": True,
-            "lora_node": "236",
-            "lora_name_input": "lora_01",        # rgthree LoRA堆加载器的输入键名
-            "lora_strength_input": "strength_01",
-            "lora_search_subdir": r"flux",
-            "lora_default": r"flux\Krea2_Anything2RealCharacters-V3.safetensors",
-        },
         "Qwen2.1_漫转写实真人": {
             # Qwen Image 2.1 图像编辑工作流，LoRA 仅扫描 J:\models\loras\qwenimage2.1
             "file": "image_qwen_image_2_1_image_edit.json",
@@ -76,7 +31,7 @@ class ComfyUIBatchProcessor:
             "resize_node": "480",
             "seed_node": "489",
             "has_lora": True,
-            "lora_node": "494",
+            "lora_node": "498",
             "lora_search_subdir": r"qwenimage2.1",
             "lora_default": r"qwenimage2.1\anime2real4_c1-st5000.safetensors",
         },
@@ -250,6 +205,8 @@ class BatchProcessorGUI:
     """批量处理 GUI 界面"""
 
     PRESETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt_presets.json")
+    # 与 batch_anime2real_viewer.py 共享：记录输入/输出文件夹，网页查看器据此自动定位
+    STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "batch_anime2real_state.json")
 
     def __init__(self, root):
         self.root = root
@@ -300,6 +257,9 @@ class BatchProcessorGUI:
 
         # 控制面板隐藏状态
         self.control_panel_hidden = False
+
+        # 恢复上次使用的输入/输出文件夹
+        self._load_last_folders()
 
         self.create_widgets()
 
@@ -736,17 +696,44 @@ class BatchProcessorGUI:
         except Exception as e:
             print(f"显示预览错误：{e}")
     
+    def _load_last_folders(self):
+        """恢复上次使用的输入/输出文件夹"""
+        try:
+            with open(self.STATE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return
+        for var, key in ((self.input_folder, "input_folder"),
+                         (self.output_folder, "output_folder")):
+            path = str(data.get(key) or "")
+            if path and os.path.isdir(path):
+                var.set(path)
+
+    def _save_last_folders(self):
+        """记录当前输入/输出文件夹，供下次启动与网页查看器自动定位"""
+        try:
+            with open(self.STATE_FILE, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "input_folder": self.input_folder.get(),
+                    "output_folder": self.output_folder.get(),
+                    "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            print(f"保存路径状态失败: {e}")
+
     def select_input_folder(self):
         """选择输入文件夹"""
         folder = filedialog.askdirectory()
         if folder:
             self.input_folder.set(folder)
-    
+            self._save_last_folders()
+
     def select_output_folder(self):
         """选择输出文件夹"""
         folder = filedialog.askdirectory()
         if folder:
             self.output_folder.set(folder)
+            self._save_last_folders()
 
     def load_lora_models(self):
         """加载 LoRA 模型列表"""
@@ -863,6 +850,9 @@ class BatchProcessorGUI:
         if start_idx < 0 or start_idx >= len(self.image_files):
             messagebox.showerror("错误", f"起始索引超出范围 (0-{len(self.image_files)-1})")
             return
+
+        # 记录本次实际处理的文件夹，网页查看器据此自动跳转到输出目录
+        self._save_last_folders()
 
         # 重置控制变量
         self.is_running = True

@@ -12,6 +12,10 @@
     output_folder/target/<原名>   生成图副本(同名同扩展名)
 本工具按「文件名相同」配对两侧图片。
 
+输出目录会自动识别:桌面版每次选择/开始处理时会把输出文件夹写入
+batch_anime2real_state.json,本服务启动即读取它并自动跳转到该目录,
+之后处理中途切换输出文件夹也会自动跟随。也可用「🔍 自动检测」按钮手动触发。
+
 用法:
     python batch_anime2real_viewer.py [--port 8765] [--no-browser]
 
@@ -36,6 +40,7 @@ from flask import Flask, jsonify, request, send_file
 # ============================================================
 SCRIPT_DIR = Path(__file__).resolve().parent
 STATE_FILE = SCRIPT_DIR / "viewer_state.json"   # 记住上次选择的 root/job
+DESKTOP_STATE_FILE = SCRIPT_DIR / "batch_anime2real_state.json"  # 桌面版记录的输出文件夹,用于自动定位
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 DEFAULT_PORT = 8765
 
@@ -130,18 +135,54 @@ def load_settings():
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return {"root": data.get("root", ""), "job": data.get("job", "")}
+            return {
+                "root": data.get("root", ""),
+                "job": data.get("job", ""),
+                "manual": bool(data.get("manual", False)),
+            }
     except (OSError, ValueError):
-        return {"root": "", "job": ""}
+        return {"root": "", "job": "", "manual": False}
 
 
-def save_settings(root, job):
+def save_settings(root, job, manual=True):
     try:
         with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump({"root": root, "job": job}, f, ensure_ascii=False, indent=2)
+            json.dump({"root": root, "job": job, "manual": manual},
+                      f, ensure_ascii=False, indent=2)
         return True
     except OSError:
         return False
+
+
+def detect_desktop_output():
+    """读取桌面版(batch_anime2real.py)记录的输出文件夹。
+
+    返回该目录的绝对路径字符串;未记录、路径为空或目录已不存在时返回 ""。
+    """
+    try:
+        with open(DESKTOP_STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    out = str(data.get("output_folder") or "").strip()
+    if not out:
+        return ""
+    p = Path(out)
+    return str(p) if p.is_dir() else ""
+
+
+def resolve_settings():
+    """决定查看器使用的 root/job。
+
+    默认跟随桌面版记录的输出文件夹;若用户在查看器里手动选过目录
+    (manual 为真)且该目录仍然存在,则以手动选择为准。
+    """
+    cur = load_settings()
+    auto = detect_desktop_output()
+    if auto and (not cur["manual"] or not Path(cur["root"]).is_dir()):
+        return {"root": auto, "job": auto, "manual": False, "detected": auto}
+    return {"root": cur["root"], "job": cur["job"],
+            "manual": cur["manual"], "detected": auto}
 
 # ============================================================
 # API 路由
@@ -154,7 +195,7 @@ def index():
 
 @app.route("/api/settings")
 def api_settings():
-    return jsonify(ok=True, **load_settings())
+    return jsonify(ok=True, **resolve_settings())
 
 
 @app.route("/api/save", methods=["POST"])
@@ -162,7 +203,18 @@ def api_save():
     data = request.get_json(silent=True) or {}
     root = data.get("root", "")
     job = data.get("job", "")
-    return jsonify(ok=save_settings(root, job))
+    manual = bool(data.get("manual", True))
+    return jsonify(ok=save_settings(root, job, manual))
+
+
+@app.route("/api/autodetect")
+def api_autodetect():
+    """重新读取桌面版记录的输出文件夹,供「自动检测」按钮与轮询使用。"""
+    auto = detect_desktop_output()
+    if not auto:
+        return jsonify(ok=False, error="未找到 batch_anime2real.py 的输出文件夹记录"
+                                       "(桌面版尚未选择或开始处理过)")
+    return jsonify(ok=True, root=auto, job=auto)
 
 
 @app.route("/api/dirs")
@@ -210,6 +262,10 @@ def api_jobs():
         for sub in subdirs:
             if qualifies(sub):
                 jobs.append(str(sub))
+        # 输出文件夹刚选定、还没生成 control/target 时,仍列出根目录,
+        # 这样查看器能一直等待并自动显示第一组结果
+        if not jobs:
+            jobs.append(str(rp))
     return jsonify(ok=True, root=root, jobs=jobs)
 
 
@@ -395,13 +451,14 @@ main { flex:1; display:flex; gap:0; padding:10px; min-height:0; position:relativ
     <div class="title">🎨 动漫转写实 · 实时双图查看器</div>
     <div class="controls">
         <button id="btn-root">📁 选择根目录</button>
+        <button id="btn-detect" title="读取 batch_anime2real.py 的输出文件夹并跳转">🔍 自动检测</button>
         <span id="root-path"></span>
         <select id="sel-job"></select>
         <button id="btn-refresh" title="重新扫描任务文件夹">🔄 刷新</button>
         <label class="chk"><input type="checkbox" id="chk-follow" checked> 自动跟随最新</label>
         <button id="btn-pairs">☰ 对比组列表</button>
     </div>
-    <div class="status" id="status-bar">请先选择包含 control/target 的任务文件夹</div>
+    <div class="status" id="status-bar">正在自动检测 batch_anime2real.py 的输出文件夹…（也可点「📁 选择根目录」手动指定）</div>
 </header>
 
 <main>
@@ -454,7 +511,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c =>
     ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-let cfg = { root:"", job:"", follow:true, viewing:null, lastKey:"" };
+let cfg = { root:"", job:"", follow:true, viewing:null, lastKey:"", manual:false };
+let pollTick = 0;
 
 async function getJSON(url) {
     const r = await fetch(url);
@@ -535,6 +593,11 @@ function updateStatus(s) {
 }
 
 async function poll() {
+    pollTick++;
+    // 未手动指定目录时,定期跟随桌面版记录的输出文件夹(约每 9 秒检查一次)
+    if (!cfg.manual && pollTick % 6 === 1) {
+        await autoDetect(true);
+    }
     if (cfg.job) {
         try {
             const s = await getJSON("/api/state?root=" + encodeURIComponent(cfg.root)
@@ -582,6 +645,30 @@ async function refreshNow() {
         updateNavButtons(pairs, idx);
     } catch (e) { }
 }
+
+/* ---------- 自动检测桌面版的输出文件夹 ---------- */
+async function autoDetect(quiet) {
+    let d;
+    try { d = await getJSON("/api/autodetect"); }
+    catch (e) { return false; }
+    if (!d.ok || !d.root) {
+        if (!quiet) alert(d.error || "未检测到输出文件夹");
+        return false;
+    }
+    if (d.root === cfg.root) {
+        if (quiet) return true;
+        // 目录没变:只是手动触发,刷新一次即可
+        await loadJobs(cfg.job);
+        return true;
+    }
+    cfg.root = d.root;
+    cfg.manual = false;              // 跟随自动检测,下次启动仍会重新定位
+    cfg.lastKey = ""; cfg.viewing = null;
+    $("root-path").textContent = d.root;
+    await loadJobs(d.job || "");
+    return true;
+}
+$("btn-detect").onclick = () => autoDetect(false);
 
 /* ---------- 根目录 + 任务选择 ---------- */
 function joinPath(a, b) {
@@ -633,6 +720,7 @@ $("btn-parent").onclick = async () => { modalPath = parentPath(modalPath); await
 $("btn-choose").onclick = () => {
     if (!modalPath) return;
     cfg.root = modalPath;
+    cfg.manual = true;               // 手动指定后不再被自动检测覆盖
     $("root-path").textContent = modalPath;
     $("modal").classList.add("hidden");
     loadJobs("");
@@ -669,7 +757,7 @@ function onJobChange() {
     cfg.job = $("sel-job").value || "";
     cfg.lastKey = ""; cfg.viewing = null;
     updateNavButtons(null, -1);
-    postJSON("/api/save", { root: cfg.root, job: cfg.job });
+    postJSON("/api/save", { root: cfg.root, job: cfg.job, manual: cfg.manual });
     refreshNow();
 }
 $("sel-job").onchange = onJobChange;
@@ -753,6 +841,7 @@ async function openDrawer() {
 (async function init() {
     try {
         const s = await getJSON("/api/settings");
+        cfg.manual = !!s.manual;
         if (s.root) {
             cfg.root = s.root;
             $("root-path").textContent = s.root;

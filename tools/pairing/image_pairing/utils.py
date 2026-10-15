@@ -36,6 +36,37 @@ def fill_image_with_background(img, target_size, bg_color=(255, 255, 255)):
     return background.convert('RGB')
 
 
+def crop_to_region(img, region, ratio=None):
+    """按相对比例裁剪图片
+
+    Args:
+        img: PIL Image 对象
+        region: (x0, y0, x1, y1) 相对比例（0~1），表示裁剪区域
+        ratio: 可选 (w, h) 宽高比；传入时裁剪结果精确符合该比例（按像素对齐）
+
+    Returns:
+        裁剪后的图片
+    """
+    width, height = img.size
+    x0 = int(round(region[0] * width))
+    y0 = int(round(region[1] * height))
+    x1 = int(round(region[2] * width))
+    y1 = int(round(region[3] * height))
+
+    if ratio:
+        # 按目标比例精确对齐像素：宽取比例的整数倍，保证 宽/高 严格等于比例
+        r0, r1 = ratio
+        k = (x1 - x0) // r0
+        if y0 + k * r1 > height:
+            k = (height - y0) // r1
+        if k < 1:
+            return img.crop((x0, y0, x1, y1))
+        w, h = k * r0, k * r1
+        x1, y1 = x0 + w, y0 + h
+
+    return img.crop((x0, y0, x1, y1))
+
+
 def crop_to_square(img, portrait_crop='top', landscape_crop='center'):
     """
     将图片裁剪为 1:1 正方形

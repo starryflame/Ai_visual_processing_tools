@@ -17,7 +17,7 @@
   },
   "470": {
     "inputs": {
-      "image": "illust_137863188_20251126_195912.jpg"
+      "image": "illust_101779941_20221008_234253.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -52,12 +52,12 @@
           {
             "name": "A",
             "selected": true,
-            "url": "/api/view?filename=rgthree.compare._temp_zruap_00073_.png&type=temp&subfolder=&rand=0.22393856051285443"
+            "url": "/api/view?filename=rgthree.compare._temp_gppdr_00013_.png&type=temp&subfolder=&rand=0.4746788660134975"
           },
           {
             "name": "B",
             "selected": true,
-            "url": "/api/view?filename=rgthree.compare._temp_zruap_00074_.png&type=temp&subfolder=&rand=0.6240107857070497"
+            "url": "/api/view?filename=rgthree.compare._temp_gppdr_00014_.png&type=temp&subfolder=&rand=0.305919884919469"
           }
         ]
       },
@@ -130,8 +130,8 @@
   },
   "489": {
     "inputs": {
-      "seed": 399179870997237,
-      "steps": 18,
+      "seed": 250034040519402,
+      "steps": 8,
       "cfg": 1,
       "sampler_name": "euler",
       "scheduler": "simple",
@@ -180,7 +180,7 @@
       "device": "auto",
       "dtype": "default",
       "model": [
-        "494",
+        "498",
         0
       ]
     },
@@ -191,7 +191,7 @@
   },
   "492": {
     "inputs": {
-      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "unet_name": "qwen_image_2.1_turbo_bf16.safetensors",
       "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
@@ -201,7 +201,7 @@
   },
   "493": {
     "inputs": {
-      "prompt": "transform the image to realistic photograph",
+      "prompt": "真人少女,现实照片",
       "negative_prompt": "",
       "resolution": 1024,
       "clip": [
@@ -222,9 +222,9 @@
       "title": "Text Encode Qwen Image 2.1"
     }
   },
-  "494": {
+  "498": {
     "inputs": {
-      "lora_name": "qwenimage2.1\\anime2real4_c1-st5000.safetensors",
+      "lora_name": "qwenimage2.1\\anime2real16_c1-st3000.safetensors",
       "strength_model": 1,
       "model": [
         "492",

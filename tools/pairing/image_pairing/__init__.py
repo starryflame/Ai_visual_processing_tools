@@ -8,13 +8,14 @@ from .main import main
 from .config import *
 from .gui import ImagePairToolGUI
 from .panel import ImagePanel
-from .utils import fill_image_with_background, generate_renamed_filename, get_image_files
+from .utils import fill_image_with_background, crop_to_region, generate_renamed_filename, get_image_files
 
 __all__ = [
     'main',
     'ImagePairToolGUI',
     'ImagePanel',
     'fill_image_with_background',
+    'crop_to_region',
     'generate_renamed_filename',
     'get_image_files',
 ]

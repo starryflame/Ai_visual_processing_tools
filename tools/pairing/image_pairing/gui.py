@@ -16,10 +16,11 @@ from PIL import Image, ImageTk, ImageDraw
 
 from config import (
     DARK_BG, DARK_FG, DARK_ENTRY_BG, DARK_BUTTON_BG, DARK_BUTTON_FG,
-    DARK_CONTAINER_BG, DARK_HIGHLIGHT, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
+    DARK_CONTAINER_BG, DARK_HIGHLIGHT, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
+    IMAGE_EXTENSIONS
 )
 from panel import ImagePanel
-from utils import fill_image_with_background, crop_to_square, generate_renamed_filename, get_image_files, stitch_pair_preview
+from utils import fill_image_with_background, crop_to_square, crop_to_region, generate_renamed_filename, get_image_files, stitch_pair_preview
 
 
 class ImagePairToolGUI:
@@ -39,6 +40,9 @@ class ImagePairToolGUI:
         self.ask_export_options = tk.BooleanVar(value=False)  # 默认不勾选，导出时不询问处理选项
         self.preview_var = tk.BooleanVar(value=False)  # 导出时生成配对预览拼接图
         self.pair_format_var = tk.BooleanVar(value=False)  # 两两配对格式：N_start / N_end 直接存入输出文件夹
+        self.crop_var = tk.BooleanVar(value=False)  # 使用手动裁剪区域
+        self._crop_region = None  # 相对比例 (x0, y0, x1, y1)，0~1
+        self._crop_ratio = None   # 锁定的宽高比 (w, h)，用于精确对齐裁剪像素
 
         # 进度条变量
         self.progress_var = tk.DoubleVar()
@@ -703,16 +707,50 @@ class ImagePairToolGUI:
 
         self._delete_images_internal(left_path, right_path, left_name, right_name)
 
+    def _delete_related_txt(self, image_path):
+        """删除图片对应的标注 txt（删图时一并清理，避免残留）
+
+        两种命名约定都处理：
+        - 同名 txt：control/target 模式，1.jpg -> 1.txt
+        - start/end 共用 txt：N_start.jpg / N_end.jpg 共用同一个 N.txt，
+          只有配对的另一张图也已不存在时才删，避免误删还有图的标注
+        """
+        img_path = Path(image_path)
+
+        # 同名 txt
+        same_txt = img_path.with_suffix('.txt')
+        if same_txt.exists():
+            try:
+                os.remove(same_txt)
+            except OSError:
+                pass
+
+        # start/end 共用标注
+        m = re.match(r'^(\d+)_(start|end)$', img_path.stem, re.IGNORECASE)
+        if not m:
+            return
+
+        num, side = m.group(1), m.group(2).lower()
+        other_side = 'end' if side == 'start' else 'start'
+        # 配对的另一张图还在，标注保留
+        for f in img_path.parent.glob(f"{num}_{other_side}.*"):
+            if f.suffix.lower() in IMAGE_EXTENSIONS:
+                return
+
+        pair_txt = img_path.parent / f"{num}.txt"
+        if pair_txt.exists():
+            try:
+                os.remove(pair_txt)
+            except OSError:
+                pass
+
     def _delete_images_internal(self, left_path, right_path, left_name, right_name):
         """内部删除逻辑"""
-        # 删除左侧图片及同名.txt 文件
+        # 删除左侧图片及对应标注.txt 文件
         if left_path and os.path.exists(left_path):
             try:
                 os.remove(left_path)
-                # 删除同名.txt 文件
-                left_txt_path = Path(left_path).with_suffix('.txt')
-                if left_txt_path.exists():
-                    os.remove(left_txt_path)
+                self._delete_related_txt(left_path)
                 self.left_panel.image_files.pop(self.left_panel.current_index)
                 self.left_panel.listbox.delete(self.left_panel.current_index)
                 if self.left_panel.current_index >= len(self.left_panel.image_files):
@@ -726,14 +764,11 @@ class ImagePairToolGUI:
                 messagebox.showerror("错误", f"左侧删除失败：{str(e)}")
                 return
 
-        # 删除右侧图片及同名.txt 文件
+        # 删除右侧图片及对应标注.txt 文件
         if right_path and os.path.exists(right_path):
             try:
                 os.remove(right_path)
-                # 删除同名.txt 文件
-                right_txt_path = Path(right_path).with_suffix('.txt')
-                if right_txt_path.exists():
-                    os.remove(right_txt_path)
+                self._delete_related_txt(right_path)
                 self.right_panel.image_files.pop(self.right_panel.current_index)
                 self.right_panel.listbox.delete(self.right_panel.current_index)
                 if self.right_panel.current_index >= len(self.right_panel.image_files):
@@ -903,6 +938,13 @@ class ImagePairToolGUI:
             radio("按序号重命名（pair_001.png, pair_002.png...）", rename_mode, 1)
         checkbox("随机打乱顺序", shuffle_var)
 
+        label("裁剪区域", bold=True)
+        crop_row = tk.Frame(body, bg=bg)
+        crop_row.pack(fill=tk.X, padx=(16, 0))
+        tk.Checkbutton(crop_row, text="使用手动裁剪区域（按相同比例应用到两张图）",
+                       variable=self.crop_var, bg=bg, fg=fg, selectcolor=bg, anchor="w").pack(side=tk.LEFT)
+        tk.Button(crop_row, text="设置区域", command=self._open_crop_region_editor, width=10).pack(side=tk.RIGHT)
+
         label("数据增强", bold=True)
         checkbox("每个图片对导出4个旋转版本（0°/90°/180°/270°）", rotate_var)
 
@@ -957,6 +999,8 @@ class ImagePairToolGUI:
             result["shuffle_order"] = shuffle_var.get() and (result["enable_rename"] or self.pair_format_var.get())
             result["rotate"] = rotate_var.get()
             result["text_content"] = text_input.get("1.0", "end-1c").strip() if text_input else ""
+            result["crop_region"] = self._crop_region if self.crop_var.get() else None
+            result["crop_ratio"] = self._crop_ratio if self.crop_var.get() else None
             dialog.destroy()
 
         def on_cancel():
@@ -980,6 +1024,213 @@ class ImagePairToolGUI:
         dialog.wait_window()
         self._dialog_open = False
         return result if result["ok"] else None
+
+    def _open_crop_region_editor(self):
+        """弹出裁剪区域编辑器：画布为屏幕一半大小、居中弹出，拖框移动、拖角拉伸，可选比例预设"""
+        left_path = self.left_panel.get_current_image_path()
+        if not left_path:
+            messagebox.showwarning("提示", "请先在左侧面板选中一张图片")
+            return
+
+        try:
+            img = Image.open(left_path)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法打开图片：{e}")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("设置裁剪区域（拖框移动，拖角拉伸）")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        bg = DARK_BG if self.dark_mode else "#f0f0f0"
+        fg = DARK_FG if self.dark_mode else "#000000"
+        dialog.config(bg=bg)
+
+        # 画布 = 屏幕长宽的一半，图片等比缩放居中放置
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        canvas_w, canvas_h = screen_w // 2, screen_h // 2
+        iw, ih = img.size
+        scale = min(canvas_w / iw, canvas_h / ih)
+        disp_w, disp_h = max(1, int(iw * scale)), max(1, int(ih * scale))
+        ox, oy = (canvas_w - disp_w) // 2, (canvas_h - disp_h) // 2
+
+        state = {'mode': None, 'corner': None, 'region': None, 'start': None, 'ratio': None}
+
+        def parse_ratio(s):
+            try:
+                parts = s.replace('：', ':').split(':')
+                w, h = int(parts[0]), int(parts[1])
+                if w <= 0 or h <= 0:
+                    return None
+                return (w, h)
+            except (ValueError, IndexError):
+                messagebox.showwarning("提示", "比例格式应为 宽:高，如 4:3", parent=dialog)
+                return None
+
+        def apply_ratio(r):
+            state['ratio'] = r
+            if r is None:
+                redraw()
+                return
+            x0, y0, x1, y1 = state['region']
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            cur_w, cur_h = x1 - x0, y1 - y0
+            if cur_w / cur_h > r[0] / r[1]:
+                new_h = min(cur_h, disp_h)
+                new_w = new_h * r[0] / r[1]
+            else:
+                new_w = min(cur_w, disp_w)
+                new_h = new_w * r[1] / r[0]
+            nx0 = max(ox, min(ox + disp_w - new_w, cx - new_w / 2))
+            ny0 = max(oy, min(oy + disp_h - new_h, cy - new_h / 2))
+            state['region'] = [nx0, ny0, nx0 + new_w, ny0 + new_h]
+            redraw()
+
+        # 比例预设行
+        preset_row = tk.Frame(dialog, bg=bg)
+        preset_row.pack(fill=tk.X, padx=10, pady=(8, 0))
+        for txt, r in [("1:1", (1, 1)), ("4:3", (4, 3)), ("16:9", (16, 9)),
+                       ("3:2", (3, 2)), ("9:16", (9, 16)), ("自由", None)]:
+            tk.Button(preset_row, text=txt, width=6, command=lambda r=r: apply_ratio(r)).pack(side=tk.LEFT, padx=2)
+        ratio_entry = tk.Entry(preset_row, width=8,
+                               bg=DARK_ENTRY_BG if self.dark_mode else "white", fg=fg)
+        ratio_entry.insert(0, "1:1")
+        ratio_entry.pack(side=tk.LEFT, padx=(8, 2))
+        tk.Button(preset_row, text="应用", width=6,
+                  command=lambda: apply_ratio(parse_ratio(ratio_entry.get()))).pack(side=tk.LEFT, padx=2)
+
+        canvas = tk.Canvas(dialog, width=canvas_w, height=canvas_h,
+                           bg=DARK_CONTAINER_BG if self.dark_mode else "#dddddd")
+        canvas.pack(padx=10, pady=10)
+        photo = ImageTk.PhotoImage(img.resize((disp_w, disp_h), Image.LANCZOS))
+        canvas.create_image(ox, oy, anchor=tk.NW, image=photo)
+
+        if self._crop_region:
+            rx0, ry0, rx1, ry1 = self._crop_region
+            state['region'] = [ox + rx0 * disp_w, oy + ry0 * disp_h,
+                               ox + rx1 * disp_w, oy + ry1 * disp_h]
+        else:
+            state['region'] = [ox + disp_w * 0.2, oy + disp_h * 0.2,
+                               ox + disp_w * 0.8, oy + disp_h * 0.8]
+
+        HANDLE = 8
+        info_label = tk.Label(dialog, text="", bg=bg,
+                              fg="#888888" if self.dark_mode else "#666666")
+        info_label.pack(fill=tk.X, padx=10)
+
+        def update_info():
+            x0, y0, x1, y1 = state['region']
+            px0, py0 = int((x0 - ox) / disp_w * iw), int((y0 - oy) / disp_h * ih)
+            px1, py1 = int((x1 - ox) / disp_w * iw), int((y1 - oy) / disp_h * ih)
+            info_label.config(text=f"原图裁剪框：({px0}, {py0}) → ({px1}, {py1})，{px1 - px0}×{py1 - py1} px")
+
+        def redraw():
+            canvas.delete('overlay')
+            x0, y0, x1, y1 = state['region']
+            canvas.create_rectangle(x0, y0, x1, y1, outline=DARK_HIGHLIGHT, width=2, tags='overlay')
+            for cx, cy in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]:
+                canvas.create_rectangle(cx - HANDLE // 2, cy - HANDLE // 2,
+                                        cx + HANDLE // 2, cy + HANDLE // 2,
+                                        fill=DARK_HIGHLIGHT, outline=DARK_HIGHLIGHT, tags='overlay')
+            update_info()
+
+        def on_press(event):
+            x0, y0, x1, y1 = state['region']
+            corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+            for i, (cx, cy) in enumerate(corners):
+                if abs(event.x - cx) <= HANDLE and abs(event.y - cy) <= HANDLE:
+                    state['mode'] = 'corner'
+                    state['corner'] = i
+                    return
+            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                state['mode'] = 'move'
+                state['start'] = (event.x, event.y)
+
+        def on_motion(event):
+            if not state['mode']:
+                return
+            x0, y0, x1, y1 = state['region']
+            if state['mode'] == 'move':
+                dx, dy = event.x - state['start'][0], event.y - state['start'][1]
+                w, h = x1 - x0, y1 - y0
+                nx0 = max(ox, min(ox + disp_w - w, x0 + dx))
+                ny0 = max(oy, min(oy + disp_h - h, y0 + dy))
+                state['region'] = [nx0, ny0, nx0 + w, ny0 + h]
+            else:
+                nx, ny = max(ox, min(ox + disp_w, event.x)), max(oy, min(oy + disp_h, event.y))
+                i = state['corner']
+                if i == 0:
+                    x0, y0 = nx, ny
+                elif i == 1:
+                    x1, y0 = nx, ny
+                elif i == 2:
+                    x1, y1 = nx, ny
+                else:
+                    x0, y1 = nx, ny
+                if state['ratio']:
+                    # 保持比例：以拖动的角为基准，向对角锚点方向调整另一边
+                    r = state['ratio']
+                    anchors = [(x1, y1), (x0, y1), (x0, y0), (x1, y0)]
+                    ax, ay = anchors[i]
+                    w, h = abs(ax - nx), abs(ay - ny)
+                    if w / h > r[0] / r[1]:
+                        h = w * r[1] / r[0]
+                    else:
+                        w = h * r[0] / r[1]
+                    dxs = 1 if ax >= nx else -1
+                    dys = 1 if ay >= ny else -1
+                    max_w = (ox + disp_w - nx) if dxs == 1 else (nx - ox)
+                    max_h = (oy + disp_h - ny) if dys == 1 else (ny - oy)
+                    w = min(w, max_w)
+                    h = w * r[1] / r[0]
+                    if h > max_h:
+                        h = max_h
+                        w = h * r[0] / r[1]
+                    state['region'] = [min(nx, nx + dxs * w), min(ny, ny + dys * h),
+                                       max(nx, nx + dxs * w), max(ny, ny + dys * h)]
+                else:
+                    state['region'] = [min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)]
+            state['start'] = (event.x, event.y)
+            redraw()
+
+        canvas.bind('<ButtonPress-1>', on_press)
+        canvas.bind('<B1-Motion>', on_motion)
+        canvas.bind('<ButtonRelease-1>', lambda e: state.update(mode=None))
+
+        btn_frame = tk.Frame(dialog, bg=bg)
+        btn_frame.pack(pady=(0, 10))
+
+        def on_ok():
+            x0, y0, x1, y1 = state['region']
+            if (x1 - x0) < 10 or (y1 - y0) < 10:
+                messagebox.showwarning("提示", "裁剪区域太小", parent=dialog)
+                return
+            self._crop_region = ((x0 - ox) / disp_w, (y0 - oy) / disp_h,
+                                 (x1 - ox) / disp_w, (y1 - oy) / disp_h)
+            self._crop_ratio = state['ratio']
+            self.crop_var.set(True)
+            dialog.destroy()
+
+        def on_clear():
+            self._crop_region = None
+            self._crop_ratio = None
+            self.crop_var.set(False)
+            dialog.destroy()
+
+        redraw()
+
+        tk.Button(btn_frame, text="确定", command=on_ok, width=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(btn_frame, text="清除", command=on_clear, width=10).pack(side=tk.LEFT, padx=10)
+        tk.Button(btn_frame, text="取消", command=dialog.destroy, width=10).pack(side=tk.LEFT, padx=10)
+
+        # 居中弹出
+        dialog.update_idletasks()
+        dw, dh = dialog.winfo_reqwidth(), dialog.winfo_reqheight()
+        dialog.geometry(f"+{(screen_w - dw) // 2}+{(screen_h - dh) // 2}")
+
+        dialog.wait_window()
 
     def auto_pair_all(self):
         """一键自动配对所有同名文件并导出 (多线程优化版)"""
@@ -1130,10 +1381,10 @@ class ImagePairToolGUI:
         else:
             # 顺序模式：从 1 开始依次分配，跳过已使用的
             next_index = 1
-            for filename, angle in task_list:
+            for left_f, right_f, angle in task_list:
                 while next_index in used_indices:
                     next_index += 1
-                file_index_map[(filename, angle)] = next_index
+                file_index_map[(left_f, angle)] = next_index
                 next_index += 1
 
         # 如果启用打乱，先重命名已存在的文件（包括图片和 TXT，含旋转后缀）
@@ -1490,6 +1741,8 @@ class ImagePairToolGUI:
         do_preview = self.preview_var.get()
         rename_mode_val = cfg.get("rename_mode", 1)
         text_content = cfg.get("text_content", "")
+        crop_region = cfg.get("crop_region", None)
+        crop_ratio = cfg.get("crop_ratio", None)
 
         if rename_mode_val == 2:
             # 两两配对格式：直接存入输出文件夹
@@ -1541,8 +1794,16 @@ class ImagePairToolGUI:
             w2, h2 = img_right_raw.size
 
             for angle in ROTATIONS:
-                img_left = img_left_raw.rotate(angle, expand=True)
-                img_right = img_right_raw.rotate(angle, expand=True)
+                img_left = img_left_raw
+                img_right = img_right_raw
+
+                # 手动裁剪区域（相对比例，两张图按相同比例裁剪）
+                if crop_region:
+                    img_left = crop_to_region(img_left, crop_region, crop_ratio)
+                    img_right = crop_to_region(img_right, crop_region, crop_ratio)
+
+                img_left = img_left.rotate(angle, expand=True)
+                img_right = img_right.rotate(angle, expand=True)
 
                 lw, lh = img_left.size
                 rw, rh = img_right.size
@@ -1652,7 +1913,8 @@ class ImagePairToolGUI:
                 fill_text += f" → 已缩放至 {custom_size[0]}×{custom_size[1]}"
 
             rotate_info = "（4旋转版本）" if do_rotate else ""
-            self.status_label.config(text=f"✓ 已导出{fill_text}{rotate_info}：共 {len(exported)} 对 ({final_size}) | 切换图片后可再次导出")
+            crop_info = "（已按指定区域裁剪）" if crop_region else ""
+            self.status_label.config(text=f"✓ 已导出{crop_info}{fill_text}{rotate_info}：共 {len(exported)} 对 ({final_size}) | 切换图片后可再次导出")
             self.disable_export_button()
 
             self.left_panel.mark_as_paired(left_name)

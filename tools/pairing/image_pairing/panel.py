@@ -657,6 +657,9 @@ class ImagePanel:
         if messagebox.askyesno("确认", f"确定要删除 {image_name} 吗？"):
             try:
                 os.remove(image_path)
+                # 删除对应标注 txt（与同步删除保持一致的规则）
+                if self.main_window and hasattr(self.main_window, '_delete_related_txt'):
+                    self.main_window._delete_related_txt(image_path)
                 self.image_files.pop(self.current_index)
                 self.listbox.delete(self.current_index)
 
