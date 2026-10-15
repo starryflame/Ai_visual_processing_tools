@@ -231,20 +231,6 @@ TOOLS_CONFIG = {
             "ui": "gui"
         },
         {
-            "name": "真人转动漫",
-            "path": "tools/comfyui/真人转动漫.py",
-            "desc": "连接ComfyUI使用LoRA将真人照片转为动漫风格、实时预览、半自动模式",
-            "icon": "👤", "icon_color": "#3F51B5",
-            "ui": "gui"
-        },
-        {
-            "name": "Wan22 视频放大",
-            "path": "tools/comfyui/wan22放大.py",
-            "desc": "连接ComfyUI使用Wan2.2模型对视频进行高清放大处理",
-            "icon": "⬆️", "icon_color": "#9FA8DA",
-            "ui": "cli"
-        },
-        {
             "name": "提示词提取",
             "path": "tools/comfyui/提示词提取.py",
             "desc": "从ComfyUI生成的PNG图片或视频文件中提取工作流提示词(节点113文本)",
