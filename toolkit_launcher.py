@@ -15,6 +15,17 @@ import threading
 import webbrowser
 
 # ============================================================
+# 路径常量
+# 全部基于本文件所在目录解析，换盘符/换机器都不需要改这里
+# ============================================================
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# 视频类工具使用的独立虚拟环境
+# 本地不存在时 launch_tool 会自动回退到当前解释器，不会报错
+VIDEO_VENV = os.path.join(PROJECT_ROOT, "video_mark_tool", ".venv", "Scripts", "python.exe")
+
+
+# ============================================================
 # 工具配置数据
 # ============================================================
 TOOLS_CONFIG = {
@@ -32,7 +43,7 @@ TOOLS_CONFIG = {
             "desc": "视频逐帧标记、AI标签生成、片段裁剪导出、标签预设管理",
             "icon": "🎬", "icon_color": "#5B9ED4",
             "ui": "gui",
-            "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
+            "venv": VIDEO_VENV
         },
         {
             "name": "标签预览管理器",
@@ -93,7 +104,7 @@ TOOLS_CONFIG = {
             "desc": "批量将视频逐帧导出为图片序列、支持webp/mp4等格式、多线程加速",
             "icon": "🎞️", "icon_color": "#EF6C00",
             "ui": "cli",
-            "venv": "J:/Data/Ai_visual_processing_tools/video_mark_tool/.venv/Scripts/python.exe"
+            "venv": VIDEO_VENV
         },
         {
             "name": "视频拆分工具",
@@ -610,7 +621,8 @@ class ToolkitLauncher:
 
     # ---- 工具启动 ----
     def launch_tool(self, tool_data):
-        tool_path = tool_data["path"]
+        # 配置里写的是相对项目根目录的路径，无论从哪里启动都能找到
+        tool_path = os.path.join(PROJECT_ROOT, tool_data["path"])
 
         if not os.path.exists(tool_path):
             messagebox.showerror("错误", f"工具文件不存在:\n{tool_path}\n\n请检查文件路径是否正确。")
@@ -626,9 +638,9 @@ class ToolkitLauncher:
                     return
                 venv_python = tool_data.get("venv")
                 if venv_python and os.path.exists(venv_python):
-                    subprocess.Popen([venv_python, tool_path], cwd=os.getcwd())
+                    subprocess.Popen([venv_python, tool_path], cwd=PROJECT_ROOT)
                 else:
-                    subprocess.Popen([sys.executable, tool_path], cwd=os.getcwd())
+                    subprocess.Popen([sys.executable, tool_path], cwd=PROJECT_ROOT)
             except Exception as e:
                 self.root.after(0, lambda: messagebox.showerror("错误", f"启动失败：{str(e)}"))
 
