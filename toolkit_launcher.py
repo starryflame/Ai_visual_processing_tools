@@ -24,6 +24,9 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 # 本地不存在时 launch_tool 会自动回退到当前解释器，不会报错
 VIDEO_VENV = os.path.join(PROJECT_ROOT, "video_mark_tool", ".venv", "Scripts", "python.exe")
 
+# 启动次数记录（键为工具的相对路径），用于卡片排序
+USAGE_FILE = os.path.join(PROJECT_ROOT, "launcher_usage.json")
+
 
 # ============================================================
 # 工具配置数据
@@ -139,7 +142,7 @@ TOOLS_CONFIG = {
         {
             "name": "相似度配对工具",
             "path": "tools/pairing/similarity_pairing/main.py",
-            "desc": "双面板图片浏览、感知哈希+颜色直方图计算相似度、自动匹配最相似图片",
+            "desc": "拖拽多文件夹、硬线条图严格去重、2D哈希+颜色+结构精排、一对多阈值导出",
             "icon": "🧩", "icon_color": "#AB47BC",
             "ui": "gui"
         }
@@ -198,13 +201,6 @@ TOOLS_CONFIG = {
             "path": "tools/audio/audio_merger/audio_merger_gui.py",
             "desc": "多段音频合并拼接、支持按名称/修改时间排序、可选输出格式(mp3/wav/flac等)",
             "icon": "🎵", "icon_color": "#E91E63",
-            "ui": "gui"
-        },
-        {
-            "name": "TTS 文字转语音",
-            "path": "tools/audio/tts/qwen3tts/gradio的tts.py",
-            "desc": "Qwen3TTS语音合成、多音色可选(御姐/萝莉/老男人等)、Gradio客户端调用",
-            "icon": "🗣️", "icon_color": "#F06292",
             "ui": "gui"
         }
     ],
@@ -311,8 +307,31 @@ class ToolkitLauncher:
 
         self._category_frames = {}
         self._category_labels = {}
+        self._cat_order = []   # 分类的显示顺序（按使用量排好后固定下来）
+        # 启动次数：卡片按它排序，必须在建卡片之前读进来
+        self.usage = self._load_usage()
         self.setup_fonts()
         self.setup_ui()
+
+    # ---- 启动次数记录 ----
+    def _load_usage(self):
+        """读取各工具的启动次数，文件不存在或损坏时当作没有记录"""
+        try:
+            with open(USAGE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return {k: int(v) for k, v in data.items()}
+        except Exception:
+            pass
+        return {}
+
+    def _save_usage(self):
+        """写回启动次数，失败不影响工具本身启动"""
+        try:
+            with open(USAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.usage, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
     # ---- 字体 ----
     def setup_fonts(self):
@@ -423,7 +442,8 @@ class ToolkitLauncher:
         keyword_lower = keyword.lower()
 
         found_any = False
-        for cat, tools in TOOLS_CONFIG.items():
+        visible_cats = set()
+        for cat in self._cat_order:
             frame = self._category_frames.get(cat)
             if not frame:
                 continue
@@ -441,18 +461,10 @@ class ToolkitLauncher:
                         found_any = True
                     else:
                         child.pack_forget()
-            # 显示/隐藏整个分类
+            # 整个分类连同标题一起显隐
             if cat_visible or not keyword_lower:
-                self._show_category(cat)
-            else:
-                self._hide_category(cat)
-            # 分类标题也跟着显隐
-            header_label = self._category_labels.get(cat)
-            if header_label:
-                if cat_visible or not keyword_lower:
-                    header_label.pack(anchor="w", padx=8, pady=(20, 6))
-                else:
-                    header_label.pack_forget()
+                visible_cats.add(cat)
+        self._relayout_categories(visible_cats)
 
         self._update_status(keyword_lower and found_any)
         # 滚动到顶部
@@ -464,7 +476,18 @@ class ToolkitLauncher:
         pad_frame = tk.Frame(self.inner, bg=Theme.BG_MAIN)
         pad_frame.pack(fill=tk.BOTH, expand=True, padx=24, pady=16)
 
-        for cat, tools in TOOLS_CONFIG.items():
+        # 分类整体按使用量排：该分类下所有工具的启动次数之和越大越靠前，
+        # 这样常用的工具不会被它所在的分类压在底下；没用过的分类保持配置里的原顺序
+        ordered = sorted(
+            TOOLS_CONFIG.items(),
+            key=lambda kv: -sum(self.usage.get(t["path"], 0) for t in kv[1])
+        )
+        self._cat_order = [cat for cat, _ in ordered]
+
+        for cat, tools in ordered:
+            # 分类内同样按次数排，没用过的保持原顺序
+            tools = sorted(tools, key=lambda t: -self.usage.get(t["path"], 0))
+
             # 分类标题
             gui_n = sum(1 for t in tools if t.get("ui", "gui") == "gui")
             cli_n = sum(1 for t in tools if t.get("ui", "gui") == "cli")
@@ -491,21 +514,28 @@ class ToolkitLauncher:
                 card = self._create_card(cards_frame, tool)
                 card.pack(side=tk.LEFT, padx=self.CARD_PADX // 2, pady=self.CARD_PADY // 2)
 
-    def _show_category(self, cat):
-        f = self._category_frames.get(cat)
-        if f:
-            f.pack(fill=tk.X, pady=(0, 4))
-        lbl = self._category_labels.get(cat)
-        if lbl:
-            lbl.pack(anchor="w", padx=8, pady=(20, 6))
+    def _relayout_categories(self, visible_cats):
+        """按 _cat_order 整体重排分类块
+        Tk 里被 pack_forget 过的控件再 pack 会跑到末尾而不是回原位，
+        所以显示/隐藏之后必须整体重排一次，否则搜索几轮分类顺序就乱了。
+        """
+        for cat in self._cat_order:
+            lbl = self._category_labels.get(cat)
+            f = self._category_frames.get(cat)
+            if lbl:
+                lbl.pack_forget()
+            if f:
+                f.pack_forget()
 
-    def _hide_category(self, cat):
-        f = self._category_frames.get(cat)
-        if f:
-            f.pack_forget()
-        lbl = self._category_labels.get(cat)
-        if lbl:
-            lbl.pack_forget()
+        for cat in self._cat_order:      # 先全部撤下，再按顺序放回
+            if cat not in visible_cats:
+                continue
+            lbl = self._category_labels.get(cat)
+            f = self._category_frames.get(cat)
+            if lbl:
+                lbl.pack(anchor="w", padx=8, pady=(20, 6))
+            if f:
+                f.pack(fill=tk.X, pady=(0, 4))
 
     def _create_card(self, parent, tool_data):
         """创建单个工具卡片"""
@@ -554,6 +584,15 @@ class ToolkitLauncher:
                               anchor="nw", justify=tk.LEFT, wraplength=195, height=3)
         desc_label.place(x=56, y=44)
 
+        # --- 启动次数（用过的才显示，顺便解释卡片为什么排在前面） ---
+        children = [icon_canvas, name_label, desc_label, badge]
+        used = self.usage.get(tool_data["path"], 0)
+        if used:
+            usage_label = tk.Label(card, text=f"已启动 {used} 次", font=self.f_status,
+                                   bg=Theme.BG_CARD, fg=Theme.TEXT_HINT)
+            usage_label.place(x=14, y=self.CARD_H - 34)
+            children.append(usage_label)
+
         # --- 启动按钮 ---
         btn = tk.Button(card, text="启动", font=self.f_card_name,
                         bg=Theme.ACCENT, fg=Theme.TEXT_WHITE,
@@ -567,7 +606,7 @@ class ToolkitLauncher:
         card.bind("<Enter>", lambda e, c=card, b=accent_bar: self._card_enter(c, b))
         card.bind("<Leave>", lambda e, c=card, b=accent_bar: self._card_leave(c, b))
         # 子组件也绑定点击
-        for w in (icon_canvas, name_label, desc_label, badge):
+        for w in children:
             w.bind("<Button-1>", lambda e, t=tool_data: self.launch_tool(t))
             w.bind("<Enter>", lambda e, c=card, b=accent_bar: self._card_enter(c, b))
             w.bind("<Leave>", lambda e, c=card, b=accent_bar: self._card_leave(c, b))
@@ -613,6 +652,11 @@ class ToolkitLauncher:
         if not os.path.exists(tool_path):
             messagebox.showerror("错误", f"工具文件不存在:\n{tool_path}\n\n请检查文件路径是否正确。")
             return
+
+        # 记一次启动次数（下次打开启动器时卡片按它重新排序）
+        path_key = tool_data["path"]
+        self.usage[path_key] = self.usage.get(path_key, 0) + 1
+        self._save_usage()
 
         self._show_toast(tool_data["name"])
 

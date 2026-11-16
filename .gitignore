@@ -33,3 +33,11 @@ resume_oneline.html
 .claude/settings.local.json
 
 learn_html/
+# 相似度配对工具特征缓存
+tools/pairing/similarity_pairing/.cache/
+
+# 启动器运行时使用统计
+launcher_usage.json
+
+# 相似度工具的临时分析图
+tools/pairing/similarity_pairing/fail_cases_*.jpg
