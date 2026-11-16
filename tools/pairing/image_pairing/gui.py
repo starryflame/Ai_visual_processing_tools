@@ -20,7 +20,7 @@ from config import (
     IMAGE_EXTENSIONS
 )
 from panel import ImagePanel
-from utils import fill_image_with_background, crop_to_square, crop_to_region, generate_renamed_filename, get_image_files, stitch_pair_preview
+from utils import fill_image_with_background, crop_to_square, crop_to_region, generate_renamed_filename, get_image_files, stitch_pair_preview, prepare_for_tk
 
 
 class ImagePairToolGUI:
@@ -39,7 +39,7 @@ class ImagePairToolGUI:
         self.export_disabled = False
         self.ask_export_options = tk.BooleanVar(value=False)  # 默认不勾选，导出时不询问处理选项
         self.preview_var = tk.BooleanVar(value=False)  # 导出时生成配对预览拼接图
-        self.pair_format_var = tk.BooleanVar(value=False)  # 两两配对格式：N_start / N_end 直接存入输出文件夹
+        self.pair_format_var = tk.BooleanVar(value=False)  # 导出为 start/end 格式：N_start / N_end 直接存入输出文件夹（不勾选则导出 control/target）
         self.crop_var = tk.BooleanVar(value=False)  # 使用手动裁剪区域
         self._crop_region = None  # 相对比例 (x0, y0, x1, y1)，0~1
         self._crop_ratio = None   # 锁定的宽高比 (w, h)，用于精确对齐裁剪像素
@@ -111,10 +111,10 @@ class ImagePairToolGUI:
                                        fg="white")
         self.export_button.pack(side=tk.RIGHT, padx=10)
 
-        # 两两配对格式勾选框（N_start / N_end，直接存入输出文件夹）
+        # 导出格式勾选框：勾选后平铺导出为 N_start / N_end，不勾选则导出到 control / target
         self.pair_format_checkbutton = tk.Checkbutton(
             toolbar,
-            text="两两配对（start/end）",
+            text="导出为 start/end 格式",
             variable=self.pair_format_var,
             bg=DARK_BG if self.dark_mode else None,
             fg=DARK_FG if self.dark_mode else None,
@@ -299,10 +299,21 @@ class ImagePairToolGUI:
         self.pending_delete = None
 
     def _on_backspace_key(self):
-        """Backspace 入口：对话框打开时不触发删除"""
+        """Backspace 入口：对话框打开或正在输入文本时不触发删除"""
         if self._dialog_open:
             return
+        if self._is_text_input_focused():
+            return  # 焦点在输入框/文本框时，Backspace 只用于编辑文字
         self.sync_delete_images_smart()
+
+    def _is_text_input_focused(self):
+        """检查焦点是否在文本输入类控件上"""
+        focused = self.root.focus_get()
+        if focused is None:
+            return False
+        return focused.winfo_class() in (
+            'Entry', 'TEntry', 'Text', 'Spinbox', 'TSpinbox', 'TCombobox'
+        )
 
     def _on_arrow_key(self, direction):
         """处理上下箭头键：对比模式下始终同步切换，否则列表聚焦时放行"""
@@ -948,7 +959,7 @@ class ImagePairToolGUI:
         label("数据增强", bold=True)
         checkbox("每个图片对导出4个旋转版本（0°/90°/180°/270°）", rotate_var)
 
-        tk.Label(body, text=f"共 {self._pending_export_count} 对同名文件",
+        tk.Label(body, text=f"共 {self._pending_export_count} 对图片",
                  bg=bg, fg=DARK_HIGHLIGHT if self.dark_mode else "#0078d4",
                  font=("", 10, "bold")).pack(pady=(12, 8), anchor="w")
 
@@ -1104,7 +1115,7 @@ class ImagePairToolGUI:
         canvas = tk.Canvas(dialog, width=canvas_w, height=canvas_h,
                            bg=DARK_CONTAINER_BG if self.dark_mode else "#dddddd")
         canvas.pack(padx=10, pady=10)
-        photo = ImageTk.PhotoImage(img.resize((disp_w, disp_h), Image.LANCZOS))
+        photo = ImageTk.PhotoImage(prepare_for_tk(img.resize((disp_w, disp_h), Image.LANCZOS)))
         canvas.create_image(ox, oy, anchor=tk.NW, image=photo)
 
         if self._crop_region:
@@ -1257,34 +1268,46 @@ class ImagePairToolGUI:
         right_files = set(f for f in os.listdir(right_folder)
                          if Path(f).suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp', '.bmp'])
 
-        # 找出同名文件
-        common_files = left_files & right_files
+        # 按主文件名(stem)配对：批量生成图保存为 ComfyUI 实际的格式(通常是
+        # .png)，而原图副本保留原始扩展名(可能是 .jpg/.webp)，扩展名可以不同。
+        same_folder = os.path.normcase(os.path.abspath(left_folder)) == os.path.normcase(os.path.abspath(right_folder))
+        common_pairs = []
+        if not same_folder:
+            left_by_stem = {}
+            for f in sorted(left_files):
+                left_by_stem.setdefault(Path(f).stem, f)
+            right_by_stem = {}
+            for f in sorted(right_files):
+                right_by_stem.setdefault(Path(f).stem, f)
+            common_pairs = [(left_by_stem[s], right_by_stem[s])
+                            for s in left_by_stem.keys() & right_by_stem.keys()]
 
         # start/end 文件夹：按数字配对（N_start ↔ N_end）
+        # 与导出格式无关：即使导出为 control/target，也按数字把 start 和 end 配成一对
         start_end_pairs = []
-        if self.pair_format_var.get():
-            for f in sorted(left_files):
-                m = re.match(r"^(\d+)_start\.[A-Za-z0-9]+$", f)
-                if not m:
-                    continue
-                num = m.group(1)
-                end_f = None
-                for g in sorted(right_files):
-                    gm = re.match(r"^(\d+)_end\.[A-Za-z0-9]+$", g)
-                    if gm and gm.group(1) == num:
-                        end_f = g
-                        break
-                if end_f:
-                    start_end_pairs.append((f, end_f))
+        end_by_num = {}
+        for g in right_files:
+            gm = re.match(r"^(\d+)_end\.[A-Za-z0-9]+$", g)
+            if gm:
+                end_by_num.setdefault(gm.group(1), g)
 
-        if not common_files and not start_end_pairs:
-            messagebox.showinfo("提示", "没有找到同名文件")
+        def _num_key(name):
+            head = name.split('_', 1)[0]
+            return (int(head) if head.isdigit() else float('inf'), name)
+
+        for f in sorted(left_files, key=_num_key):
+            m = re.match(r"^(\d+)_start\.[A-Za-z0-9]+$", f)
+            if m and m.group(1) in end_by_num:
+                start_end_pairs.append((f, end_by_num[m.group(1)]))
+
+        if not common_pairs and not start_end_pairs:
+            messagebox.showinfo("提示", "没有找到可配对的文件（同名(主文件名)文件，或 数字_start / 数字_end）")
             return
 
         from utils import crop_to_square
 
         # 显示导出配置对话框
-        self._pending_export_count = len(start_end_pairs) if start_end_pairs else len(common_files)
+        self._pending_export_count = len(start_end_pairs) if start_end_pairs else len(common_pairs)
         cfg = self._show_export_config_dialog()
         if not cfg:
             return
@@ -1323,9 +1346,9 @@ class ImagePairToolGUI:
                 for angle in ROTATION_ANGLES:
                     task_list.append((left_f, right_f, angle))
         else:
-            for f in sorted(common_files):
+            for left_f, right_f in sorted(common_pairs):
                 for angle in ROTATION_ANGLES:
-                    task_list.append((f, f, angle))
+                    task_list.append((left_f, right_f, angle))
         if shuffle_order:
             random.shuffle(task_list)
         total_count = len(task_list)

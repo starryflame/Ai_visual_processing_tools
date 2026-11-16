@@ -7,6 +7,26 @@
 from PIL import Image
 
 
+def prepare_for_tk(img):
+    """为 Tk 显示准备图片，规避 Tk 8.6 透明像素的性能缺陷。
+
+    Tk 的 Tk_PhotoPutBlock 在遇到不规则的 alpha=0 透明像素时会退化为极慢路径
+    （Tk bug #919066 / Pillow issue #6022）：512x512 的透明图就可能耗时数秒，
+    大图会直接让界面卡死。把 alpha=0 提升为 1（肉眼无法分辨）即可走快速路径。
+    """
+    # 带透明色的调色板图交给 Tk 时会先转成 RGBA，这里同样先转换再修正 alpha
+    if img.mode == 'P' and 'transparency' in img.info:
+        img = img.convert('RGBA')
+    if img.mode != 'RGBA':
+        return img
+    alpha = img.getchannel('A')
+    if alpha.getextrema()[0] > 0:
+        return img
+    img = img.copy()
+    img.putalpha(alpha.point(lambda v: 1 if v == 0 else v))
+    return img
+
+
 def fill_image_with_background(img, target_size, bg_color=(255, 255, 255)):
     """将图片居中放置到指定尺寸的白色背景上"""
     target_w, target_h = target_size

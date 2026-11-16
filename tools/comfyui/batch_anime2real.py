@@ -47,8 +47,11 @@ class ComfyUIBatchProcessor:
         },
     }
 
-    def __init__(self, server_address="127.0.0.1:8188", workflow_name="高还原"):
+    def __init__(self, server_address="127.0.0.1:8188", workflow_name=None):
         self.server_address = server_address
+        # 名字对不上（改名/删掉旧工作流）时退回第一个，避免整个界面启动就崩
+        if workflow_name not in self.WORKFLOW_CONFIGS:
+            workflow_name = next(iter(self.WORKFLOW_CONFIGS))
         self.workflow_name = workflow_name
         self.config = self.WORKFLOW_CONFIGS[workflow_name]
         _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -88,6 +91,38 @@ class ComfyUIBatchProcessor:
         url = f"http://{self.server_address}/view"
         response = requests.get(url, params=params, timeout=30)
         return response.content
+
+    @staticmethod
+    def _remove_stale_outputs(folder, stem, keep_name):
+        """删除同一张图之前生成的、扩展名不对的旧输出。
+
+        旧版本会用输入图的扩展名命名（例如输入 .jpg 时把 ComfyUI 的 PNG
+        存成了 .jpg），重新生成后会在 target 里留下同名的旧文件。
+        只删除确实是图片格式（PNG/JPEG/WEBP）的文件，避免误删其他文件。
+        """
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            return
+        for name in names:
+            if name == keep_name:
+                continue
+            p = Path(name)
+            if p.stem != stem or p.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
+                continue
+            path = os.path.join(folder, name)
+            try:
+                with open(path, "rb") as fh:
+                    head = fh.read(12)
+                is_image = (
+                    head.startswith(b"\x89PNG\r\n\x1a\n")
+                    or head.startswith(b"\xff\xd8\xff")
+                    or (head[:4] == b"RIFF" and head[8:12] == b"WEBP")
+                )
+                if is_image:
+                    os.remove(path)
+            except OSError:
+                continue
 
     def upload_image(self, image_path):
         """上传图片到 ComfyUI input 目录，返回文件名"""
@@ -184,10 +219,17 @@ class ComfyUIBatchProcessor:
                                 img_data = self.get_image(img["filename"], img.get("subfolder", ""), img.get("type", "output"))
                             except requests.exceptions.RequestException:
                                 return False, "ComfyUI 连接失败（获取图片时无法连接到服务器）"
-                            # 生成输出文件名 - 保持与原图相同的扩展名
-                            original_ext = Path(input_image_path).suffix.lower()
-                            output_name = f"{Path(input_image_path).stem}{original_ext}"
+                            # 输出文件必须和 ComfyUI 生成的文件完全一致（原样写入字节），
+                            # 否则 PNG 里的 prompt/workflow 元数据会丢失。
+                            # 扩展名要跟随 ComfyUI 返回的文件名，而不是输入图的扩展名：
+                            # 输入是 .jpg 时 ComfyUI 输出仍然是 PNG，若命名为 .jpg，
+                            # 拖回 ComfyUI 时前端按 image/jpeg 处理，读不到 PNG 元数据。
+                            comfy_ext = Path(img.get("filename", "")).suffix.lower()
+                            if comfy_ext not in (".png", ".jpg", ".jpeg", ".webp"):
+                                comfy_ext = ".png"
+                            output_name = f"{Path(input_image_path).stem}{comfy_ext}"
                             output_path = os.path.join(output_image_folder, output_name)
+                            self._remove_stale_outputs(output_image_folder, Path(input_image_path).stem, output_name)
                             with open(output_path, 'wb') as f:
                                 f.write(img_data)
                             # 复制原图到原图文件夹 - 保持相同文件名和格式
@@ -225,8 +267,10 @@ class BatchProcessorGUI:
         self.resize_longest_edge = tk.IntVar(value=1440)
         self.strength_model = tk.DoubleVar(value=1.0)
         self.process_mode = tk.StringVar(value="全自动模式")  # 全自动模式/半自动模式
-        self.workflow_name = tk.StringVar(value="高还原")
-        self.processor = ComfyUIBatchProcessor(workflow_name="高还原")
+        # 默认取第一个工作流（Qwen2.1_漫转写实真人），与下面下拉框 current(0) 保持一致
+        default_workflow = next(iter(ComfyUIBatchProcessor.WORKFLOW_CONFIGS))
+        self.workflow_name = tk.StringVar(value=default_workflow)
+        self.processor = ComfyUIBatchProcessor(workflow_name=default_workflow)
 
         # 控制变量
         self.is_running = False

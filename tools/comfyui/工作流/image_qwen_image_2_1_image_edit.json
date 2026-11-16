@@ -131,7 +131,7 @@
   "489": {
     "inputs": {
       "seed": 250034040519402,
-      "steps": 8,
+      "steps": 9,
       "cfg": 1,
       "sampler_name": "euler",
       "scheduler": "simple",
@@ -192,7 +192,7 @@
   "492": {
     "inputs": {
       "unet_name": "qwen_image_2.1_turbo_bf16.safetensors",
-      "weight_dtype": "fp8_e4m3fn"
+      "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
     "_meta": {
@@ -203,7 +203,7 @@
     "inputs": {
       "prompt": "真人少女,现实照片",
       "negative_prompt": "",
-      "resolution": 1024,
+      "resolution": 1280,
       "clip": [
         "485",
         0

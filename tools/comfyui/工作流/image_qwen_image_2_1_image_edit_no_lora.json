@@ -203,7 +203,7 @@
     "inputs": {
       "prompt": "转彩色线稿风格",
       "negative_prompt": "",
-      "resolution": 1024,
+      "resolution": 1280,
       "clip": [
         "485",
         0

@@ -22,7 +22,7 @@ from config import (
     DARK_BG, DARK_FG, DARK_ENTRY_BG, DARK_BUTTON_BG, DARK_BUTTON_FG,
     DARK_CONTAINER_BG, DARK_HIGHLIGHT, IMAGE_AREA_HEIGHT
 )
-from utils import get_image_files
+from utils import get_image_files, prepare_for_tk
 
 
 class ImagePanel:
@@ -79,7 +79,7 @@ class ImagePanel:
         tk.Label(self.folder_frame, text="文件夹:", width=8,
                  bg=DARK_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT)
-        tk.Entry(self.folder_frame, textvariable=self.folder_path, width=14,
+        tk.Entry(self.folder_frame, textvariable=self.folder_path, width=50,
                  bg=DARK_ENTRY_BG if self.dark_mode else None,
                  fg=DARK_FG if self.dark_mode else None).pack(side=tk.LEFT, padx=5)
         tk.Button(self.folder_frame, text="浏览", command=self.select_folder, width=6,
@@ -493,7 +493,7 @@ class ImagePanel:
 
         self.image_canvas.coords(self.image_id, (x_pos, 0))
 
-        self.current_image = ImageTk.PhotoImage(img)
+        self.current_image = ImageTk.PhotoImage(prepare_for_tk(img))
         self.image_canvas.itemconfig(self.image_id, image=self.current_image)
 
         if hasattr(self, 'drag_hint'):
@@ -585,7 +585,7 @@ class ImagePanel:
         new_height = int(self.original_image.height * self.zoom_level)
 
         img_resized = self.original_image.resize((new_width, new_height), Image.LANCZOS)
-        self.current_image = ImageTk.PhotoImage(img_resized)
+        self.current_image = ImageTk.PhotoImage(prepare_for_tk(img_resized))
         self.image_canvas.itemconfig(self.image_id, image=self.current_image)
 
         # 获取图片在 Canvas 上的锚点基准位置

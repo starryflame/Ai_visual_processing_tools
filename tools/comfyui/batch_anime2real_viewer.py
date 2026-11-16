@@ -8,9 +8,10 @@
 本服务被动监控输出文件夹,自动展示最新一组对比图。
 
 桌面版输出目录结构:
-    output_folder/control/<原名>  原图副本
-    output_folder/target/<原名>   生成图副本(同名同扩展名)
-本工具按「文件名相同」配对两侧图片。
+    output_folder/control/<原名>  原图副本(保留原始扩展名)
+    output_folder/target/<主文件名>.png  生成图副本(与 ComfyUI 输出文件完全一致,
+                                    扩展名可能和原图不同,按主文件名配对)
+本工具按「主文件名相同」配对两侧图片(扩展名可以不同)。
 
 输出目录会自动识别:桌面版每次选择/开始处理时会把输出文件夹写入
 batch_anime2real_state.json,本服务启动即读取它并自动跳转到该目录,
@@ -51,31 +52,37 @@ app = Flask(__name__)
 # ============================================================
 
 def scan_pairs(job_path):
-    """扫描任务文件夹,按文件名配对 control/ 与 target/ 中的图片。
+    """扫描任务文件夹,按主文件名(不含扩展名)配对 control/ 与 target/ 中的图片。
+
+    生成图按 ComfyUI 输出的真实格式保存(通常是 .png),而原图副本保留原始
+    扩展名(可能是 .jpg/.webp),所以两侧扩展名可能不同,只能按 stem 配对。
 
     返回按 max(两侧 mtime) 从新到旧排序的列表:
-        [{name, has_control, has_target, control_mtime, target_mtime, max_mtime}, ...]
+        [{name, control_name, target_name, has_control, has_target,
+          control_mtime, target_mtime, max_mtime}, ...]
     """
     control_dir = job_path / "control"
     target_dir = job_path / "target"
 
-    # 收集两侧文件信息
+    # 收集两侧文件信息（同一侧同 stem 只保留一个）
     cinfo, tinfo = {}, {}
     for d, info in ((control_dir, cinfo), (target_dir, tinfo)):
         if d.is_dir():
             for p in d.iterdir():
                 if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
-                    info[p.name] = p
+                    info.setdefault(p.stem, p)
 
-    all_names = set(cinfo) | set(tinfo)
+    all_stems = set(cinfo) | set(tinfo)
     pairs = []
-    for name in all_names:
-        c, t = cinfo.get(name), tinfo.get(name)
+    for stem in all_stems:
+        c, t = cinfo.get(stem), tinfo.get(stem)
         c_m = c.stat().st_mtime if c else None
         t_m = t.stat().st_mtime if t else None
         max_m = max(x for x in (c_m, t_m) if x is not None)
         pairs.append({
-            "name": name,
+            "name": stem,
+            "control_name": c.name if c else None,
+            "target_name": t.name if t else None,
             "has_control": c is not None,
             "has_target": t is not None,
             "control_mtime": c_m,
@@ -550,7 +557,7 @@ function renderPair(pair) {
 function renderSide(id, side, label, pair) {
     const img = $("img-" + id), ph = $("ph-" + id);
     if (pair["has_" + side]) {
-        img.src = imgURL(cfg.job, side, pair.name, pair[side + "_mtime"]);
+        img.src = imgURL(cfg.job, side, pair[side + "_name"], pair[side + "_mtime"]);
         img.classList.remove("hidden");
         ph.classList.add("hidden");
     } else {
@@ -822,8 +829,8 @@ async function openDrawer() {
         const cChip = p.has_control ? '<span class="chip-ok">原✓</span>' : '<span class="chip-miss">原缺</span>';
         const tChip = p.has_target ? '<span class="chip-ok">成✓</span>' : '<span class="chip-miss">成缺</span>';
         item.innerHTML =
-            (p.has_control ? '<img loading="lazy" src="' + imgURL(cfg.job, "control", p.name, p.control_mtime) + '">' : '<img style="visibility:hidden">')
-          + (p.has_target ? '<img loading="lazy" src="' + imgURL(cfg.job, "target", p.name, p.target_mtime) + '">' : '<img style="visibility:hidden">')
+            (p.has_control ? '<img loading="lazy" src="' + imgURL(cfg.job, "control", p.control_name, p.control_mtime) + '">' : '<img style="visibility:hidden">')
+          + (p.has_target ? '<img loading="lazy" src="' + imgURL(cfg.job, "target", p.target_name, p.target_mtime) + '">' : '<img style="visibility:hidden">')
           + '<div class="pair-info"><div class="pair-name" title="' + esc(p.name) + '">' + esc(p.name) + "</div>"
           + '<div class="pair-time">' + fmtTime(p.max_mtime) + "</div>"
           + '<div class="chips">' + cChip + tChip + "</div></div>";
