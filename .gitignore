@@ -41,3 +41,6 @@ launcher_usage.json
 
 # 相似度工具的临时分析图
 tools/pairing/similarity_pairing/fail_cases_*.jpg
+
+# ComfyUI 参数状态写入过程中的临时文件
+tools/comfyui/batch_anime2real_state.json.tmp

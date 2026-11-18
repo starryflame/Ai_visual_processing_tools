@@ -482,15 +482,25 @@ python toolkit_launcher.py     <span class="token comment"># 统一工具集界�
 </table>
 <hr>
 <h2 id="comfyui-工具集-其他comfyui">ComfyUI 工具集 (其他/comfyui) </h2>
-<p>基于 Tkinter 的 ComfyUI 工作流批量处理工具，通过 HTTP API 与 ComfyUI 服务通信。</p>
-<h3 id="批量动漫转写实-batch_anime2realpy">批量动漫转写实 (<code>batch_anime2real.py</code>) </h3>
-<p>~1000 行 Tkinter GUI，双 Canvas 预览（输入右对齐/输出左对齐），支持完整/半自动模式。</p>
+<p>ComfyUI 工作流批量处理工具，通过 HTTP API 与 ComfyUI 服务通信。</p>
+<h3 id="批量动漫转写实-batch_anime2real_viewerpy">批量动漫转写实 (<code>batch_anime2real_viewer.py</code>) </h3>
+<p>Flask + 原生前端的局域网网页控制台，集成完整批处理与原查看器的对比组浏览能力；处理核心位于 <code>anime2real_core.py</code>，前端资源位于 <code>tools/comfyui/webui/</code>。</p>
+<blockquote>
+<p>原 Tkinter 桌面版已移除；已有 <code>batch_anime2real_state.json</code> 参数/断点可直接沿用。</p>
+</blockquote>
 <ul>
-<li><strong>LoRA 管理</strong>: 从 <code>J:\models\loras</code> 自动发现 LoRA 模型</li>
-<li><strong>提示词预设</strong>: JSON 文件保存/加载提示词预设</li>
-<li><strong>半自动模式</strong>: 每张图片处理前弹出确认对话框，支持跳过/接受/参数调整</li>
-<li><strong>处理控制</strong>: 暂停/恢复/停止，F11 全屏，Tab 隐藏控制面板</li>
-<li><strong>输出组织</strong>: 自动分 control/target 子文件夹</li>
+<li><strong>完整控制</strong>: 输入/输出目录、提示词与预设、全自动/半自动、工作流/LoRA/强度/步数/CFG/Checkpoint/缩放/起始索引</li>
+<li><strong>采样参数</strong>: 步数与 CFG 写入工作流的 KSampler 节点（当前两个 Qwen 工作流为 489），运行中修改从下一张生效</li>
+<li><strong>运行管理</strong>: 开始/暂停/继续/停止、进度条、实时日志、断点自动保存</li>
+<li><strong>半自动模式</strong>: 每张完成后在网页弹窗查看结果、修改提示词、重新生成/下一张/停止，并预览下一张输入</li>
+<li><strong>对比浏览</strong>: 实时双图、上一对/下一对、跟随最新、对比组抽屉（缩略图+搜索）、目录浏览</li>
+<li><strong>图像适配</strong>: 左右分栏时左图靠右、右图靠左，紧贴中缝；工具栏可切换「适应 / 铺满」——适应完整显示并等比放大，铺满裁切边缘填满画面；选择保存在浏览器本地</li>
+<li><strong>共享状态</strong>: 参数/断点保存在 <code>batch_anime2real_state.json</code>，提示词预设与浏览状态分别保存在 <code>prompt_presets.json</code>、<code>viewer_state.json</code>；支持断点续跑。服务端只有一个批处理实例，多设备只读浏览互不影响</li>
+<li><strong>多端访问</strong>: 平板/手机连同一 Wi-Fi 后访问 <code>http://&lt;本机IP&gt;:8765</code></li>
+<li><strong>访问范围</strong>: 默认监听 <code>0.0.0.0</code>，同一局域网内可控制；只在电脑上使用时可加 <code>--host 127.0.0.1</code></li>
+<li><strong>启动参数</strong>: <code>--port</code>、<code>--host</code>、<code>--comfy host:port</code>、<code>--no-browser</code>、<code>--http-log</code></li>
+<li><strong>控制台日志</strong>: 启动器会保留命令行窗口，显示启动信息与批处理日志；Ctrl+C 或关闭窗口即可停止服务；HTTP 轮询日志默认关闭，需要时加 <code>--http-log</code></li>
+<li><strong>键盘操作</strong>: <code>↑</code> / <code>↓</code> 切换上一对 / 下一对，<code>Tab</code> 切换沉浸模式，<code>Ctrl+B</code> 收放控制面板，<code>Esc</code> 退出沉浸/关闭浮层</li>
 </ul>
 <h3 id="真人转动漫-真人转动漫py">真人转动漫 (<code>真人转动漫.py</code>) </h3>
 <p>与 batch_anime2real 类似架构但针对不同 LoRA 节点（node 297），简化版半自动对话框。</p>
@@ -521,9 +531,6 @@ python toolkit_launcher.py     <span class="token comment"># 统一工具集界�
 </tr>
 </tbody>
 </table>
-<blockquote>
-<p><strong>注意</strong>: <code>其他/comfyui/web_ui/</code> 目录下的 Streamlit Web UI 文件未在本次文件读取范围内，其功能以实际代码为准。</p>
-</blockquote>
 <hr>
 <h2 id="格式转换工具-其他格式转换">格式转换工具 (其他/格式转换) </h2>
 <table>
@@ -737,13 +744,14 @@ python toolkit_launcher.py     <span class="token comment"># 统一工具集界�
 │
 ├── 其他/
 │   ├── comfyui/                              # ComfyUI 批量处理工具
-│   │   ├── batch_anime2real.py               # 批量动漫转写实（~1000行）
+│   │   ├── anime2real_core.py                # 动漫转写实处理核心（无 GUI）
+│   │   ├── batch_anime2real_viewer.py        # 批量动漫转写实（浏览器控制台）
+│   │   ├── webui/                            # 网页前端资源（HTML/CSS/JS）
 │   │   ├── 真人转动漫.py                      # 真人转动漫（Tkinter）
 │   │   ├── batch_image_upscale.py            # SeedVR2 超分辨率
 │   │   ├── 插帧.py                           # 视频插帧
 │   │   ├── wan22放大.py                      # Wan2.2 放大
-│   │   ├── 提示词提取.py                      # 元数据提示词提取
-│   │   └── web_ui/                           # Streamlit Web 应用
+│   │   └── 提示词提取.py                      # 元数据提示词提取
 │   │
 │   ├── 格式转换/                              # 媒体格式转换
 │   │   ├── 图片转视频.py                      # 图片→视频（Tkinter）

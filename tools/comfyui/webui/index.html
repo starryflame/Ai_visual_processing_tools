@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b10">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 32'><rect x='1' y='6' width='21' height='24' rx='5' fill='none' stroke='%2367a9ff' stroke-width='2'/><rect x='14' y='1' width='21' height='24' rx='5' fill='%230f141b' stroke='%2346d7a5' stroke-width='2'/></svg>">
+<title>漫转写实 · 网页控制台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="topbar">
+    <button id="btn-sidebar" class="icon-btn" type="button" title="显示/隐藏控制面板（Ctrl+B）" aria-label="显示或隐藏控制面板">☰</button>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 36 32" aria-hidden="true">
+        <rect x="1" y="6" width="21" height="24" rx="5" fill="none" stroke="#67a9ff" stroke-width="2"/>
+        <rect x="14" y="1" width="21" height="24" rx="5" fill="#0f141b" stroke="#46d7a5" stroke-width="2"/>
+      </svg>
+      <div class="brand-text">
+        <h1>漫转写实</h1>
+        <p>批量动漫转写实 · 浏览器控制台</p>
+      </div>
+    </div>
+    <div class="topbar-status">
+      <div class="phase-pill idle" id="phase-pill"><span class="dot"></span><span id="phase-text">空闲</span></div>
+      <div class="server-pill" id="server-pill" title="网页服务连接状态">
+        <span class="dot" id="server-dot"></span><span id="server-text">已连接</span>
+      </div>
+      <button id="btn-drawer" class="btn ghost compact" type="button" title="打开对比组列表">
+        <span class="btn-label">对比组</span><span class="badge" id="pair-badge">0</span>
+      </button>
+      <button id="btn-immersive" class="btn ghost icon-only" type="button" title="沉浸模式（Tab 切换 · Esc 退出）" aria-label="沉浸模式" aria-keyshortcuts="Tab">⛶</button>
+    </div>
+  </header>
+
+  <div id="net-banner" class="net-banner hidden" role="status">
+    与服务端的连接已断开，正在自动重试…
+  </div>
+
+  <div class="layout">
+    <aside class="rail" id="sidebar" aria-label="控制面板">
+      <div class="rail-head">
+        <div>
+          <h2>控制台</h2>
+          <span class="rail-sub" id="rail-mode-label">全自动模式</span>
+        </div>
+        <button id="btn-sidebar-close" class="icon-btn rail-close" type="button" title="关闭控制面板" aria-label="关闭控制面板">✕</button>
+      </div>
+
+      <section class="run-card" aria-label="运行状态">
+        <div class="run-line">
+          <strong id="rail-phase-text">空闲</strong>
+          <span class="run-stats" id="run-stats">—</span>
+        </div>
+        <div class="progress" id="rail-progress">
+          <div class="progress-fill" id="rail-progress-fill"></div>
+        </div>
+        <div class="run-meta">
+          <span id="rail-progress-text" class="ellipsis">准备就绪</span>
+          <span id="rail-elapsed" class="mono"></span>
+        </div>
+        <div class="run-buttons">
+          <button id="btn-start" class="btn primary run-start" type="button">▶ 开始处理</button>
+          <button id="btn-pause" class="btn warn" type="button" disabled title="暂停">⏸ 暂停</button>
+          <button id="btn-resume" class="btn info" type="button" disabled title="继续">▶ 继续</button>
+          <button id="btn-stop" class="btn danger" type="button" disabled title="停止">⏹ 停止</button>
+        </div>
+        <div class="comfy-line" id="comfy-line">
+          <span class="dot" id="comfy-dot"></span>
+          <span class="ellipsis" id="comfy-text">ComfyUI · 检查中…</span>
+        </div>
+      </section>
+
+      <div class="rail-scroll">
+
+        <section class="group">
+          <div class="group-head"><h3>文件夹</h3></div>
+          <label class="field-label" for="in-folder">输入文件夹</label>
+          <div class="path-row">
+            <input id="in-folder" class="text-input mono" type="text" spellcheck="false" placeholder="选择要处理的图片文件夹">
+            <button class="btn ghost small" type="button" data-browse="input">浏览</button>
+          </div>
+          <div class="hint" id="in-count">—</div>
+
+          <label class="field-label" for="out-folder">输出文件夹</label>
+          <div class="path-row">
+            <input id="out-folder" class="text-input mono" type="text" spellcheck="false" placeholder="结果写入 control/ 与 target/">
+            <button class="btn ghost small" type="button" data-browse="output">浏览</button>
+          </div>
+          <div class="hint" id="out-hint">生成图与原图副本会分开放置</div>
+        </section>
+
+        <section class="group">
+          <div class="group-head">
+            <h3>提示词</h3>
+            <button id="btn-add-preset" class="btn ghost tiny" type="button" title="把当前提示词保存为预设">＋ 存为预设</button>
+          </div>
+          <textarea id="prompt" class="text-area" rows="2" spellcheck="false" placeholder="描述希望的转换效果"></textarea>
+          <div class="presets" id="presets"></div>
+        </section>
+
+        <section class="group">
+          <div class="group-head"><h3>模型与参数</h3></div>
+          <div class="field-grid">
+            <div>
+              <label class="field-label" for="mode">处理模式</label>
+              <select id="mode" class="select"></select>
+            </div>
+            <div>
+              <label class="field-label" for="workflow">工作流</label>
+              <select id="workflow" class="select"></select>
+            </div>
+          </div>
+
+          <div id="row-lora">
+            <label class="field-label" for="lora">LoRA</label>
+            <div class="select-row">
+              <select id="lora" class="select mono"></select>
+              <button id="btn-refresh-lora" class="icon-btn small" type="button" title="重新扫描 LoRA" aria-label="重新扫描 LoRA">↻</button>
+            </div>
+            <div class="hint warn" id="lora-warning"></div>
+          </div>
+
+          <div class="inline-field" id="row-strength">
+            <label class="field-label" for="strength">模型强度</label>
+            <input id="strength" class="text-input num" type="number" min="0.1" max="10" step="0.1">
+            <span class="unit">默认 1.0 · 范围 0.1–10</span>
+          </div>
+
+          <div class="inline-field" id="row-steps">
+            <label class="field-label" for="steps">步数</label>
+            <input id="steps" class="text-input num" type="number" min="1" max="200" step="1">
+            <span class="unit" id="steps-hint">整数 · 节点 489</span>
+          </div>
+
+          <div class="inline-field" id="row-cfg">
+            <label class="field-label" for="cfg">CFG</label>
+            <input id="cfg" class="text-input num" type="number" min="0" max="30" step="0.1">
+            <span class="unit" id="cfg-hint">0–30 · 节点 489</span>
+          </div>
+
+          <div id="row-checkpoint">
+            <label class="field-label" for="checkpoint">Checkpoint</label>
+            <div class="select-row">
+              <select id="checkpoint" class="select mono"></select>
+              <button id="btn-refresh-checkpoint" class="icon-btn small" type="button" title="重新扫描 Checkpoint" aria-label="重新扫描 Checkpoint">↻</button>
+            </div>
+            <div class="hint warn" id="checkpoint-warning"></div>
+          </div>
+
+          <div class="inline-field">
+            <label class="field-label" for="resize">缩放最长边</label>
+            <input id="resize" class="text-input num" type="number" min="256" max="8192" step="32">
+            <span class="unit">像素 · 默认 1440</span>
+          </div>
+
+          <div class="inline-field">
+            <label class="field-label" for="start-index">起始索引</label>
+            <input id="start-index" class="text-input num" type="number" min="0" step="1">
+          </div>
+          <div class="hint" id="start-hint">0 = 从第一张开始</div>
+        </section>
+
+        <section class="group">
+          <div class="group-head">
+            <h3>处理日志</h3>
+            <div class="head-actions">
+              <button id="btn-log-clear" class="btn ghost tiny" type="button">清空显示</button>
+              <button id="btn-log-toggle" class="btn ghost tiny" type="button">收起</button>
+            </div>
+          </div>
+          <div class="log-box" id="log-box">
+            <div class="log-lines" id="log-lines"></div>
+          </div>
+        </section>
+
+        <section class="group">
+          <div class="group-head">
+            <h3>浏览对比图</h3>
+            <button id="btn-browse-output" class="btn ghost tiny" type="button" title="浏览当前输出文件夹">回到输出</button>
+          </div>
+          <div class="browse-root-line">
+            <span class="dot"></span>
+            <span id="browse-root" class="mono ellipsis">—</span>
+            <span class="tag" id="browse-mode">自动跟随</span>
+          </div>
+          <div class="path-row">
+            <select id="sel-job" class="select mono" aria-label="任务文件夹"></select>
+            <button id="btn-jobs-refresh" class="icon-btn small" type="button" title="重新扫描任务文件夹" aria-label="重新扫描任务文件夹">↻</button>
+          </div>
+          <button id="btn-choose-root" class="btn ghost small wide" type="button">选择其他目录…</button>
+        </section>
+
+      </div>
+
+      <div class="rail-foot">
+        <button id="btn-reload" class="btn ghost tiny" type="button" title="重新读取磁盘上的参数状态（外部修改后使用）">↺ 重新读取参数</button>
+        <span id="save-state" class="save-state">参数自动保存</span>
+      </div>
+    </aside>
+
+    <main class="stage" id="stage">
+      <div class="stage-toolbar">
+        <div class="nav-cluster">
+          <button id="btn-prev" class="btn ghost small" type="button" title="上一对（↑）" aria-keyshortcuts="ArrowUp">◀ 上一对</button>
+          <button id="btn-next" class="btn ghost small" type="button" title="下一对（↓）" aria-keyshortcuts="ArrowDown">下一对 ▶</button>
+          <label class="switch">
+            <input type="checkbox" id="chk-follow" checked>
+            <span>跟随最新</span>
+          </label>
+          <button id="btn-pairs-refresh" class="icon-btn small" type="button" title="刷新对比组" aria-label="刷新对比组">↻</button>
+          <div class="fit-switch" role="group" aria-label="图像适配方式">
+            <button type="button" data-fit="contain" class="active" aria-pressed="true" title="适应：完整显示，等比放大居中">适应</button>
+            <button type="button" data-fit="cover" aria-pressed="false" title="铺满：等比放大并裁切边缘">铺满</button>
+          </div>
+        </div>
+        <div class="stage-info ellipsis" id="stage-info">共 0 组对比图</div>
+      </div>
+
+      <div class="compare" id="compare" data-fit="contain">
+        <section class="panel panel-in" aria-label="原图">
+          <header class="panel-head">
+            <span class="panel-tag tag-in">原图</span>
+            <span class="panel-name ellipsis" id="meta-input">—</span>
+          </header>
+          <div class="imgwrap">
+            <img id="img-input" alt="原图" decoding="async">
+            <div class="placeholder" id="ph-input">等待处理…暂无图片</div>
+          </div>
+        </section>
+        <div class="seam" id="seam" aria-hidden="true"><span class="filament"></span></div>
+        <section class="panel panel-out" aria-label="生成图">
+          <header class="panel-head">
+            <span class="panel-tag tag-out">生成图</span>
+            <span class="panel-name ellipsis" id="meta-output">—</span>
+          </header>
+          <div class="imgwrap">
+            <img id="img-output" alt="生成图" decoding="async">
+            <div class="placeholder" id="ph-output">等待处理…暂无图片</div>
+          </div>
+        </section>
+        <button id="edge-prev" class="edge-btn edge-prev" type="button" title="上一对（↑）" aria-label="上一对（↑）" aria-keyshortcuts="ArrowUp">◀</button>
+        <button id="edge-next" class="edge-btn edge-next" type="button" title="下一对（↓）" aria-label="下一对（↓）" aria-keyshortcuts="ArrowDown">▶</button>
+      </div>
+
+      <div class="stage-status" id="status-bar">正在读取状态…</div>
+    </main>
+  </div>
+
+  <div class="mobile-dock" id="mobile-dock">
+    <div class="dock-main">
+      <span class="dock-phase" id="dock-phase-text">空闲</span>
+      <span class="dock-stats ellipsis" id="dock-stats">准备就绪</span>
+      <div class="dock-progress"><div class="dock-fill" id="dock-fill"></div></div>
+    </div>
+    <button id="dock-action" class="btn primary small" type="button">开始</button>
+    <button id="dock-open" class="icon-btn" type="button" title="打开控制面板" aria-label="打开控制面板">☰</button>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-label="对比组列表">
+    <div class="drawer-head">
+      <div class="drawer-title">
+        <h2>对比组</h2>
+        <span class="badge" id="drawer-count">0</span>
+      </div>
+      <input id="pair-search" class="text-input" type="search" placeholder="搜索文件名" spellcheck="false">
+      <div class="drawer-actions">
+        <button id="btn-drawer-refresh" class="icon-btn small" type="button" title="刷新列表" aria-label="刷新列表">↻</button>
+        <button id="btn-drawer-close" class="icon-btn" type="button" title="关闭" aria-label="关闭对比组列表">✕</button>
+      </div>
+    </div>
+    <div class="drawer-list" id="pair-list"></div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="modal hidden" id="dir-modal" role="dialog" aria-modal="true" aria-labelledby="dir-modal-title">
+    <div class="modal-card dir-card">
+      <header class="modal-head">
+        <div>
+          <h2 id="dir-modal-title">选择文件夹</h2>
+          <p class="modal-sub">单击进入文件夹，选好后确认</p>
+        </div>
+        <button id="btn-dir-close" class="icon-btn" type="button" title="关闭" aria-label="关闭">✕</button>
+      </header>
+      <div class="dir-path mono" id="dir-path">请选择磁盘</div>
+      <div class="dir-list" id="dir-list"></div>
+      <footer class="modal-foot">
+        <button id="btn-dir-parent" class="btn ghost small" type="button">⬆ 上级</button>
+        <div class="foot-spacer"></div>
+        <button id="btn-dir-choose" class="btn primary small" type="button">✓ 选择此文件夹</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="semi-modal" role="dialog" aria-modal="true" aria-labelledby="semi-title">
+    <div class="modal-card semi-card" id="semi-card" tabindex="-1">
+      <header class="modal-head semi-head">
+        <div>
+          <span class="tag tag-warn">等待确认</span>
+          <h2 id="semi-title">生成完成</h2>
+          <p class="modal-sub" id="semi-subtitle">检查本次结果，决定下一步</p>
+        </div>
+        <div class="semi-stats" id="semi-stats"></div>
+      </header>
+
+      <div class="semi-result" id="semi-result">
+        <div class="semi-result-empty hidden" id="semi-result-empty">本次没有生成结果</div>
+        <figure class="semi-fig in" id="semi-fig-in">
+          <div class="semi-imgwrap"><img id="semi-img-in" alt="本次原图" decoding="async"></div>
+          <figcaption id="semi-cap-in">原图</figcaption>
+        </figure>
+        <figure class="semi-fig out" id="semi-fig-out">
+          <div class="semi-imgwrap"><img id="semi-img-out" alt="本次生成结果" decoding="async"></div>
+          <figcaption id="semi-cap-out">生成图</figcaption>
+        </figure>
+      </div>
+
+      <div class="semi-body">
+        <div class="semi-left">
+          <label class="field-label" for="semi-prompt">下一张使用的提示词</label>
+          <textarea id="semi-prompt" class="text-area" rows="3" spellcheck="false"></textarea>
+          <div class="presets" id="semi-presets"></div>
+          <div class="semi-actions">
+            <button id="btn-semi-retry" class="btn warn" type="button">↻ 不满意，重新生成</button>
+            <button id="btn-semi-next" class="btn primary" type="button">✓ 满意，下一张</button>
+            <button id="btn-semi-stop" class="btn danger ghost" type="button">⏹ 停止</button>
+          </div>
+        </div>
+        <div class="semi-right">
+          <div class="field-label">下一张输入预览</div>
+          <div class="semi-next">
+            <img id="semi-next-img" alt="下一张输入预览" decoding="async">
+            <div class="placeholder hidden" id="semi-next-empty">没有更多图片</div>
+          </div>
+          <div class="semi-next-name mono ellipsis" id="semi-next-name">—</div>
+          <div class="hint" id="semi-next-after"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="btn-immersive-exit" class="btn ghost small immersive-exit hidden" type="button">退出沉浸模式 · Tab / Esc</button>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

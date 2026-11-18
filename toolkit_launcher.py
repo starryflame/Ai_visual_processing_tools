@@ -27,6 +27,13 @@ VIDEO_VENV = os.path.join(PROJECT_ROOT, "video_mark_tool", ".venv", "Scripts", "
 # 启动次数记录（键为工具的相对路径），用于卡片排序
 USAGE_FILE = os.path.join(PROJECT_ROOT, "launcher_usage.json")
 
+# 子进程与控制台解绑：启动器是通过 .bat 启动的，关闭启动器窗口后
+# 控制台会一起关闭，默认继承控制台的子进程会收到 CTRL_CLOSE_EVENT 被一起结束。
+# GUI 工具用 CREATE_NO_WINDOW（不创建控制台），CLI 工具用 CREATE_NEW_CONSOLE
+# （给它们自己的控制台窗口），这样关掉启动器后已启动的工具继续运行。
+CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+CREATE_NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+
 
 # ============================================================
 # 工具配置数据
@@ -207,17 +214,10 @@ TOOLS_CONFIG = {
     "ComfyUI AI 工具": [
         {
             "name": "批量动漫转写实",
-            "path": "tools/comfyui/batch_anime2real.py",
-            "desc": "连接ComfyUI批量将动漫图转为写实风格、实时预览、支持多工作流切换",
-            "icon": "🎨", "icon_color": "#5C6BC0",
-            "ui": "gui"
-        },
-        {
-            "name": "批量动漫转写实 (网页查看器)",
             "path": "tools/comfyui/batch_anime2real_viewer.py",
-            "desc": "局域网网页实时查看动漫转写实批处理的原图/生成图对比,平板浏览器直接访问",
-            "icon": "🌐", "icon_color": "#7986CB",
-            "ui": "gui"
+            "desc": "浏览器控制完整批处理：参数/预设/半自动确认/进度日志/实时双图/对比浏览，平板可访问；启动后保留控制台窗口可看日志、Ctrl+C 退出",
+            "icon": "🖥️", "icon_color": "#7986CB",
+            "ui": "cli"
         },
         {
             "name": "批量图片放大",
@@ -667,10 +667,28 @@ class ToolkitLauncher:
                     webbrowser.open(f'file:///{abs_path}')
                     return
                 venv_python = tool_data.get("venv")
-                if venv_python and os.path.exists(venv_python):
-                    subprocess.Popen([venv_python, tool_path], cwd=PROJECT_ROOT)
+                python_exe = (
+                    venv_python if venv_python and os.path.exists(venv_python)
+                    else sys.executable
+                )
+                # GUI 工具不需要控制台；CLI 工具给它一个独立的控制台窗口，
+                # 两种方式都和启动器自身控制台解耦，关闭启动器不会连带结束。
+                # GUI 工具的标准流指向 DEVNULL，避免启动器控制台关闭后
+                # 工具里的 print/log 继续写旧控制台句柄而报错。
+                if tool_data.get("ui", "gui") == "cli":
+                    popen_kwargs = {"creationflags": CREATE_NEW_CONSOLE}
                 else:
-                    subprocess.Popen([sys.executable, tool_path], cwd=PROJECT_ROOT)
+                    popen_kwargs = {
+                        "creationflags": CREATE_NO_WINDOW,
+                        "stdin": subprocess.DEVNULL,
+                        "stdout": subprocess.DEVNULL,
+                        "stderr": subprocess.DEVNULL,
+                    }
+                subprocess.Popen(
+                    [python_exe, tool_path],
+                    cwd=PROJECT_ROOT,
+                    **popen_kwargs,
+                )
             except Exception as e:
                 self.root.after(0, lambda: messagebox.showerror("错误", f"启动失败：{str(e)}"))
 

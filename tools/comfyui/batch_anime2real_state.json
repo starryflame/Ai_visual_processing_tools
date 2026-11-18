@@ -1,5 +1,14 @@
 {
   "input_folder": "J:\\save\\现实\\test\\最好人脸\\10-10test好看脸3600\\control",
-  "output_folder": "J:\\save\\现实\\test\\11-16-22-3600",
-  "updated": "2026-11-16 18:03:23"
+  "output_folder": "J:\\save\\现实\\test\\11-18-2113-3600小头",
+  "prompt": "动漫转真人,白嫩肌肤",
+  "workflow": "Qwen2.1_漫转写实真人",
+  "lora": "qwenimage2.1\\动漫转真人，体型优化11-123\\a2r11-3_c1-st4000.safetensors",
+  "checkpoint": "",
+  "strength_model": 1.0,
+  "resize_longest_edge": 2048,
+  "process_mode": "全自动模式",
+  "start_index": 706,
+  "resume_file": "illust_131635273_20250617_231619.png",
+  "updated": "2026-11-18 20:42:24"
 }

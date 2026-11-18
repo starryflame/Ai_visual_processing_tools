@@ -300,17 +300,26 @@ ProcessingWorker(QThread) + 进度信号，保留文件名配对关系（如 ima
 
 ## ComfyUI 工具集 (其他/comfyui)
 
-基于 Tkinter 的 ComfyUI 工作流批量处理工具，通过 HTTP API 与 ComfyUI 服务通信。
+ComfyUI 工作流批量处理工具，通过 HTTP API 与 ComfyUI 服务通信。
 
-### 批量动漫转写实 (`batch_anime2real.py`)
+### 批量动漫转写实 (`batch_anime2real_viewer.py`)
 
-~1000 行 Tkinter GUI，双 Canvas 预览（输入右对齐/输出左对齐），支持完整/半自动模式。
+Flask + 原生前端的局域网网页控制台，集成完整批处理与原查看器的对比组浏览能力；处理核心位于 `anime2real_core.py`，前端资源位于 `tools/comfyui/webui/`。
 
-- **LoRA 管理**: 从 `J:\models\loras` 自动发现 LoRA 模型
-- **提示词预设**: JSON 文件保存/加载提示词预设
-- **半自动模式**: 每张图片处理前弹出确认对话框，支持跳过/接受/参数调整
-- **处理控制**: 暂停/恢复/停止，F11 全屏，Tab 隐藏控制面板
-- **输出组织**: 自动分 control/target 子文件夹
+> 原 Tkinter 桌面版已移除；已有 `batch_anime2real_state.json` 参数/断点可直接沿用。
+
+- **完整控制**: 输入/输出目录、提示词与预设、全自动/半自动、工作流/LoRA/强度/步数/CFG/Checkpoint/缩放/起始索引
+- **采样参数**: 步数与 CFG 写入工作流的 KSampler 节点（当前两个 Qwen 工作流为 489），运行中修改从下一张生效
+- **运行管理**: 开始/暂停/继续/停止、进度条、实时日志、断点自动保存
+- **半自动模式**: 每张完成后在网页弹窗查看结果、修改提示词、重新生成/下一张/停止，并预览下一张输入
+- **对比浏览**: 实时双图、上一对/下一对、跟随最新、对比组抽屉（缩略图+搜索）、目录浏览
+- **图像适配**: 左右分栏时左图靠右、右图靠左，紧贴中缝；工具栏可切换「适应 / 铺满」——适应完整显示并等比放大，铺满裁切边缘填满画面；选择保存在浏览器本地
+- **共享状态**: 参数/断点保存在 `batch_anime2real_state.json`，提示词预设与浏览状态分别保存在 `prompt_presets.json`、`viewer_state.json`；支持断点续跑。服务端只有一个批处理实例，多设备只读浏览互不影响
+- **多端访问**: 平板/手机连同一 Wi-Fi 后访问 `http://<本机IP>:8765`
+- **访问范围**: 默认监听 `0.0.0.0`，同一局域网内可控制；只在电脑上使用时可加 `--host 127.0.0.1`
+- **启动参数**: `--port`、`--host`、`--comfy host:port`、`--no-browser`、`--http-log`
+- **控制台日志**: 启动器会保留命令行窗口，显示启动信息与批处理日志；Ctrl+C 或关闭窗口即可停止服务；HTTP 轮询日志默认关闭，需要时加 `--http-log`
+- **键盘操作**: `↑` / `↓` 切换上一对 / 下一对，`Tab` 切换沉浸模式，`Ctrl+B` 收放控制面板，`Esc` 退出沉浸/关闭浮层
 
 ### 真人转动漫 (`真人转动漫.py`)
 
@@ -324,8 +333,6 @@ ProcessingWorker(QThread) + 进度信号，保留文件名配对关系（如 ima
 | `插帧.py` | 视频插帧批量处理，递归文件发现 |
 | `wan22放大.py` | Wan2.2 视频放大工作流，CLI/Tkinter 双模式 |
 | `提示词提取.py` | 从 PNG metadata（`Image.info["prompt"]`→node 113）和视频 ffprobe metadata（comment→workflow.nodes）提取提示词 |
-
-> **注意**: `其他/comfyui/web_ui/` 目录下的 Streamlit Web UI 文件未在本次文件读取范围内，其功能以实际代码为准。
 
 ---
 
@@ -444,13 +451,14 @@ Ai_visual_processing_tools/
 │
 ├── 其他/
 │   ├── comfyui/                              # ComfyUI 批量处理工具
-│   │   ├── batch_anime2real.py               # 批量动漫转写实（~1000行）
+│   │   ├── anime2real_core.py                # 动漫转写实处理核心（无 GUI）
+│   │   ├── batch_anime2real_viewer.py        # 批量动漫转写实（浏览器控制台）
+│   │   ├── webui/                            # 网页前端资源（HTML/CSS/JS）
 │   │   ├── 真人转动漫.py                      # 真人转动漫（Tkinter）
 │   │   ├── batch_image_upscale.py            # SeedVR2 超分辨率
 │   │   ├── 插帧.py                           # 视频插帧
 │   │   ├── wan22放大.py                      # Wan2.2 放大
-│   │   ├── 提示词提取.py                      # 元数据提示词提取
-│   │   └── web_ui/                           # Streamlit Web 应用
+│   │   └── 提示词提取.py                      # 元数据提示词提取
 │   │
 │   ├── 格式转换/                              # 媒体格式转换
 │   │   ├── 图片转视频.py                      # 图片→视频（Tkinter）
